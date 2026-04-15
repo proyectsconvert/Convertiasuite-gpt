@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  MessageSquare, Plus, Search, Star, FolderOpen, FileText, Presentation,
-  Settings, User, ChevronDown, ChevronRight, Sparkles, MoreHorizontal,
-  Globe, BarChart3, LogOut, PanelLeftClose, PanelLeft, Sun, Moon
+  MessageSquare, Plus, Search, Star, ChevronDown, ChevronRight, Sparkles, MoreHorizontal,
+  Globe, LogOut, PanelLeftClose, PanelLeft, Sun, Moon, Settings, User, FileText, Presentation
 } from "lucide-react";
 import { useAppStore, type AppView } from "@/store/appStore";
 import { Button } from "@/components/ui/button";
@@ -111,7 +110,7 @@ export default function AppSidebar({ onNavigate }: AppSidebarProps) {
       {/* Header */}
       <div className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
             <Sparkles className="w-3.5 h-3.5 text-primary-foreground" />
           </div>
           <span className="font-bold text-foreground text-sm">convert-IA</span>
@@ -141,7 +140,7 @@ export default function AppSidebar({ onNavigate }: AppSidebarProps) {
       <div className="px-3 mb-3">
         <button
           onClick={() => useAppStore.getState().setCommandOpen(true)}
-          className="w-full flex items-center gap-2 px-3 h-9 rounded-lg border border-border text-sm text-muted-foreground hover:bg-sidebar-accent transition-colors"
+          className="w-full flex items-center gap-2 px-3 h-9 rounded-lg border border-border bg-background text-sm text-muted-foreground hover:bg-sidebar-accent transition-colors"
         >
           <Search className="w-3.5 h-3.5" />
           <span>Buscar...</span>
@@ -157,7 +156,7 @@ export default function AppSidebar({ onNavigate }: AppSidebarProps) {
             onClick={() => handleNavigate(n.path)}
             className={`w-full flex items-center gap-2.5 px-3 h-9 rounded-lg text-sm transition-colors ${
               location.pathname === n.path
-                ? "bg-sidebar-accent text-sidebar-primary font-medium"
+                ? "bg-primary/10 text-primary font-medium"
                 : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
             }`}
           >
