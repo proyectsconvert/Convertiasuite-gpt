@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Suite Convert-ia
 
 TODO: Document your project here
