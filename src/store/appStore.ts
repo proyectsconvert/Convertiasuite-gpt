@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export type AppView = 
   | 'landing' 
@@ -12,6 +13,16 @@ export type AppView =
   | 'settings';
 
 export type AuthTab = 'login' | 'register';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  company: string;
+  role: string;
+  plan: 'free' | 'pro' | 'enterprise';
+  avatar?: string;
+}
 
 export interface ChatMessage {
   id: string;
@@ -56,6 +67,15 @@ export interface PresentationSlide {
   layout: 'title' | 'content' | 'two-column' | 'image' | 'blank';
 }
 
+export const DEMO_USER: User = {
+  id: 'demo-1',
+  name: 'Carlos Mendoza',
+  email: 'demo@convert-ia.com',
+  company: 'Convert-IA Inc.',
+  role: 'Product Manager',
+  plan: 'pro',
+};
+
 interface AppState {
   view: AppView;
   authTab: AuthTab;
@@ -66,6 +86,8 @@ interface AppState {
   documents: Document[];
   presentations: Presentation[];
   commandOpen: boolean;
+  user: User | null;
+  isAuthenticated: boolean;
   
   setView: (view: AppView) => void;
   setAuthTab: (tab: AuthTab) => void;
@@ -76,6 +98,9 @@ interface AppState {
   addChat: (chat: ChatSession) => void;
   updateChat: (id: string, updates: Partial<ChatSession>) => void;
   setCommandOpen: (open: boolean) => void;
+  login: (email: string, password: string) => boolean;
+  loginWithDemo: () => void;
+  logout: () => void;
 }
 
 const mockChats: ChatSession[] = [
@@ -156,30 +181,72 @@ const mockPresentations: Presentation[] = [
   ], createdAt: new Date(Date.now() - 86400000 * 3) },
 ];
 
-export const useAppStore = create<AppState>((set) => ({
-  view: 'landing',
-  authTab: 'login',
-  sidebarOpen: true,
-  darkMode: false,
-  currentChatId: '1',
-  chats: mockChats,
-  documents: mockDocuments,
-  presentations: mockPresentations,
-  commandOpen: false,
+export const useAppStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      view: 'landing',
+      authTab: 'login',
+      sidebarOpen: true,
+      darkMode: false,
+      currentChatId: '1',
+      chats: mockChats,
+      documents: mockDocuments,
+      presentations: mockPresentations,
+      commandOpen: false,
+      user: null,
+      isAuthenticated: false,
 
-  setView: (view) => set({ view }),
-  setAuthTab: (tab) => set({ authTab: tab }),
-  toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  toggleDarkMode: () => set((s) => {
-    const next = !s.darkMode;
-    document.documentElement.classList.toggle('dark', next);
-    return { darkMode: next };
-  }),
-  setCurrentChatId: (id) => set({ currentChatId: id }),
-  addChat: (chat) => set((s) => ({ chats: [chat, ...s.chats] })),
-  updateChat: (id, updates) => set((s) => ({
-    chats: s.chats.map((c) => c.id === id ? { ...c, ...updates } : c),
-  })),
-  setCommandOpen: (open) => set({ commandOpen: open }),
-}));
+      setView: (view) => set({ view }),
+      setAuthTab: (tab) => set({ authTab: tab }),
+      toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      toggleDarkMode: () => set((s) => {
+        const next = !s.darkMode;
+        document.documentElement.classList.toggle('dark', next);
+        return { darkMode: next };
+      }),
+      setCurrentChatId: (id) => set({ currentChatId: id }),
+      addChat: (chat) => set((s) => ({ chats: [chat, ...s.chats] })),
+      updateChat: (id, updates) => set((s) => ({
+        chats: s.chats.map((c) => c.id === id ? { ...c, ...updates } : c),
+      })),
+      setCommandOpen: (open) => set({ commandOpen: open }),
+      login: (email: string, password: string) => {
+        if (email && password.length >= 4) {
+          set({ 
+            user: { ...DEMO_USER, email }, 
+            isAuthenticated: true, 
+            view: 'dashboard' 
+          });
+          return true;
+        }
+        return false;
+      },
+      loginWithDemo: () => {
+        set({ 
+          user: DEMO_USER, 
+          isAuthenticated: true, 
+          view: 'dashboard' 
+        });
+      },
+      logout: () => set({ 
+        user: null, 
+        isAuthenticated: false, 
+        view: 'landing' 
+      }),
+    }),
+    {
+      name: 'convert-ia-storage',
+      partialize: (state) => ({ 
+        darkMode: state.darkMode,
+        isAuthenticated: state.isAuthenticated,
+        user: state.user,
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          document.documentElement.classList.toggle('dark', state.darkMode);
+        }
+      },
+    }
+  )
+);

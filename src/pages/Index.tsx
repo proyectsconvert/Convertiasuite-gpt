@@ -1,15 +1,16 @@
-import { useAppStore } from '@/store/appStore';
-import LandingPage from '@/components/landing/LandingPage';
-import AuthPage from '@/components/auth/AuthPage';
-import AppSidebar from '@/components/layout/AppSidebar';
-import DashboardView from '@/components/dashboard/DashboardView';
-import ChatView from '@/components/chat/ChatView';
-import DocumentsView from '@/components/documents/DocumentsView';
-import WebBuilderView from '@/components/webbuilder/WebBuilderView';
-import PresentationsView from '@/components/presentations/PresentationsView';
-import SearchView from '@/components/search/SearchView';
-import SettingsView from '@/components/settings/SettingsView';
-import CommandPalette from '@/components/command/CommandPalette';
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { useAppStore } from "@/store/appStore";
+import LandingPage from "@/components/landing/LandingPage";
+import AuthPage from "@/components/auth/AuthPage";
+import DashboardView from "@/components/dashboard/DashboardView";
+import ChatView from "@/components/chat/ChatView";
+import DocumentsView from "@/components/documents/DocumentsView";
+import WebBuilderView from "@/components/webbuilder/WebBuilderView";
+import PresentationsView from "@/components/presentations/PresentationsView";
+import SearchView from "@/components/search/SearchView";
+import SettingsView from "@/components/settings/SettingsView";
+import CommandPalette from "@/components/command/CommandPalette";
 
 const viewMap: Record<string, React.ComponentType> = {
   dashboard: DashboardView,
@@ -22,20 +23,28 @@ const viewMap: Record<string, React.ComponentType> = {
 };
 
 export default function Index() {
-  const { view } = useAppStore();
+  const { view, setView, isAuthenticated } = useAppStore();
+  const location = useLocation();
 
-  if (view === 'landing') return <LandingPage />;
-  if (view === 'auth') return <AuthPage />;
+  useEffect(() => {
+    const path = location.pathname;
+    
+    if (path === "/" || path === "") {
+      setView("landing");
+    } else if (path === "/login" || path === "/register") {
+      setView("auth");
+    } else if (path.startsWith("/app/")) {
+      const viewName = path.replace("/app/", "") || "dashboard";
+      if (viewMap[viewName]) {
+        setView(viewName as any);
+      }
+    }
+  }, [location.pathname, setView]);
+
+  if (view === "landing") return <LandingPage />;
+  if (view === "auth") return <AuthPage />;
 
   const ViewComponent = viewMap[view] || DashboardView;
 
-  return (
-    <div className="h-screen flex bg-background overflow-hidden">
-      <AppSidebar />
-      <main className="flex-1 flex flex-col min-w-0">
-        <ViewComponent />
-      </main>
-      <CommandPalette />
-    </div>
-  );
+  return <ViewComponent />;
 }
