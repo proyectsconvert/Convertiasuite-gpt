@@ -1,138 +1,155 @@
-import { useState } from 'react';
+import { useMemo, useState } from "react";
 import {
-  FileText, Plus, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight,
-  List, ListOrdered, Image, Link2, Table, Download, Sparkles, ChevronDown,
-  Wand2, FileDown, MoreHorizontal
-} from 'lucide-react';
-import { useAppStore } from '@/store/appStore';
-import { Button } from '@/components/ui/button';
+  Download,
+  FileDown,
+  FileText,
+  ListChecks,
+  Plus,
+  Sparkles,
+  Wand2,
+} from "lucide-react";
+import { useAppStore } from "@/store/appStore";
+import { Button } from "@/components/ui/button";
 
 const templates = [
-  { id: 'report', name: 'Informe', icon: '📊' },
-  { id: 'letter', name: 'Carta', icon: '✉️' },
-  { id: 'contract', name: 'Contrato', icon: '📋' },
-  { id: 'proposal', name: 'Propuesta', icon: '💼' },
-  { id: 'minutes', name: 'Acta', icon: '📝' },
-  { id: 'summary', name: 'Resumen ejecutivo', icon: '📈' },
+  { id: "proposal", title: "Propuesta comercial", detail: "Incluye alcance, ROI y cronograma" },
+  { id: "report", title: "Informe ejecutivo", detail: "Resultados trimestrales y decisiones" },
+  { id: "minutes", title: "Acta de comite", detail: "Acuerdos, riesgos y responsables" },
+  { id: "contract", title: "Contrato marco", detail: "Terminos de servicios enterprise" },
 ];
 
 const aiActions = [
-  { label: 'Reescribir', icon: Wand2 },
-  { label: 'Resumir', icon: FileText },
-  { label: 'Mejorar tono', icon: Sparkles },
-  { label: 'Estructurar', icon: List },
+  { label: "Reescribir con tono ejecutivo", icon: Wand2 },
+  { label: "Resumir para directivos", icon: Sparkles },
+  { label: "Extraer plan de accion", icon: ListChecks },
+  { label: "Convertir en one-pager", icon: FileText },
 ];
+
+const defaultContent = `# Propuesta Comercial - TechCorp
+
+## Objetivo
+Reducir costos operativos un 25% en 90 dias mediante automatizacion inteligente con Convert-IA.
+
+## Entregables
+- Diagnostico de procesos clave
+- Diseno de flujos asistidos por IA
+- Capacitacion para equipos comerciales y operaciones
+- Seguimiento con tablero de impacto semanal
+
+## KPI comprometidos
+1. Menor tiempo de respuesta comercial: -35%
+2. Mayor velocidad de produccion documental: +40%
+3. Aumento de conversion en propuestas: +18%
+
+## Inversion estimada
+- Implementacion: 15,000 USD
+- Licencias y soporte anual: 37,000 USD
+- Total primer ano: 52,000 USD`;
 
 export default function DocumentsView() {
   const { documents } = useAppStore();
-  const [activeDoc, setActiveDoc] = useState(documents[0]?.id || null);
-  const [content, setContent] = useState(
-    `# Propuesta Comercial - TechCorp\n\n## Resumen Ejecutivo\n\nPresentamos una solución integral diseñada para optimizar los procesos operativos de TechCorp, con un enfoque en automatización inteligente y análisis predictivo.\n\n## Objetivos\n\n1. Reducir costos operativos en un 25%\n2. Mejorar la satisfacción del cliente en un 40%\n3. Acelerar el time-to-market en un 35%\n\n## Alcance del Proyecto\n\n### Fase 1: Diagnóstico (Semanas 1-2)\n- Auditoría de procesos actuales\n- Identificación de oportunidades de mejora\n- Definición de KPIs\n\n### Fase 2: Implementación (Semanas 3-8)\n- Configuración de la plataforma\n- Integración con sistemas existentes\n- Desarrollo de flujos automatizados\n\n### Fase 3: Optimización (Semanas 9-12)\n- Capacitación del equipo\n- Ajustes basados en feedback\n- Documentación final\n\n## Inversión\n\n| Concepto | Valor |\n|----------|-------|\n| Licencias anuales | $24,000 |\n| Implementación | $15,000 |\n| Capacitación | $5,000 |\n| Soporte premium | $8,000/año |\n\n**Total primer año: $52,000 USD**`
-  );
+  const [activeId, setActiveId] = useState(documents[0]?.id ?? "");
+  const [content, setContent] = useState(defaultContent);
   const [showTemplates, setShowTemplates] = useState(false);
 
-  const doc = documents.find((d) => d.id === activeDoc);
+  const activeDocument = useMemo(() => documents.find((doc) => doc.id === activeId) ?? documents[0], [activeId, documents]);
 
   return (
-    <div className="flex-1 flex h-full">
-      {/* Document list sidebar */}
-      <div className="w-64 border-r border-border bg-card flex flex-col">
-        <div className="p-4 border-b border-border">
-          <Button size="sm" className="w-full btn-primary-gradient gap-2" onClick={() => setShowTemplates(!showTemplates)}>
-            <Plus className="w-4 h-4" /> Nuevo documento
-          </Button>
-        </div>
+    <div className="flex h-full flex-1 overflow-hidden">
+      <aside className="w-72 border-r border-border bg-card/80 p-4">
+        <Button className="btn-primary-gradient mb-4 w-full gap-2" onClick={() => setShowTemplates((prev) => !prev)}>
+          <Plus className="h-4 w-4" /> Nuevo documento
+        </Button>
+
         {showTemplates && (
-          <div className="p-3 border-b border-border bg-secondary/50">
-            <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Templates</p>
-            <div className="grid grid-cols-2 gap-2">
-              {templates.map((t) => (
-                <button key={t.id} className="flex items-center gap-2 p-2 rounded-lg border border-border text-xs hover:bg-background transition-colors">
-                  <span>{t.icon}</span> {t.name}
-                </button>
-              ))}
-            </div>
+          <div className="mb-4 space-y-2 rounded-xl border border-border bg-secondary/40 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Plantillas sugeridas</p>
+            {templates.map((template) => (
+              <button key={template.id} className="w-full rounded-lg border border-border/70 bg-card px-3 py-2 text-left transition hover:border-primary/30">
+                <p className="text-sm font-semibold text-foreground">{template.title}</p>
+                <p className="text-xs text-muted-foreground">{template.detail}</p>
+              </button>
+            ))}
           </div>
         )}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {documents.map((d) => (
-            <button key={d.id} onClick={() => setActiveDoc(d.id)}
-              className={`w-full text-left p-3 rounded-lg transition-colors ${activeDoc === d.id ? 'bg-secondary' : 'hover:bg-secondary/50'}`}>
-              <div className="flex items-center gap-2 mb-1">
-                <FileText className="w-3.5 h-3.5 text-primary" />
-                <span className="text-sm font-medium text-foreground truncate">{d.title}</span>
-              </div>
-              <span className="text-xs text-muted-foreground">{d.updatedAt.toLocaleDateString('es')}</span>
+
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recientes</p>
+          {documents.map((doc) => (
+            <button
+              key={doc.id}
+              onClick={() => setActiveId(doc.id)}
+              className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+                doc.id === activeId
+                  ? "border-primary/40 bg-primary/10"
+                  : "border-border/70 bg-secondary/20 hover:bg-secondary/40"
+              }`}
+            >
+              <p className="text-sm font-medium text-foreground">{doc.title}</p>
+              <p className="text-xs text-muted-foreground">Actualizado: {doc.updatedAt.toLocaleDateString("es")}</p>
             </button>
           ))}
         </div>
-      </div>
+      </aside>
 
-      {/* Editor area */}
-      <div className="flex-1 flex flex-col">
-        {/* Toolbar */}
-        <div className="h-12 border-b border-border flex items-center px-4 gap-1 bg-card overflow-x-auto">
-          {[Bold, Italic, Underline].map((Icon, i) => (
-            <button key={i} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground">
-              <Icon className="w-4 h-4" />
-            </button>
-          ))}
-          <div className="w-px h-5 bg-border mx-1" />
-          {[AlignLeft, AlignCenter, AlignRight].map((Icon, i) => (
-            <button key={i} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground">
-              <Icon className="w-4 h-4" />
-            </button>
-          ))}
-          <div className="w-px h-5 bg-border mx-1" />
-          {[List, ListOrdered, Table, Image, Link2].map((Icon, i) => (
-            <button key={i} className="p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground">
-              <Icon className="w-4 h-4" />
-            </button>
-          ))}
-          <div className="flex-1" />
-          <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-            <Download className="w-3.5 h-3.5" /> Exportar <ChevronDown className="w-3 h-3" />
-          </Button>
-        </div>
+      <main className="flex min-w-0 flex-1 flex-col">
+        <header className="flex items-center justify-between border-b border-border bg-card/70 px-5 py-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Flujo documental</p>
+            <h1 className="text-lg font-semibold text-foreground">{activeDocument?.title ?? "Documento demo"}</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-2">
+              <Download className="h-4 w-4" /> Exportar
+            </Button>
+          </div>
+        </header>
 
-        <div className="flex-1 flex">
-          {/* Content area */}
-          <div className="flex-1 overflow-y-auto p-8">
-            <div className="max-w-3xl mx-auto">
+        <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[1.7fr_1fr]">
+          <section className="min-h-0 overflow-y-auto bg-background px-6 py-5">
+            <article className="surface-elevated mx-auto max-w-3xl border border-border/60 p-6">
               <textarea
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className="w-full min-h-[600px] bg-transparent border-none outline-none resize-none text-foreground text-sm leading-relaxed font-mono"
+                onChange={(event) => setContent(event.target.value)}
+                className="min-h-[620px] w-full resize-none border-none bg-transparent font-mono text-sm leading-relaxed text-foreground outline-none"
               />
-            </div>
-          </div>
+            </article>
+          </section>
 
-          {/* AI Assistant panel */}
-          <div className="w-72 border-l border-border bg-card p-4 flex flex-col">
-            <div className="flex items-center gap-2 mb-4">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold text-foreground">Asistente IA</span>
+          <aside className="border-l border-border bg-card/70 p-4">
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Asistente IA</p>
+              <h2 className="mt-1 text-sm font-semibold text-foreground">Mejoras sugeridas para este documento</h2>
+              <p className="mt-2 text-xs text-muted-foreground">El texto ya coincide con datos del dashboard y del pitch deck.</p>
             </div>
-            <div className="space-y-2 mb-6">
-              {aiActions.map((a) => (
-                <button key={a.label}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-                  <a.icon className="w-4 h-4" /> {a.label}
+
+            <div className="mt-4 space-y-2">
+              {aiActions.map((action) => (
+                <button
+                  key={action.label}
+                  className="flex w-full items-center gap-2 rounded-lg border border-border/70 bg-secondary/30 px-3 py-2 text-sm text-muted-foreground transition hover:border-primary/30 hover:text-foreground"
+                >
+                  <action.icon className="h-4 w-4 text-primary" /> {action.label}
                 </button>
               ))}
             </div>
-            <div className="flex-1" />
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase">Exportar como</p>
-              {['PDF', 'DOCX', 'Markdown'].map((f) => (
-                <button key={f} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-secondary transition-colors">
-                  <FileDown className="w-4 h-4" /> {f}
-                </button>
-              ))}
+
+            <div className="mt-6 rounded-xl border border-border/70 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Exportacion rapida</p>
+              <div className="mt-2 space-y-2">
+                {["PDF", "DOCX", "Markdown"].map((format) => (
+                  <button
+                    key={format}
+                    className="flex w-full items-center gap-2 rounded-lg border border-border/70 px-3 py-2 text-sm text-muted-foreground transition hover:bg-secondary"
+                  >
+                    <FileDown className="h-4 w-4" /> {format}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          </aside>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

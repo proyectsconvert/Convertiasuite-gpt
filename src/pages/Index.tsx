@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { useAppStore } from "@/store/appStore";
+import { useAppStore, type AppView } from "@/store/appStore";
 import LandingPage from "@/components/landing/LandingPage";
 import AuthPage from "@/components/auth/AuthPage";
 import DashboardView from "@/components/dashboard/DashboardView";
@@ -21,34 +21,45 @@ const viewMap: Record<string, React.ComponentType> = {
   settings: SettingsView,
 };
 
+const validViews = new Set(Object.keys(viewMap));
+
+function getAppViewFromPath(pathname: string): AppView {
+  if (pathname === "/" || pathname === "") {
+    return "landing";
+  }
+
+  if (pathname === "/login" || pathname === "/register") {
+    return "auth";
+  }
+
+  if (pathname.startsWith("/app")) {
+    const segment = pathname.replace(/^\/app\/?/, "").split("/")[0] || "dashboard";
+    if (validViews.has(segment)) {
+      return segment as AppView;
+    }
+    return "dashboard";
+  }
+
+  return "landing";
+}
+
 export default function Index() {
   const { setView } = useAppStore();
   const location = useLocation();
+  const appView = getAppViewFromPath(location.pathname);
 
   useEffect(() => {
-    const path = location.pathname;
-    
-    if (path === "/" || path === "") {
-      setView("landing");
-    } else if (path === "/login" || path === "/register") {
-      setView("auth");
-    } else if (path.startsWith("/app/")) {
-      const viewName = path.replace("/app/", "") || "dashboard";
-      if (viewMap[viewName]) {
-        setView(viewName as any);
-      }
-    }
-  }, [location.pathname, setView]);
+    setView(appView);
+  }, [appView, setView]);
 
-  const path = location.pathname;
-  
-  if (path === "/" || path === "") {
+  if (appView === "landing") {
     return <LandingPage />;
   }
-  
-  if (path === "/login" || path === "/register") {
+
+  if (appView === "auth") {
     return <AuthPage />;
   }
 
-  return <DashboardView />;
+  const ViewComponent = viewMap[appView] || DashboardView;
+  return <ViewComponent />;
 }

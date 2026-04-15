@@ -1,141 +1,152 @@
-import { useState } from 'react';
-import { Code, Eye, Smartphone, Monitor, Tablet, Send, Download, Sparkles, Copy, Wand2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useMemo, useState } from "react";
+import {
+  Code,
+  Eye,
+  Monitor,
+  Send,
+  Smartphone,
+  Sparkles,
+  Tablet,
+  Wand2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { webPromptPresets } from "@/lib/demo-data";
 
-const sampleHTML = `<!DOCTYPE html>
+const initialCode = `<!DOCTYPE html>
 <html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Landing Page - TechCorp</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; color: #0f172a; }
-    .hero {
-      min-height: 80vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-      padding: 2rem;
-      text-align: center;
-    }
-    .hero h1 {
-      font-size: 3.5rem;
-      font-weight: 800;
-      margin-bottom: 1rem;
-      line-height: 1.1;
-    }
-    .hero p {
-      font-size: 1.25rem;
-      color: #475569;
-      max-width: 600px;
-      margin: 0 auto 2rem;
-    }
-    .btn {
-      padding: 0.75rem 2rem;
-      border-radius: 0.5rem;
-      font-weight: 600;
-      cursor: pointer;
-      border: none;
-      font-size: 1rem;
-    }
-    .btn-primary {
-      background: #2563eb;
-      color: white;
-    }
-  </style>
-</head>
-<body>
-  <section class="hero">
-    <div>
-      <h1>Innovación que transforma</h1>
-      <p>Soluciones tecnológicas para empresas que buscan resultados reales y medibles.</p>
-      <button class="btn btn-primary">Comenzar ahora</button>
-    </div>
-  </section>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Convert-IA Enterprise</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; }
+      body { font-family: "Inter", sans-serif; color: #0f172a; background: #f8fafc; }
+      .hero { padding: 72px 28px; background: linear-gradient(130deg, #d9f4ff, #eaf9f1); }
+      .hero h1 { font-size: 52px; max-width: 760px; line-height: 1.05; margin-bottom: 16px; }
+      .hero p { color: #334155; font-size: 20px; max-width: 640px; margin-bottom: 28px; }
+      .cta { border: none; border-radius: 12px; padding: 14px 20px; background: #16b3c8; color: white; font-weight: 700; }
+      .stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; margin-top: 32px; }
+      .card { background: white; border-radius: 16px; padding: 18px; box-shadow: 0 10px 25px rgba(15,23,42,.08); }
+    </style>
+  </head>
+  <body>
+    <section class="hero">
+      <h1>La suite IA para equipos que necesitan entregar mas rapido</h1>
+      <p>Convierte prompts en propuestas, presentaciones y paginas listas para vender en minutos.</p>
+      <button class="cta">Solicitar demo enterprise</button>
+      <div class="stats">
+        <article class="card"><strong>62h</strong><p>ahorradas por semana</p></article>
+        <article class="card"><strong>500+</strong><p>cuentas activas</p></article>
+        <article class="card"><strong>180%</strong><p>crecimiento YoY</p></article>
+      </div>
+    </section>
+  </body>
 </html>`;
 
 export default function WebBuilderView() {
-  const [prompt, setPrompt] = useState('');
-  const [code, setCode] = useState(sampleHTML);
-  const [viewMode, setViewMode] = useState<'code' | 'preview' | 'split'>('split');
-  const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [prompt, setPrompt] = useState("");
+  const [code, setCode] = useState(initialCode);
+  const [mode, setMode] = useState<"code" | "preview" | "split">("split");
+  const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
 
-  const previewWidth = device === 'mobile' ? '375px' : device === 'tablet' ? '768px' : '100%';
+  const previewWidth = useMemo(() => {
+    if (device === "mobile") return "375px";
+    if (device === "tablet") return "840px";
+    return "100%";
+  }, [device]);
 
   return (
-    <div className="flex-1 flex flex-col h-full">
-      {/* Header */}
-      <div className="h-12 border-b border-border flex items-center justify-between px-4 bg-card flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="flex bg-secondary rounded-lg p-0.5">
-            {([['code', Code], ['split', Sparkles], ['preview', Eye]] as const).map(([mode, Icon]) => (
-              <button key={mode} onClick={() => setViewMode(mode)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors ${viewMode === mode ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>
-                <Icon className="w-3.5 h-3.5" /> {mode === 'code' ? 'Código' : mode === 'preview' ? 'Preview' : 'Split'}
+    <div className="flex h-full flex-1 flex-col">
+      <header className="border-b border-border bg-card/80 px-5 py-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Prompt to website</p>
+            <h1 className="text-lg font-semibold text-foreground">Web Builder Demo</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg bg-secondary p-1">
+              {[{ key: "code", icon: Code }, { key: "split", icon: Sparkles }, { key: "preview", icon: Eye }].map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setMode(item.key as "code" | "preview" | "split")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                    mode === item.key ? "bg-background text-foreground" : "text-muted-foreground"
+                  }`}
+                >
+                  <item.icon className="mr-1 inline h-3.5 w-3.5" />
+                  {item.key === "split" ? "Split" : item.key === "code" ? "Codigo" : "Preview"}
+                </button>
+              ))}
+            </div>
+            <div className="flex rounded-lg bg-secondary p-1">
+              {[{ key: "desktop", icon: Monitor }, { key: "tablet", icon: Tablet }, { key: "mobile", icon: Smartphone }].map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setDevice(item.key as "desktop" | "tablet" | "mobile")}
+                  className={`rounded-md p-1.5 ${device === item.key ? "bg-background text-foreground" : "text-muted-foreground"}`}
+                >
+                  <item.icon className="h-4 w-4" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section className="border-b border-border bg-card px-5 py-3">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-2">
+          <div className="flex gap-2">
+            <div className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-secondary/50 px-3">
+              <Wand2 className="h-4 w-4 text-primary" />
+              <input
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder="Describe el sitio que quieres generar para convertir leads enterprise"
+                className="h-11 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+            <Button className="btn-primary-gradient gap-2">
+              <Send className="h-3.5 w-3.5" /> Generar
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {webPromptPresets.map((preset) => (
+              <button
+                key={preset}
+                onClick={() => setPrompt(preset)}
+                className="rounded-full border border-border/70 px-3 py-1 text-xs text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+              >
+                {preset}
               </button>
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex bg-secondary rounded-lg p-0.5">
-            {([['desktop', Monitor], ['tablet', Tablet], ['mobile', Smartphone]] as const).map(([d, Icon]) => (
-              <button key={d} onClick={() => setDevice(d)}
-                className={`p-1.5 rounded-md transition-colors ${device === d ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>
-                <Icon className="w-4 h-4" />
-              </button>
-            ))}
-          </div>
-          <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-            <Download className="w-3.5 h-3.5" /> Exportar HTML
-          </Button>
-        </div>
-      </div>
+      </section>
 
-      {/* Prompt bar */}
-      <div className="border-b border-border bg-card px-4 py-3">
-        <div className="flex gap-2 max-w-4xl mx-auto">
-          <div className="flex-1 flex items-center gap-2 bg-secondary rounded-lg border border-border px-3">
-            <Wand2 className="w-4 h-4 text-primary flex-shrink-0" />
-            <input
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe lo que quieres generar... ej: 'landing page minimalista con hero y pricing'"
-              className="flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground py-2.5"
-            />
-          </div>
-          <Button size="sm" className="btn-primary-gradient px-4 gap-1.5">
-            <Send className="w-3.5 h-3.5" /> Generar
-          </Button>
-        </div>
-      </div>
-
-      {/* Editor + Preview */}
-      <div className="flex-1 flex overflow-hidden">
-        {(viewMode === 'code' || viewMode === 'split') && (
-          <div className={`${viewMode === 'split' ? 'w-1/2' : 'flex-1'} flex flex-col border-r border-border`}>
-            <div className="h-8 bg-secondary/50 border-b border-border flex items-center px-3 justify-between">
+      <main className="flex min-h-0 flex-1">
+        {(mode === "code" || mode === "split") && (
+          <section className={`${mode === "split" ? "w-1/2" : "w-full"} flex min-h-0 flex-col border-r border-border`}>
+            <div className="flex items-center justify-between border-b border-border bg-secondary/40 px-3 py-2">
               <span className="text-xs font-mono text-muted-foreground">index.html</span>
-              <button className="p-1 rounded hover:bg-secondary transition-colors text-muted-foreground"><Copy className="w-3.5 h-3.5" /></button>
+              <span className="text-xs text-muted-foreground">Editable</span>
             </div>
             <textarea
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className="flex-1 bg-card p-4 font-mono text-xs text-foreground resize-none outline-none leading-relaxed"
+              onChange={(event) => setCode(event.target.value)}
               spellCheck={false}
+              className="min-h-0 flex-1 resize-none bg-card p-4 font-mono text-xs leading-relaxed text-foreground outline-none"
             />
-          </div>
+          </section>
         )}
-        {(viewMode === 'preview' || viewMode === 'split') && (
-          <div className={`${viewMode === 'split' ? 'w-1/2' : 'flex-1'} bg-secondary/30 flex items-start justify-center p-4 overflow-auto`}>
-            <div className="bg-background rounded-lg shadow-card overflow-hidden border border-border" style={{ width: previewWidth, maxWidth: '100%' }}>
-              <iframe srcDoc={code} className="w-full h-[600px] border-none" title="Preview" sandbox="allow-scripts" />
+
+        {(mode === "preview" || mode === "split") && (
+          <section className={`${mode === "split" ? "w-1/2" : "w-full"} min-h-0 overflow-auto bg-secondary/30 p-4`}>
+            <div className="mx-auto rounded-xl border border-border bg-background shadow-card" style={{ width: previewWidth, maxWidth: "100%" }}>
+              <iframe title="web-preview" srcDoc={code} sandbox="allow-scripts" className="h-[680px] w-full border-none" />
             </div>
-          </div>
+          </section>
         )}
-      </div>
+      </main>
     </div>
   );
 }
