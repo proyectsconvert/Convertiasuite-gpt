@@ -10,7 +10,6 @@ import WebBuilderView from "@/components/webbuilder/WebBuilderView";
 import PresentationsView from "@/components/presentations/PresentationsView";
 import SearchView from "@/components/search/SearchView";
 import SettingsView from "@/components/settings/SettingsView";
-import CommandPalette from "@/components/command/CommandPalette";
 
 const viewMap: Record<string, React.ComponentType> = {
   dashboard: DashboardView,
@@ -23,7 +22,7 @@ const viewMap: Record<string, React.ComponentType> = {
 };
 
 export default function Index() {
-  const { view, setView, isAuthenticated } = useAppStore();
+  const { setView } = useAppStore();
   const location = useLocation();
 
   useEffect(() => {
@@ -41,10 +40,15 @@ export default function Index() {
     }
   }, [location.pathname, setView]);
 
-  if (view === "landing") return <LandingPage />;
-  if (view === "auth") return <AuthPage />;
+  const path = location.pathname;
+  
+  if (path === "/" || path === "") {
+    return <LandingPage />;
+  }
+  
+  if (path === "/login" || path === "/register") {
+    return <AuthPage />;
+  }
 
-  const ViewComponent = viewMap[view] || DashboardView;
-
-  return <ViewComponent />;
+  return <DashboardView />;
 }

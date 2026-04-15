@@ -116,25 +116,6 @@ export default function AuthPage() {
               </Button>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-muted-foreground uppercase">o con email</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
-
-            {/* OAuth */}
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { name: "Google", icon: "G" },
-                { name: "GitHub", icon: "⌘" },
-                { name: "Microsoft", icon: "M" },
-              ].map((p) => (
-                <Button key={p.name} variant="outline" className="h-11 text-sm font-medium" onClick={() => handleOAuth(p.name)} disabled={isLoading}>
-                  <span className="font-bold mr-1.5">{p.icon}</span> {p.name}
-                </Button>
-              ))}
-            </div>
-
             <form onSubmit={handleSubmit} className="space-y-4">
               <AnimatePresence mode="wait">
                 {isRegister && (
@@ -164,27 +145,14 @@ export default function AuthPage() {
                 </motion.div>
               )}
 
-              {!isRegister && (
-                <div className="text-right">
-                  <button type="button" className="text-xs text-primary hover:underline">¿Olvidaste tu contraseña?</button>
-                </div>
-              )}
-
               <Button type="submit" className="w-full h-11 gradient-primary text-white font-semibold glow-sm" disabled={isLoading}>
                 {isLoading ? (
                   <span className="flex items-center gap-2"><span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Procesando...</span>
                 ) : (
-                  <>{isRegister ? "Crear cuenta" : "Ingresar"} <LogIn className="ml-2 h-4 w-4" /></>
+                  <><LogIn className="mr-2 h-4 w-4" /> Ingresar</>
                 )}
               </Button>
             </form>
-
-            <p className="text-center text-sm text-muted-foreground">
-              {isRegister ? "¿Ya tienes cuenta?" : "¿No tienes cuenta?"}{" "}
-              <button onClick={() => { setAuthTab(isRegister ? "login" : "register"); navigate(isRegister ? "/login" : "/register"); }} className="text-primary font-medium hover:underline">
-                {isRegister ? "Inicia sesión" : "Regístrate"}
-              </button>
-            </p>
           </motion.div>
         </div>
       </div>

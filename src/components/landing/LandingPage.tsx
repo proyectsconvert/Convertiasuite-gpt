@@ -33,13 +33,6 @@ const navLinks = [
   { label: "Contacto", href: "contacto" },
 ];
 
-const metrics = [
-  { value: "500+", label: "Empresas activas", icon: Users },
-  { value: "2.4M", label: "Consultas procesadas", icon: Brain },
-  { value: "99.9%", label: "Uptime garantizado", icon: Shield },
-  { value: "4.9/5", label: "Satisfacción cliente", icon: Award },
-];
-
 const contactFieldClass =
   "bg-white text-slate-900 border-slate-300 shadow-sm placeholder:text-slate-500 " +
   "focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white " +
@@ -53,7 +46,7 @@ const item = {
 };
 
 export default function LandingPage() {
-  const { setView, darkMode, toggleDarkMode } = useAppStore();
+  const { darkMode, toggleDarkMode } = useAppStore();
   const reduceMotion = useReducedMotion();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -84,7 +77,6 @@ export default function LandingPage() {
 
   const heroMotionKey = reduceMotion ? "static-h" : `${heroIndex}-${variant.title}`;
 
-  const handleStart = () => setView("auth");
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     setMobileMenuOpen(false);
@@ -138,9 +130,6 @@ export default function LandingPage() {
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
               )}
             </button>
-            <Button variant="ghost" size="sm" onClick={handleStart} className={`hidden sm:inline-flex ${scrolled ? "" : "text-white/80 hover:text-white hover:bg-white/10"}`}>
-              Iniciar sesión
-            </Button>
             <Button size="sm" onClick={() => scrollTo("contacto")} className="gradient-primary text-white font-semibold glow-sm hover:opacity-90 transition-opacity">
               Solicitar demo
             </Button>
@@ -241,11 +230,6 @@ export default function LandingPage() {
                   Solicitar demo <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
-
-              <p className="text-sm text-white/40 flex items-center gap-4">
-                <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-primary" /> Sin tarjeta de crédito</span>
-                <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-primary" /> Setup en 2 min</span>
-              </p>
             </motion.div>
 
             {/* Hero visual mockup */}
@@ -298,27 +282,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Metrics ── */}
-      <section className="py-16 sm:py-20 lg:py-24">
-        <div className="container">
-          <div className="relative overflow-hidden rounded-3xl border border-white/10 gradient-hero px-5 py-10 shadow-2xl shadow-black/35 sm:px-8 sm:py-12">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,hsl(187_80%_42%/0.08),transparent_68%)]" />
-            <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-8">
-              {metrics.map((m, i) => (
-                <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} className="text-center">
-                  <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center mx-auto mb-3 glow-sm">
-                    <m.icon className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="text-3xl md:text-4xl font-display font-bold text-white mb-1">{m.value}</div>
-                  <div className="text-sm text-white/55">{m.label}</div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Plataforma en Acción ── */}
+      {/* ── Tu Asistente IA ── */}
       <div id="platform">
         <PlatformActionShowcase />
       </div>

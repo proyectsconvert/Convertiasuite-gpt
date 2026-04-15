@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useInView } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { VariantTraditional } from "./VariantTraditional";
-import { VariantAI } from "./VariantAI";
-import { VariantText } from "./VariantText";
-import { VariantPivot } from "./VariantPivot";
+import { VariantChat } from "./VariantChat";
+import { VariantDocuments } from "./VariantDocuments";
+import { VariantPresentations } from "./VariantPresentations";
+import { VariantWebBuilder } from "./VariantWebBuilder";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { RotatingHeadline } from "@/components/ui/rotating-headline";
 import { platformHeadlineVariants } from "@/lib/landing-copy";
@@ -13,10 +13,10 @@ import { pa } from "./theme";
 const SLIDE_MS = 10_000;
 
 const slides = [
-  { id: "dashboard", tab: "Dashboard", url: "convert-ia.app/dashboard/executive" },
-  { id: "ai", tab: "IA generativa", url: "convert-ia.app/ai/insights" },
-  { id: "nl", tab: "Lenguaje natural", url: "convert-ia.app/ai/natural-language" },
-  { id: "pivot", tab: "Constructor visual", url: "convert-ia.app/builder/pivot" },
+  { id: "chat", tab: "Chat IA", url: "convert-ia.app/chat" },
+  { id: "documents", tab: "Documentos", url: "convert-ia.app/documents" },
+  { id: "presentations", tab: "Presentaciones", url: "convert-ia.app/presentations" },
+  { id: "webbuilder", tab: "Web Builder", url: "convert-ia.app/webbuilder" },
 ] as const;
 
 export function PlatformActionShowcase() {
@@ -50,7 +50,7 @@ export function PlatformActionShowcase() {
             <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
               className="mb-8 space-y-4 text-center sm:mb-10">
               <span className="text-sm font-semibold uppercase tracking-widest text-primary">
-                Plataforma en Acción
+                Tu Asistente IA
               </span>
               <RotatingHeadline
                 items={platformHeadlineVariants}
@@ -113,10 +113,10 @@ export function PlatformActionShowcase() {
                       animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
                       exit={{ opacity: 0, x: -24, filter: "blur(4px)" }}
                       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
-                      {index === 0 ? <VariantTraditional active={active} /> : null}
-                      {index === 1 ? <VariantAI active={active} /> : null}
-                      {index === 2 ? <VariantText active={active} /> : null}
-                      {index === 3 ? <VariantPivot active={active} /> : null}
+                      {index === 0 ? <VariantChat active={active} /> : null}
+                      {index === 1 ? <VariantDocuments active={active} /> : null}
+                      {index === 2 ? <VariantPresentations active={active} /> : null}
+                      {index === 3 ? <VariantWebBuilder active={active} /> : null}
                     </motion.div>
                   </AnimatePresence>
                 </div>

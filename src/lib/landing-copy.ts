@@ -59,34 +59,28 @@ export const heroPillVariants = [
 
 export const platformHeadlineVariants: TitleSubtitle[] = [
   {
-    title: "plataforma-accion",
-    titleCycle: ["Tu plataforma IA", "en acción", "en tiempo real"],
+    title: "chat-ia",
+    titleCycle: ["Tu chat IA", "inteligente", "y rápido"],
     subtitle:
-      "Chat documentos presentaciones y análisis en una sola experiencia fluida con cuatro formas de producir sin saltar entre herramientas",
+      "Conversaciones naturales con IA avanzada. Chat abierto, contexto integrado y respuestas precisas en segundos.",
   },
   {
-    title: "plataforma-vivo",
-    titleCycle: ["Productividad", "en vivo", "sin fricción"],
+    title: "documentos",
+    titleCycle: ["Documentos", "generados", "al instante"],
     subtitle:
-      "Dashboard IA lenguaje natural y constructor visual reunidos para que tu equipo pase de la idea a la acción sin perder contexto",
+      "Redacta informes, propuestas y contratos usando lenguaje natural. La IA entiende tu contexto de negocio.",
   },
   {
-    title: "plataforma-crea",
-    titleCycle: ["Crea", "genera", "y ejecuta"],
+    title: "presentations",
+    titleCycle: ["Presentaciones", "profesionales", "en minutos"],
     subtitle:
-      "Demo viva de módulos integrados para que veas el producto como lo usarías en operación real",
+      "Crea slides impactantes con templates inteligente. Genera contenido y diseño automáticamente.",
   },
   {
-    title: "plataforma-insights",
-    titleCycle: ["Resultados que", "se entienden", "al instante"],
+    title: "webbuilder",
+    titleCycle: ["Prototipos web", "desde", "tu idea"],
     subtitle:
-      "Claridad ejecutiva en cada vista con narrativa visual pensada para dirección y equipos operativos por igual",
-  },
-  {
-    title: "plataforma-equipos",
-    titleCycle: ["IA aplicada", "para equipos", "modernos"],
-    subtitle:
-      "Una experiencia premium alineada a cómo trabajan hoy squads de producto contenido y operaciones",
+      "Describe lo que necesitas y genera interfaces web funcionales. Código limpio listo para producción.",
   },
 ];
 
