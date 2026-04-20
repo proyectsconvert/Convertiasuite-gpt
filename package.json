@@ -1,0 +1,18 @@
+{
+  "name": "suite-convert-ia",
+  "version": "1.0.0",
+  "description": "Suite Convert-ia - Managed project suite",
+  "main": "index.js",
+  "scripts": {
+    "install:all": "npm run install:front && npm run install:back",
+    "install:front": "npm install --prefix front",
+    "install:back": "powershell -ExecutionPolicy Bypass -Command \"cd back; py -m venv venv; .\\venv\\Scripts\\activate; pip install -r requirements.txt\"",
+    "dev:front": "npm run dev --prefix front",
+    "dev:back": "powershell -ExecutionPolicy Bypass -Command \"cd back; .\\venv\\Scripts\\activate; py -m uvicorn app.main:app\"",
+    "dev": "npm run dev:front",
+    "lint:front": "npm run lint --prefix front"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
