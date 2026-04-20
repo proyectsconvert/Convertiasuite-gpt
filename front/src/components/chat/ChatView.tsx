@@ -61,63 +61,101 @@ export default function ChatView() {
     };
   }, [activeChat, model]);
 
-  const handleSend = () => {
-    if (!input.trim() || isTyping) return;
+ const handleSend = async () => {
+  if (!input.trim() || isTyping) return;
 
-    const userMessage = {
-      id: `${Date.now()}-user`,
-      role: "user" as const,
-      content: input,
-      timestamp: new Date(),
-    };
+  const userMessage = {
+    id: `${Date.now()}-user`,
+    role: "user" as const,
+    content: input,
+    timestamp: new Date(),
+  };
 
-    let targetChatId = activeChat?.id;
-    if (!targetChatId) {
-      const newChatId = `${Date.now()}`;
-      addChat({
-        id: newChatId,
-        title: input.slice(0, 56),
-        model,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        messages: [userMessage],
-      });
-      setCurrentChatId(newChatId);
-      targetChatId = newChatId;
-    } else {
-      updateChat(targetChatId, {
-        messages: [...(activeChat?.messages ?? []), userMessage],
-        updatedAt: new Date(),
-      });
+  let targetChatId = activeChat?.id;
+
+  if (!targetChatId) {
+    const newChatId = `${Date.now()}`;
+    addChat({
+      id: newChatId,
+      title: input.slice(0, 56),
+      model,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      messages: [userMessage],
+    });
+    setCurrentChatId(newChatId);
+    targetChatId = newChatId;
+  } else {
+    updateChat(targetChatId, {
+      messages: [...(activeChat?.messages ?? []), userMessage],
+      updatedAt: new Date(),
+    });
+  }
+
+  const userInput = input;
+  setInput("");
+  setIsTyping(true);
+
+  try {
+    const res = await fetch("http://127.0.0.1:8000/chat/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: userInput,
+        user_role: "default",
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
     }
 
-    const userInput = input;
-    setInput("");
-    setIsTyping(true);
+    const data = await res.json();
 
-    window.setTimeout(() => {
-      const store = useAppStore.getState();
-      const current = store.chats.find((chat) => chat.id === targetChatId);
-      if (!current) {
-        setIsTyping(false);
-        return;
-      }
+    const store = useAppStore.getState();
+    const current = store.chats.find((chat) => chat.id === targetChatId);
 
-      store.updateChat(current.id, {
-        messages: [
-          ...current.messages,
-          {
-            id: `${Date.now()}-assistant`,
-            role: "assistant",
-            content: buildResponse(userInput),
-            timestamp: new Date(),
-          },
-        ],
-        updatedAt: new Date(),
-      });
-      setIsTyping(false);
-    }, 1200);
-  };
+    if (!current) return;
+
+    store.updateChat(current.id, {
+      messages: [
+        ...current.messages,
+        {
+          id: `${Date.now()}-assistant`,
+          role: "assistant",
+          content: data.response,
+          timestamp: new Date(),
+        },
+      ],
+      updatedAt: new Date(),
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    const store = useAppStore.getState();
+    const current = store.chats.find((chat) => chat.id === targetChatId);
+
+    if (!current) return;
+
+    store.updateChat(current.id, {
+      messages: [
+        ...current.messages,
+        {
+          id: `${Date.now()}-assistant`,
+          role: "assistant",
+          content: "Error conectando con el backend",
+          timestamp: new Date(),
+        },
+      ],
+    });
+
+  } finally {
+    setIsTyping(false);
+  }
+};
 
   return (
     <div className="flex h-full flex-1 flex-col">
