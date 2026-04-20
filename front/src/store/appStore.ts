@@ -103,64 +103,7 @@ interface AppState {
   logout: () => void;
 }
 
-const mockChats: ChatSession[] = [
-  {
-    id: '1',
-    title: 'Estrategia de marketing Q2 2025',
-    model: 'GPT-5',
-    favorite: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    messages: [
-      { id: 'm1', role: 'user', content: 'Necesito una estrategia de marketing digital para el segundo trimestre. Nuestro presupuesto es de $50,000 USD y queremos enfocarnos en adquisición de clientes B2B.', timestamp: new Date() },
-      { id: 'm2', role: 'assistant', content: '## Estrategia de Marketing Digital Q2 2025\n\n### Distribución del presupuesto ($50,000 USD)\n\n| Canal | Inversión | % |\n|-------|-----------|---|\n| LinkedIn Ads | $15,000 | 30% |\n| Google Ads (Search) | $12,000 | 24% |\n| Content Marketing | $8,000 | 16% |\n| Email Nurturing | $5,000 | 10% |\n| Webinars/Eventos | $5,000 | 10% |\n| SEO Técnico | $5,000 | 10% |\n\n### KPIs objetivo\n- **MQLs**: 200/mes\n- **SQLs**: 50/mes\n- **CAC**: <$250\n- **Pipeline generado**: $500K\n\n### Acciones clave por mes\n\n**Abril**: Lanzamiento campañas LinkedIn + setup nurturing\n**Mayo**: Webinar flagship + retargeting\n**Junio**: Optimización basada en datos + scale winners\n\n¿Quieres que profundice en alguno de estos canales?', timestamp: new Date() },
-    ],
-  },
-  {
-    id: '2',
-    title: 'Análisis financiero trimestral',
-    model: 'Claude 3.5',
-    createdAt: new Date(Date.now() - 86400000),
-    updatedAt: new Date(Date.now() - 86400000),
-    messages: [
-      { id: 'm3', role: 'user', content: 'Analiza estos datos de revenue del Q1...', timestamp: new Date(Date.now() - 86400000) },
-      { id: 'm4', role: 'assistant', content: 'Basándome en los datos proporcionados, aquí está el análisis:\n\n**Revenue Total Q1**: $2.4M (+18% YoY)\n- Enero: $720K\n- Febrero: $780K\n- Marzo: $900K\n\n**Tendencia**: Crecimiento acelerado mes a mes, con un spike significativo en marzo (+15.4% MoM).', timestamp: new Date(Date.now() - 86400000) },
-    ],
-  },
-  {
-    id: '3',
-    title: 'Propuesta comercial para TechCorp',
-    model: 'GPT-5',
-    createdAt: new Date(Date.now() - 86400000 * 2),
-    updatedAt: new Date(Date.now() - 86400000 * 2),
-    messages: [],
-  },
-  {
-    id: '4',
-    title: 'Optimización de procesos operativos',
-    model: 'Gemini Pro',
-    createdAt: new Date(Date.now() - 86400000 * 3),
-    updatedAt: new Date(Date.now() - 86400000 * 3),
-    messages: [],
-  },
-  {
-    id: '5',
-    title: 'Investigación de mercado LATAM',
-    model: 'GPT-5',
-    createdAt: new Date(Date.now() - 86400000 * 5),
-    updatedAt: new Date(Date.now() - 86400000 * 5),
-    messages: [],
-  },
-  {
-    id: '6',
-    title: 'Plan de capacitación equipo ventas',
-    model: 'Claude 3.5',
-    favorite: true,
-    createdAt: new Date(Date.now() - 86400000 * 8),
-    updatedAt: new Date(Date.now() - 86400000 * 8),
-    messages: [],
-  },
-];
+const mockChats: ChatSession[] = [];
 
 const mockDocuments: Document[] = [
   { id: 'd1', title: 'Propuesta Comercial - TechCorp', content: '', template: 'proposal', createdAt: new Date(), updatedAt: new Date() },
@@ -188,7 +131,7 @@ export const useAppStore = create<AppState>()(
       authTab: 'login',
       sidebarOpen: true,
       darkMode: false,
-      currentChatId: '1',
+      currentChatId: null,
       chats: mockChats,
       documents: mockDocuments,
       presentations: mockPresentations,

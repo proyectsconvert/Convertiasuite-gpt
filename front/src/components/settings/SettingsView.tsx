@@ -40,7 +40,7 @@ export default function SettingsView() {
   };
 
   return (
-    <div className="flex h-full flex-1 overflow-hidden">
+    <div className="flex h-full flex-1 min-h-0 overflow-hidden">
       <aside className="w-64 border-r border-border bg-card/80 p-4">
         <h1 className="mb-4 text-lg font-bold text-foreground">Configuracion</h1>
         <div className="space-y-1">

@@ -12,36 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { webPromptPresets } from "@/lib/demo-data";
 
-const initialCode = `<!DOCTYPE html>
-<html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Convert-IA Enterprise</title>
-    <style>
-      * { box-sizing: border-box; margin: 0; }
-      body { font-family: "Inter", sans-serif; color: #0f172a; background: #f8fafc; }
-      .hero { padding: 72px 28px; background: linear-gradient(130deg, #d9f4ff, #eaf9f1); }
-      .hero h1 { font-size: 52px; max-width: 760px; line-height: 1.05; margin-bottom: 16px; }
-      .hero p { color: #334155; font-size: 20px; max-width: 640px; margin-bottom: 28px; }
-      .cta { border: none; border-radius: 12px; padding: 14px 20px; background: #16b3c8; color: white; font-weight: 700; }
-      .stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; margin-top: 32px; }
-      .card { background: white; border-radius: 16px; padding: 18px; box-shadow: 0 10px 25px rgba(15,23,42,.08); }
-    </style>
-  </head>
-  <body>
-    <section class="hero">
-      <h1>La suite IA para equipos que necesitan entregar mas rapido</h1>
-      <p>Convierte prompts en propuestas, presentaciones y paginas listas para vender en minutos.</p>
-      <button class="cta">Solicitar demo enterprise</button>
-      <div class="stats">
-        <article class="card"><strong>62h</strong><p>ahorradas por semana</p></article>
-        <article class="card"><strong>500+</strong><p>cuentas activas</p></article>
-        <article class="card"><strong>180%</strong><p>crecimiento YoY</p></article>
-      </div>
-    </section>
-  </body>
-</html>`;
+const initialCode = "";
 
 export default function WebBuilderView() {
   const [prompt, setPrompt] = useState("");
@@ -56,7 +27,7 @@ export default function WebBuilderView() {
   }, [device]);
 
   return (
-    <div className="flex h-full flex-1 flex-col">
+    <div className="flex h-full flex-1 flex-col min-h-0">
       <header className="border-b border-border bg-card/80 px-5 py-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>

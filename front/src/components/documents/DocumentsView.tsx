@@ -25,26 +25,7 @@ const aiActions = [
   { label: "Convertir en one-pager", icon: FileText },
 ];
 
-const defaultContent = `# Propuesta Comercial - TechCorp
-
-## Objetivo
-Reducir costos operativos un 25% en 90 dias mediante automatizacion inteligente con Convert-IA.
-
-## Entregables
-- Diagnostico de procesos clave
-- Diseno de flujos asistidos por IA
-- Capacitacion para equipos comerciales y operaciones
-- Seguimiento con tablero de impacto semanal
-
-## KPI comprometidos
-1. Menor tiempo de respuesta comercial: -35%
-2. Mayor velocidad de produccion documental: +40%
-3. Aumento de conversion en propuestas: +18%
-
-## Inversion estimada
-- Implementacion: 15,000 USD
-- Licencias y soporte anual: 37,000 USD
-- Total primer ano: 52,000 USD`;
+const defaultContent = "";
 
 export default function DocumentsView() {
   const { documents } = useAppStore();
@@ -55,7 +36,7 @@ export default function DocumentsView() {
   const activeDocument = useMemo(() => documents.find((doc) => doc.id === activeId) ?? documents[0], [activeId, documents]);
 
   return (
-    <div className="flex h-full flex-1 overflow-hidden">
+    <div className="flex h-full flex-1 min-h-0 overflow-hidden">
       <aside className="w-72 border-r border-border bg-card/80 p-4">
         <Button className="btn-primary-gradient mb-4 w-full gap-2" onClick={() => setShowTemplates((prev) => !prev)}>
           <Plus className="h-4 w-4" /> Nuevo documento

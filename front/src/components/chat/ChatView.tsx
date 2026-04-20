@@ -19,16 +19,23 @@ import { useAppStore } from "@/store/appStore";
 import { Button } from "@/components/ui/button";
 import { quickChatPrompts } from "@/lib/demo-data";
 
-const models = ["GPT-5", "Claude 3.5", "Gemini Pro", "Mistral Large"];
-
-const starterMessages = [
-  {
-    id: "starter-assistant",
-    role: "assistant" as const,
-    content:
-      "Tengo sincronizado el contexto de Convert-IA. Ya detecte la propuesta de TechCorp, el pitch deck y la estrategia de marketing Q2. Dime que entregable quieres acelerar y te preparo la version ejecutiva.",
-    timestamp: new Date(),
-  },
+const models = [
+  "gemma4:26b",
+  "llama3.2-vision:11b",
+  "nomic-embed-text:latest",
+  "qwen2.5-coder:7b",
+  "qwen2.5:7b",
+  "gemma-4E2B-it",
+  "Gemma-4E4B-it",
+  "gemini-3-flash-preview",
+  "medgemma:4b",
+  "nemotron-cascade-2:latest",
+  "glm-4.7-flash:latest",
+  "qwen3.6:latest",
+  "deepseek-ocr",
+  "glm-ocr",
+  "deepseek-r1",
+  "deepseek-coder"
 ];
 
 const quickActions = [
@@ -41,13 +48,13 @@ const quickActions = [
 export default function ChatView() {
   const { chats, currentChatId, updateChat, addChat, setCurrentChatId } = useAppStore();
   const [input, setInput] = useState("");
-  const [model, setModel] = useState("GPT-5");
+  const [model, setModel] = useState("qwen2.5:7b");
   const [showModels, setShowModels] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   const activeChat = chats.find((chat) => chat.id === currentChatId);
-  const messages = activeChat?.messages?.length ? activeChat.messages : starterMessages;
+  const messages = activeChat?.messages?.length ? activeChat.messages : [];
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -97,22 +104,36 @@ export default function ChatView() {
   setIsTyping(true);
 
   try {
-    const res = await fetch("http://127.0.0.1:8000/chat/", {
+    const storeSnapshot = useAppStore.getState();
+    const chatForApi = storeSnapshot.chats.find((chat) => chat.id === targetChatId);
+    const apiMessages = (chatForApi?.messages || [userMessage]).map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    }));
+
+    const res = await fetch("https://ollama.testbot.click/api/chat", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        message: userInput,
-        user_role: "default",
+        model: model,
+        messages: apiMessages,
+        stream: false,
       }),
     });
 
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
+    let data;
+    try {
+      data = await res.json();
+    } catch(e) {
+      // empty
     }
 
-    const data = await res.json();
+    if (!res.ok) {
+      const serverError = data?.error ? `Server: ${data.error}` : `HTTP ${res.status}`;
+      throw new Error(serverError);
+    }
 
     const store = useAppStore.getState();
     const current = store.chats.find((chat) => chat.id === targetChatId);
@@ -125,7 +146,7 @@ export default function ChatView() {
         {
           id: `${Date.now()}-assistant`,
           role: "assistant",
-          content: data.response,
+          content: data?.message?.content || "No response received",
           timestamp: new Date(),
         },
       ],
@@ -133,7 +154,7 @@ export default function ChatView() {
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("Chat API Error:", error);
 
     const store = useAppStore.getState();
     const current = store.chats.find((chat) => chat.id === targetChatId);
@@ -146,10 +167,11 @@ export default function ChatView() {
         {
           id: `${Date.now()}-assistant`,
           role: "assistant",
-          content: "Error conectando con el backend",
+          content: `Error conectando con el modelo: ${(error as Error).message}`,
           timestamp: new Date(),
         },
       ],
+
     });
 
   } finally {
@@ -158,7 +180,7 @@ export default function ChatView() {
 };
 
   return (
-    <div className="flex h-full flex-1 flex-col">
+    <div className="flex h-full flex-1 flex-col min-h-0">
       <header className="border-b border-border bg-card/80 px-6 py-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -174,7 +196,7 @@ export default function ChatView() {
               <Bot className="h-3.5 w-3.5 text-primary" /> {model} <ChevronDown className="h-3.5 w-3.5" />
             </button>
             {showModels && (
-              <div className="absolute right-0 top-11 z-30 min-w-44 rounded-lg border border-border bg-popover p-1 shadow-card">
+              <div className="absolute right-0 top-11 z-30 min-w-44 max-h-64 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-card">
                 {models.map((option) => (
                   <button
                     key={option}
@@ -195,7 +217,7 @@ export default function ChatView() {
         </div>
       </header>
 
-      <div className="grid flex-1 gap-0 lg:grid-cols-[1.7fr_1fr]">
+      <div className="grid flex-1 gap-0 lg:grid-cols-[1.7fr_1fr] min-h-0">
         <main className="flex min-h-0 flex-col border-r border-border/70">
           <div className="flex-1 overflow-y-auto px-6 py-5">
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
@@ -309,15 +331,3 @@ export default function ChatView() {
   );
 }
 
-function buildResponse(input: string) {
-  const normalized = input.toLowerCase();
-  if (normalized.includes("propuesta") || normalized.includes("comercial")) {
-    return "## Borrador de propuesta para TechCorp\n\n- Objetivo: reducir costos operativos en 25% durante 90 dias.\n- Alcance: diagnostico, implementacion y optimizacion con KPIs semanales.\n- Inversion estimada: **52,000 USD** primer ano.\n\n### Recomendacion\nConectar este entregable con la presentacion `Pitch Deck - Serie A` para reforzar ROI y traccion en una sola narrativa ejecutiva.";
-  }
-
-  if (normalized.includes("pitch") || normalized.includes("presentacion")) {
-    return "## Guion ejecutivo para la presentacion\n\n1. Contexto: productividad perdida por tareas manuales.\n2. Solucion: suite IA unificada con chat, documentos y web builder.\n3. Impacto: 62h de ahorro y 180% de crecimiento YoY.\n\n### Siguiente paso\nPuedo generar la version de 5 slides y sincronizarla con el modulo de presentaciones.";
-  }
-
-  return "Entendido. Ya conecte tu solicitud con los artefactos demo existentes. Puedo convertir este requerimiento en documento formal, slide deck o landing en un solo flujo para mantener coherencia entre modulos.";
-}

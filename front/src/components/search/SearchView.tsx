@@ -32,7 +32,7 @@ export default function SearchView() {
   }, [activeFilter, query]);
 
   return (
-    <div className="flex flex-1 overflow-y-auto">
+    <div className="flex flex-1 min-h-0 overflow-y-auto">
       <div className="mx-auto w-full max-w-5xl px-6 py-8">
         <header className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Busqueda semantica</p>
