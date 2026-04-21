@@ -92,6 +92,9 @@ export default {
         "slide-in-left": { from: { opacity: "0", transform: "translateX(-16px)" }, to: { opacity: "1", transform: "translateX(0)" } },
         "pulse-soft": { "0%, 100%": { opacity: "1" }, "50%": { opacity: "0.6" } },
         "typing": { "0%": { width: "0" }, "100%": { width: "24px" } },
+        "message-in": { from: { opacity: "0", transform: "translateY(8px)" }, to: { opacity: "1", transform: "translateY(0)" } },
+        "slide-right": { from: { opacity: "0", transform: "translateX(16px)" }, to: { opacity: "1", transform: "translateX(0)" } },
+        "typewriter-cursor": { "0%, 100%": { opacity: "1" }, "50%": { opacity: "0" } },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -99,6 +102,9 @@ export default {
         "fade-in": "fade-in 0.4s ease-out",
         "slide-in-left": "slide-in-left 0.3s ease-out",
         "pulse-soft": "pulse-soft 1.5s ease-in-out infinite",
+        "message-in": "message-in 0.3s ease-out",
+        "slide-right": "slide-right 0.25s ease-out",
+        "typewriter-cursor": "typewriter-cursor 0.8s ease-in-out infinite",
       },
       boxShadow: {
         card: "var(--shadow-md)",

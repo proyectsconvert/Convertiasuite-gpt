@@ -26,7 +26,7 @@ export default function AuthPage() {
     await new Promise((r) => setTimeout(r, 800));
     const success = login(email, password);
     if (success) {
-      navigate("/app/dashboard");
+      navigate("/app/chat");
     } else {
       setError("Credenciales inválidas. Usa el acceso demo.");
     }
@@ -37,14 +37,14 @@ export default function AuthPage() {
     setIsLoading(true);
     await new Promise((r) => setTimeout(r, 500));
     loginWithDemo();
-    navigate("/app/dashboard");
+    navigate("/app/chat");
   };
 
   const handleOAuth = (provider: string) => {
     setIsLoading(true);
     setTimeout(() => {
       loginWithDemo();
-      navigate("/app/dashboard");
+      navigate("/app/chat");
     }, 800);
   };
 

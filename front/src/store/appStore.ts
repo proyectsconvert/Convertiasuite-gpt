@@ -1,17 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type AppView = 
-  | 'landing' 
-  | 'auth' 
-  | 'dashboard' 
-  | 'chat' 
-  | 'documents' 
-  | 'webbuilder' 
-  | 'presentations' 
-  | 'search' 
-  | 'settings';
-
+export type AppView = 'landing' | 'auth' | 'chat' | 'settings';
 export type AuthTab = 'login' | 'register';
 
 export interface User {
@@ -30,6 +20,15 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   attachments?: { name: string; type: string }[];
+  artifacts?: ChatArtifact[];
+}
+
+export interface ChatArtifact {
+  id: string;
+  title: string;
+  type: 'code' | 'html' | 'markdown' | 'document';
+  language?: string;
+  content: string;
 }
 
 export interface ChatSession {
@@ -41,30 +40,6 @@ export interface ChatSession {
   updatedAt: Date;
   favorite?: boolean;
   folder?: string;
-}
-
-export interface Document {
-  id: string;
-  title: string;
-  content: string;
-  template: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface Presentation {
-  id: string;
-  title: string;
-  template: string;
-  slides: PresentationSlide[];
-  createdAt: Date;
-}
-
-export interface PresentationSlide {
-  id: string;
-  title: string;
-  content: string;
-  layout: 'title' | 'content' | 'two-column' | 'image' | 'blank';
 }
 
 export const DEMO_USER: User = {
@@ -80,69 +55,61 @@ interface AppState {
   view: AppView;
   authTab: AuthTab;
   sidebarOpen: boolean;
+  chatSidebarOpen: boolean;
   darkMode: boolean;
   currentChatId: string | null;
   chats: ChatSession[];
-  documents: Document[];
-  presentations: Presentation[];
   commandOpen: boolean;
   user: User | null;
   isAuthenticated: boolean;
+  selectedModel: string;
+  artifactsPanelOpen: boolean;
+  activeArtifact: ChatArtifact | null;
   
   setView: (view: AppView) => void;
   setAuthTab: (tab: AuthTab) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
+  toggleChatSidebar: () => void;
+  setChatSidebarOpen: (open: boolean) => void;
   toggleDarkMode: () => void;
   setCurrentChatId: (id: string | null) => void;
   addChat: (chat: ChatSession) => void;
   updateChat: (id: string, updates: Partial<ChatSession>) => void;
+  deleteChat: (id: string) => void;
+  renameChat: (id: string, title: string) => void;
   setCommandOpen: (open: boolean) => void;
+  setSelectedModel: (model: string) => void;
+  setArtifactsPanelOpen: (open: boolean) => void;
+  setActiveArtifact: (artifact: ChatArtifact | null) => void;
   login: (email: string, password: string) => boolean;
   loginWithDemo: () => void;
   logout: () => void;
 }
 
-const mockChats: ChatSession[] = [];
-
-const mockDocuments: Document[] = [
-  { id: 'd1', title: 'Propuesta Comercial - TechCorp', content: '', template: 'proposal', createdAt: new Date(), updatedAt: new Date() },
-  { id: 'd2', title: 'Informe Q1 2025', content: '', template: 'report', createdAt: new Date(Date.now() - 86400000 * 2), updatedAt: new Date(Date.now() - 86400000 * 2) },
-  { id: 'd3', title: 'Acta reunión directiva', content: '', template: 'minutes', createdAt: new Date(Date.now() - 86400000 * 5), updatedAt: new Date(Date.now() - 86400000 * 5) },
-];
-
-const mockPresentations: Presentation[] = [
-  { id: 'p1', title: 'Pitch Deck - Serie A', template: 'pitch', slides: [
-    { id: 's1', title: 'convert-IA', content: 'Convierte ideas en resultados con IA', layout: 'title' },
-    { id: 's2', title: 'El Problema', content: 'Las empresas pierden 40% de productividad en tareas repetitivas', layout: 'content' },
-    { id: 's3', title: 'La Solución', content: 'Plataforma unificada de IA empresarial', layout: 'two-column' },
-    { id: 's4', title: 'Tracción', content: '500+ empresas, $2.4M ARR, 180% crecimiento YoY', layout: 'content' },
-  ], createdAt: new Date() },
-  { id: 'p2', title: 'Reporte Trimestral Q1', template: 'report', slides: [
-    { id: 's5', title: 'Resultados Q1 2025', content: '', layout: 'title' },
-    { id: 's6', title: 'KPIs', content: '', layout: 'content' },
-  ], createdAt: new Date(Date.now() - 86400000 * 3) },
-];
-
 export const useAppStore = create<AppState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       view: 'landing',
       authTab: 'login',
       sidebarOpen: true,
+      chatSidebarOpen: true,
       darkMode: false,
       currentChatId: null,
-      chats: mockChats,
-      documents: mockDocuments,
-      presentations: mockPresentations,
+      chats: [],
       commandOpen: false,
       user: null,
       isAuthenticated: false,
+      selectedModel: 'qwen2.5:7b',
+      artifactsPanelOpen: false,
+      activeArtifact: null,
 
       setView: (view) => set({ view }),
       setAuthTab: (tab) => set({ authTab: tab }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      toggleChatSidebar: () => set((s) => ({ chatSidebarOpen: !s.chatSidebarOpen })),
+      setChatSidebarOpen: (open) => set({ chatSidebarOpen: open }),
       toggleDarkMode: () => set((s) => {
         const next = !s.darkMode;
         document.documentElement.classList.toggle('dark', next);
@@ -153,13 +120,23 @@ export const useAppStore = create<AppState>()(
       updateChat: (id, updates) => set((s) => ({
         chats: s.chats.map((c) => c.id === id ? { ...c, ...updates } : c),
       })),
+      deleteChat: (id) => set((s) => ({
+        chats: s.chats.filter((c) => c.id !== id),
+        currentChatId: s.currentChatId === id ? null : s.currentChatId,
+      })),
+      renameChat: (id, title) => set((s) => ({
+        chats: s.chats.map((c) => c.id === id ? { ...c, title } : c),
+      })),
       setCommandOpen: (open) => set({ commandOpen: open }),
+      setSelectedModel: (model) => set({ selectedModel: model }),
+      setArtifactsPanelOpen: (open) => set({ artifactsPanelOpen: open }),
+      setActiveArtifact: (artifact) => set({ activeArtifact: artifact, artifactsPanelOpen: !!artifact }),
       login: (email: string, password: string) => {
         if (email && password.length >= 4) {
           set({ 
             user: { ...DEMO_USER, email }, 
             isAuthenticated: true, 
-            view: 'dashboard' 
+            view: 'chat' 
           });
           return true;
         }
@@ -169,13 +146,15 @@ export const useAppStore = create<AppState>()(
         set({ 
           user: DEMO_USER, 
           isAuthenticated: true, 
-          view: 'dashboard' 
+          view: 'chat' 
         });
       },
       logout: () => set({ 
         user: null, 
         isAuthenticated: false, 
-        view: 'landing' 
+        view: 'landing',
+        chats: [],
+        currentChatId: null,
       }),
     }),
     {
@@ -184,6 +163,10 @@ export const useAppStore = create<AppState>()(
         darkMode: state.darkMode,
         isAuthenticated: state.isAuthenticated,
         user: state.user,
+        selectedModel: state.selectedModel,
+        chatSidebarOpen: state.chatSidebarOpen,
+        chats: state.chats,
+        currentChatId: state.currentChatId,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

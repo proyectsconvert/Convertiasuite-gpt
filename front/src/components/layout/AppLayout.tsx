@@ -1,29 +1,34 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { useAppStore } from "@/store/appStore";
-import AppSidebar from "@/components/layout/AppSidebar";
 import CommandPalette from "@/components/command/CommandPalette";
+import ChatLayout from "@/components/chat/ChatLayout";
+import SettingsView from "@/components/settings/SettingsView";
 
+/**
+ * AppLayout — Full-screen layout.
+ * - /app/chat → Claude-style ChatLayout (sidebar + chat + artifacts)
+ * - /app/settings → Settings page inside ChatLayout sidebar
+ */
 export default function AppLayout() {
   const { setView } = useAppStore();
   const location = useLocation();
-  const navigate = useNavigate();
-  
+  const isSettings = location.pathname.startsWith("/app/settings");
+
   useEffect(() => {
-    const path = location.pathname.replace("/app/", "") || "dashboard";
+    const path = location.pathname.replace("/app/", "") || "chat";
     setView(path as any);
   }, [location, setView]);
 
-  const handleNavigate = (view: string) => {
-    navigate(`/app/${view}`);
-  };
-
   return (
     <div className="h-screen flex bg-background overflow-hidden">
-      <AppSidebar onNavigate={handleNavigate} />
-      <main className="flex-1 flex flex-col min-w-0">
-        <Outlet />
-      </main>
+      {isSettings ? (
+        <ChatLayout settingsMode>
+          <SettingsView />
+        </ChatLayout>
+      ) : (
+        <ChatLayout />
+      )}
       <CommandPalette />
     </div>
   );
