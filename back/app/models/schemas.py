@@ -7,6 +7,12 @@ class UserRole(str, Enum):
     code = "code"
     vision = "vision"
     analysis = "analysis"
+    gemma_small = "gemma-small"
+    gemma_medium = "gemma-medium"
+    reasoning = "reasoning"
+    ocr = "ocr"
+    medical = "medical"
+
 
 class ChatRequest(BaseModel):
     message: str

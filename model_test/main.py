@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# CONFIGURACIÓNcl
+# CONFIGURACIÓN
 OLLAMA_URL = "https://ollama.testbot.click"
 TIMEOUT = 180
 

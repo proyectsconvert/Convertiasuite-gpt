@@ -10,7 +10,12 @@ class Settings(BaseSettings):
         "code": "qwen2.5-coder:7b",
         "vision": "llama3.2-vision:11b",
         "analysis": "gemma4:26b",
-        "embeddings": "nomic-embed-text"
+        "embeddings": "nomic-embed-text",
+        "gemma-small": "gemma4-e2b:latest",
+        "gemma-medium": "gemma4-e4b:latest",
+        "reasoning": "deepseek-r1:latest",
+        "ocr": "deepseek-ocr:latest",
+        "medical": "medgemma:4b"
     }
 
     model_config = SettingsConfigDict(
