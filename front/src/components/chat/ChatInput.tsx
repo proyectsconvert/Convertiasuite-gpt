@@ -10,11 +10,7 @@ const models = [
   { id: "qwen2.5-coder:7b", name: "CYPHER-IA", badge: ["Code"] },
   { id: "deepseek-r1", name: "AETHER-IA", badge: ["Reasoning"] },
   { id: "deepseek-coder", name: "FORGE-IA", badge: ["Code"] },
-  {
-    id: "nemotron-cascade-2:latest",
-    name: "NEURO-IA",
-    badge: ["Strong Reasoning"],
-  },
+  {id: "nemotron-cascade-2:latest", name: "NEURO-IA", badge: ["Strong Reasoning"]},
   { id: "glm-4.7-flash:latest", name: "KINETIC-IA", badge: ["Fast"] },
   { id: "qwen3.6:latest", name: "CORE-IA", badge: ["New"] },
   { id: "medgemma:4b", name: "VITAL-IA", badge: ["Medical"] },

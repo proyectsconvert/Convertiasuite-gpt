@@ -6,16 +6,16 @@ import {
 import { useAppStore } from "@/store/appStore";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { chatApi } from "@/services/api";
 
-/* ─── Date grouping ─── */
-function groupByDate(chats: { id: string; title: string; updatedAt: Date; favorite?: boolean }[]) {
+function groupByDate(sessions: { id: string; title: string; updated_at: string }[]) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today.getTime() - 86_400_000);
   const week = new Date(today.getTime() - 86_400_000 * 7);
   const month = new Date(today.getTime() - 86_400_000 * 30);
 
-  const groups: { label: string; items: typeof chats }[] = [
+  const groups: { label: string; items: typeof sessions }[] = [
     { label: "Hoy", items: [] },
     { label: "Ayer", items: [] },
     { label: "Últimos 7 días", items: [] },
@@ -23,8 +23,8 @@ function groupByDate(chats: { id: string; title: string; updatedAt: Date; favori
     { label: "Anteriores", items: [] },
   ];
 
-  chats.forEach((c) => {
-    const d = new Date(c.updatedAt);
+  sessions.forEach((c) => {
+    const d = new Date(c.updated_at);
     if (d >= today) groups[0].items.push(c);
     else if (d >= yesterday) groups[1].items.push(c);
     else if (d >= week) groups[2].items.push(c);
@@ -37,9 +37,9 @@ function groupByDate(chats: { id: string; title: string; updatedAt: Date; favori
 
 export default function ChatSidebar() {
   const {
-    chatSidebarOpen, toggleChatSidebar, chats, currentChatId,
+    chatSidebarOpen, toggleChatSidebar, sessions, currentChatId,
     setCurrentChatId, user, darkMode, toggleDarkMode, logout,
-    deleteChat, renameChat,
+    deleteSession, renameSession, setSessions,
   } = useAppStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -50,7 +50,15 @@ export default function ChatSidebar() {
   const editRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const grouped = groupByDate(chats);
+  useEffect(() => {
+    if (user?.id) {
+      chatApi.getSessions(user.id)
+        .then((data) => setSessions(data.sessions))
+        .catch(() => {});
+    }
+  }, [user?.id, setSessions]);
+
+  const grouped = groupByDate(sessions);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -75,8 +83,16 @@ export default function ChatSidebar() {
   }, [setCurrentChatId, navigate]);
 
   const handleRename = (id: string) => {
-    if (editTitle.trim()) renameChat(id, editTitle.trim());
+    if (editTitle.trim()) renameSession(id, editTitle.trim());
     setEditingId(null);
+  };
+
+  const handleDelete = (id: string) => {
+    if (user?.id) {
+      chatApi.deleteSession(user.id, id).catch(() => {});
+    }
+    deleteSession(id);
+    setMenuOpenId(null);
   };
 
   /* ─── Collapsed ─── */
@@ -206,11 +222,11 @@ export default function ChatSidebar() {
                             <Pencil className="w-3 h-3" /> Renombrar
                           </button>
                           <button
-                            onClick={() => { deleteChat(c.id); setMenuOpenId(null); }}
-                            className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-md hover:bg-destructive/10 transition-colors text-destructive"
-                          >
-                            <Trash2 className="w-3 h-3" /> Eliminar
-                          </button>
+                          onClick={() => handleDelete(c.id)}
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-md hover:bg-destructive/10 transition-colors text-destructive"
+                        >
+                          <Trash2 className="w-3 h-3" /> Eliminar
+                        </button>
                         </motion.div>
                       )}
                     </AnimatePresence>

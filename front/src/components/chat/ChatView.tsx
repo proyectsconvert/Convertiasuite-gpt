@@ -4,151 +4,94 @@ import WelcomeScreen from "@/components/chat/WelcomeScreen";
 import ChatInput from "@/components/chat/ChatInput";
 import ChatHeader from "@/components/chat/ChatHeader";
 import MessageBubble from "@/components/chat/MessageBubble";
+import { chatApi, ChatMessage } from "@/services/api";
 
 export default function ChatView() {
-  const {
-    chats, currentChatId, updateChat, addChat, setCurrentChatId, selectedModel,
-  } = useAppStore();
+  const { currentChatId, setCurrentChatId, user, addSession } = useAppStore();
 
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
-  const activeChat = chats.find((chat) => chat.id === currentChatId);
-  const messages = activeChat?.messages?.length ? activeChat.messages : [];
-  const isNewChat = !activeChat || messages.length === 0;
+  const isNewChat = !currentChatId;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, isTyping, streamingContent]);
 
+  useEffect(() => {
+    if (currentChatId) {
+      chatApi.getHistory(currentChatId)
+        .then((data) => setMessages(data.messages))
+        .catch(() => setMessages([]));
+    } else {
+      setMessages([]);
+    }
+  }, [currentChatId]);
+
   const handleSend = useCallback(async () => {
     if (!input.trim() || isTyping) return;
 
-    const userMessage = {
+    const userMessage: ChatMessage = {
       id: `${Date.now()}-user`,
-      role: "user" as const,
+      role: "user",
       content: input,
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
     };
 
-    let targetChatId = activeChat?.id;
-
-    if (!targetChatId) {
-      const newChatId = `${Date.now()}`;
-      addChat({
-        id: newChatId,
-        title: input.slice(0, 56),
-        model: selectedModel,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        messages: [userMessage],
-      });
-      setCurrentChatId(newChatId);
-      targetChatId = newChatId;
-    } else {
-      updateChat(targetChatId, {
-        messages: [...(activeChat?.messages ?? []), userMessage],
-        updatedAt: new Date(),
-      });
-    }
-
+    setMessages((prev) => [...prev, userMessage]);
     const userInput = input;
     setInput("");
     setIsTyping(true);
     setStreamingContent("");
 
+    let sessionId = currentChatId;
+
+    if (!sessionId && user?.id) {
+      const newSession = await chatApi.createSession(user.id, userInput.slice(0, 56));
+      sessionId = newSession.id;
+      setCurrentChatId(sessionId);
+      addSession(newSession);
+    }
+
     try {
-      const storeSnapshot = useAppStore.getState();
-      const chatForApi = storeSnapshot.chats.find((chat) => chat.id === targetChatId);
-      const apiMessages = (chatForApi?.messages || [userMessage]).map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-      }));
-
-      const res = await fetch("https://ollama.testbot.click/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: apiMessages,
-          stream: true,
-        }),
+      const res = await chatApi.sendMessage({
+        message: userInput,
+        session_id: sessionId || undefined,
       });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error || `HTTP ${res.status}`);
+      if (sessionId !== res.session_id) {
+        setCurrentChatId(res.session_id);
       }
 
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n").filter(Boolean);
-
-          for (const line of lines) {
-            try {
-              const json = JSON.parse(line);
-              if (json.message?.content) {
-                accumulated += json.message.content;
-                setStreamingContent(accumulated);
-              }
-            } catch {
-              /* skip malformed JSON */
-            }
-          }
-        }
-      }
-
-      const store = useAppStore.getState();
-      const current = store.chats.find((chat) => chat.id === targetChatId);
-      if (!current) return;
-
-      store.updateChat(current.id, {
-        messages: [
-          ...current.messages,
-          {
-            id: `${Date.now()}-assistant`,
-            role: "assistant",
-            content: accumulated || "No se recibió respuesta.",
-            timestamp: new Date(),
-          },
-        ],
-        updatedAt: new Date(),
-      });
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-assistant`,
+          role: "assistant",
+          content: res.response,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     } catch (error) {
       console.error("Chat API Error:", error);
-
-      const store = useAppStore.getState();
-      const current = store.chats.find((chat) => chat.id === targetChatId);
-      if (!current) return;
-
-      store.updateChat(current.id, {
-        messages: [
-          ...current.messages,
-          {
-            id: `${Date.now()}-assistant`,
-            role: "assistant",
-            content: `Error conectando con el modelo: ${(error as Error).message}`,
-            timestamp: new Date(),
-          },
-        ],
-      });
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-error`,
+          role: "assistant",
+          content: `Error: ${(error as Error).message}`,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     } finally {
       setIsTyping(false);
       setStreamingContent("");
     }
-  }, [input, isTyping, activeChat, selectedModel, addChat, setCurrentChatId, updateChat]);
+  }, [input, isTyping, currentChatId, user, setCurrentChatId, addSession]);
 
-  /* ─── Welcome screen ─── */
   if (isNewChat) {
     return (
       <div className="flex-1 flex flex-col h-full min-h-0">
@@ -160,7 +103,6 @@ export default function ChatView() {
     );
   }
 
-  /* ─── Conversation ─── */
   return (
     <div className="flex-1 flex flex-col h-full min-h-0">
       <ChatHeader />
@@ -170,7 +112,12 @@ export default function ChatView() {
           {messages.map((message, idx) => (
             <MessageBubble
               key={message.id}
-              message={message}
+              message={{
+                id: message.id,
+                role: message.role as "user" | "assistant",
+                content: message.content,
+                timestamp: new Date(message.timestamp),
+              }}
               onRegenerate={
                 message.role === "assistant" && idx === messages.length - 1 ? () => {} : undefined
               }

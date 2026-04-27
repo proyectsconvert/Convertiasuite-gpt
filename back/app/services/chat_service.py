@@ -1,41 +1,70 @@
 from app.security.input_sanitizer import sanitize_input
 from app.security.output_guard import sanitize_output
-from app.services.intent_classifier import classify_intent
-from app.services.ollama_client import generate_response
-from app.core.config import get_settings
-import asyncio
+from app.services.model_router import route_model
+from app.domain.interfaces.llm_provider import ILlmProvider
+from app.domain.interfaces.memory_repository import IMemoryRepository
+from app.core.model_config import MODELS, DEFAULT_MODEL_KEY
+from app.domain.entities.message import Message
+import uuid
+from datetime import datetime
 
-settings = get_settings()
 
-async def process_chat(request):
+def get_messages_key(session_id: str) -> str:
+    return f"chat:messages:{session_id}"
 
+
+async def process_chat(
+    request,
+    llm_provider: ILlmProvider,
+    memory_repo: IMemoryRepository,
+):
     clean_input = sanitize_input(request.message)
 
     if not clean_input:
         raise ValueError("Input vacío")
 
-    intent = classify_intent(clean_input)
+    model_key = route_model(
+        message=clean_input,
+        user_role=request.user_role,
+        has_attachment=request.has_attachment,
+    )
 
-    model = settings.model_mapping.get(intent, settings.default_model)
+    session_id = request.session_id or str(uuid.uuid4())
+    messages_key = get_messages_key(session_id)
 
-    if model not in settings.allowed_models:
-        raise Exception("Modelo no permitido")
+    messages = await memory_repo.get(messages_key) or []
+    messages = [Message.from_dict(m) if isinstance(m, dict) else m for m in messages]
 
-    try:
-        raw = await asyncio.wait_for(
-            generate_response(prompt=clean_input, model=model),
-            timeout=15
-        )
-    except asyncio.TimeoutError:
-        return "El modelo tardó demasiado en responder", model
+    messages.append(Message(
+        id=str(uuid.uuid4()),
+        role="user",
+        content=clean_input,
+        timestamp=datetime.now(),
+    ))
 
-    safe_output = sanitize_output(raw)
+    response_text = await llm_provider.generate(messages, model_key)
 
-    print({
-        "event": "chat_execution",
-        "model": model,
-        "intent": intent,
-        "input_len": len(clean_input)
-    })
+    safe_output = sanitize_output(response_text)
 
-    return safe_output, model
+    messages.append(Message(
+        id=str(uuid.uuid4()),
+        role="assistant",
+        content=safe_output,
+        timestamp=datetime.now(),
+    ))
+
+    await memory_repo.set(messages_key, [m.to_dict() for m in messages])
+
+    return safe_output, MODELS[model_key]["model"], session_id
+
+
+async def get_sessions(user_id: str, memory_repo: IMemoryRepository) -> list:
+    return await memory_repo.get_session_list(user_id)
+
+
+async def create_session(user_id: str, title: str, memory_repo: IMemoryRepository) -> str:
+    return await memory_repo.create_session(user_id, title)
+
+
+async def delete_session(user_id: str, session_id: str, memory_repo: IMemoryRepository) -> None:
+    return await memory_repo.delete_session(user_id, session_id)
