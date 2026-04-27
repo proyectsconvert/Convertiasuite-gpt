@@ -39,12 +39,15 @@ export default function MessageBubble({ message, onRegenerate, isStreaming }: Me
       <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-0.5 ${
         isUser
           ? "bg-gradient-to-br from-primary/20 to-primary/10 ring-1 ring-primary/20"
-          : "bg-gradient-to-br from-primary/15 to-accent/15 ring-1 ring-primary/10"
+          : "bg-background"
       }`}>
         {isUser ? (
           <User className="w-4 h-4 text-primary" />
         ) : (
-          <img src="/favicon.ico" alt="convert-IA" className="w-5 h-5 rounded-full" />
+          <div className="w-11 h-11 flex items-center justify-center">
+          <img src="/logo-dark.ico" alt="convert-IA" className="w-15 h-15 block dark:hidden" />
+          <img src="/favicon.ico" alt="convert-IA" className="w-15 h-15 hidden dark:block" />
+        </div>
         )}
       </div>
 

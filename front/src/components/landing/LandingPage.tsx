@@ -105,10 +105,7 @@ export default function LandingPage() {
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/80 backdrop-blur-xl border-b border-border/50 shadow-sm" : "bg-transparent"}`}>
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center shadow-lg">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
-            <span className={`font-display font-bold text-lg tracking-tight ${scrolled ? "text-foreground" : "text-white"}`}>
+          <img src={darkMode ? "/favicon.ico" : "/logo-dark.ico"} className="w-9 h-9 rounded-xl" alt="convert-IA" />            <span className={`font-display font-bold text-lg tracking-tight ${scrolled ? "text-foreground" : "text-white"}`}>
               convert-IA
             </span>
           </div>
@@ -161,9 +158,7 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }} className="space-y-8">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-lg">
-                  <Sparkles className="w-5 h-5 text-white" />
-                </div>
+                <img src="/favicon.ico" className="w-9 h-9 rounded-xl" alt="convert-IA" />
                 <span className="text-xl font-display font-bold text-white tracking-tight">convert-IA</span>
               </div>
 
@@ -446,9 +441,7 @@ export default function LandingPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-white" />
-                </div>
+              <img src="/logo-dark.ico" className="w-9 h-9 rounded-xl" alt="convert-IA" />
                 <span className="font-display font-bold text-gray-900 text-lg">convert-IA</span>
               </div>
               <p className="text-gray-500 text-sm leading-relaxed">

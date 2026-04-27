@@ -119,8 +119,7 @@ export default function ChatSidebar() {
       {/* Header */}
       <div className="h-13 px-3 flex items-center justify-between flex-shrink-0 border-b border-sidebar-border/50">
         <div className="flex items-center gap-2">
-          <img src="/favicon.ico" alt="Convert-IA" className="w-6 h-6 rounded-md" />
-          <span className="font-semibold text-foreground text-[13px] tracking-tight">convert-IA</span>
+          <img src={darkMode ? "/favicon.ico" : "/logo-dark.ico"} className="w-9 h-9 rounded-xl" alt="convert-IA" />    
         </div>
         <button onClick={toggleChatSidebar} className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground" aria-label="Colapsar">
           <PanelLeftClose className="w-4 h-4" />

@@ -7,15 +7,16 @@ class Settings(BaseSettings):
 
     model_mapping: dict = {
         "default": "qwen2.5:7b",
-        "code": "qwen2.5-coder:7b",
-        "vision": "llama3.2-vision:11b",
         "analysis": "gemma4:26b",
-        "embeddings": "nomic-embed-text",
+        "vision": "llama3.2-vision:11b",
+        "code": "qwen2.5-coder:7b",
+        "reasoning": "deepseek-r1:latest",
+        "coder":"deepseek-coder:latest",
         "gemma-small": "gemma4-e2b:latest",
         "gemma-medium": "gemma4-e4b:latest",
-        "reasoning": "deepseek-r1:latest",
         "ocr": "deepseek-ocr:latest",
-        "medical": "medgemma:4b"
+        "medical": "medgemma:4b",
+        "embeddings": "nomic-embed-text",
     }
 
     model_config = SettingsConfigDict(

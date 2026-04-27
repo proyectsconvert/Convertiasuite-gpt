@@ -60,10 +60,10 @@ export default function AuthPage() {
         <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] rounded-full bg-accent/10 blur-[80px]" />
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="relative z-10 text-center space-y-6">
-          <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mx-auto shadow-lg glow-sm">
-            <Sparkles className="w-8 h-8 text-white" />
+          <div className="w-16 h-16 rounded-2xl  flex items-center justify-center mx-auto shadow-lg glow-sm">
+          <img src="/favicon.ico" className="w-40 h-15 rounded-xl" alt="convert-IA" />
           </div>
-          <h2 className="text-3xl font-display font-bold text-white">convert-IA</h2>
+          <h2 className="text-3xl font-display font-bold text-white">Convert-IA</h2>
           <p className="text-white/50 max-w-sm mx-auto">
             Plataforma unificada de inteligencia artificial para empresas que buscan eficiencia y resultados.
           </p>
@@ -91,9 +91,7 @@ export default function AuthPage() {
         <div className="flex-1 flex items-center justify-center p-6">
           <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-sm space-y-8">
             <div className="lg:hidden flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white" />
-              </div>
+              <img src="/favicon.ico" className="w-9 h-9 rounded-xl" alt="convert-IA" />
               <span className="font-display font-bold text-lg">convert-IA</span>
             </div>
 

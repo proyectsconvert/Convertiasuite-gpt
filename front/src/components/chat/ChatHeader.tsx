@@ -6,12 +6,17 @@ import { useAppStore } from "@/store/appStore";
 import { AnimatePresence, motion } from "framer-motion";
 
 const models = [
-  { id: "qwen2.5:7b", name: "Qwen 2.5 7B" },
-  { id: "gemma4:26b", name: "Gemma 4 26B" },
-  { id: "llama3.2-vision:11b", name: "Llama 3.2 Vision" },
-  { id: "qwen2.5-coder:7b", name: "Qwen 2.5 Coder" },
-  { id: "deepseek-r1", name: "DeepSeek R1" },
-  { id: "deepseek-coder", name: "DeepSeek Coder" },
+  { id: "qwen2.5:7b", name: "QUANTA-IA", badge: ["Fast Reasoning"] },
+  { id: "gemma4:26b", name: "MAGMA-IA", badge: ["Smart"] },
+  { id: "llama3.2-vision:11b", name: "SPECTRA-IA", badge: ["Images"] },
+  { id: "qwen2.5-coder:7b", name: "CYPHER-IA", badge: ["Code"] },
+  { id: "deepseek-r1", name: "AETHER-IA", badge: ["Reasoning"] },
+  { id: "deepseek-coder", name: "FORGE-IA", badge: ["Code"] }, 
+  { id: "nemotron-cascade-2:latest", name: "NEURO-IA", badge: ["Strong Reasoning"] },
+  { id: "glm-4.7-flash:latest", name: "KINETIC-IA", badge: ["Fast"] },
+  { id: "qwen3.6:latest", name: "CORE-IA", badge: ["New"] },
+  { id: "medgemma:4b", name: "VITAL-IA", badge: ["Medical"] },
+  { id: "nomic-embed-text:latest", name: "VECTOR-IA", badge: ["Embed"] }, 
 ];
 
 export default function ChatHeader() {
