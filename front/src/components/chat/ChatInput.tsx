@@ -1,20 +1,22 @@
 import { useRef, useEffect, useState, useCallback } from "react";
-import { Send, Paperclip, ChevronDown, Bot, Loader2 } from "lucide-react";
+import {
+  Send, Paperclip, ChevronDown, Bot, Loader2,
+} from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { AnimatePresence, motion } from "framer-motion";
 
 const models = [
-  { id: "qwen2.5:7b", name: "QUANTA-IA", badge: ["Fast Reasoning"] },
-  { id: "gemma4:26b", name: "MAGMA-IA", badge: ["Smart"] },
-  { id: "llama3.2-vision:11b", name: "SPECTRA-IA", badge: ["Images"] },
-  { id: "qwen2.5-coder:7b", name: "CYPHER-IA", badge: ["Code"] },
-  { id: "deepseek-r1", name: "AETHER-IA", badge: ["Reasoning"] },
-  { id: "deepseek-coder", name: "FORGE-IA", badge: ["Code"] },
-  {id: "nemotron-cascade-2:latest", name: "NEURO-IA", badge: ["Strong Reasoning"]},
-  { id: "glm-4.7-flash:latest", name: "KINETIC-IA", badge: ["Fast"] },
-  { id: "qwen3.6:latest", name: "CORE-IA", badge: ["New"] },
-  { id: "medgemma:4b", name: "VITAL-IA", badge: ["Medical"] },
-  { id: "nomic-embed-text:latest", name: "VECTOR-IA", badge: ["Embed"] },
+  { id: "qwen2.5:7b", name: "Qwen 2.5 7B", badge: "Fast" },
+  { id: "gemma4:26b", name: "Gemma 4 26B", badge: "Smart" },
+  { id: "llama3.2-vision:11b", name: "Llama 3.2 Vision", badge: "Vision" },
+  { id: "qwen2.5-coder:7b", name: "Qwen 2.5 Coder", badge: "Code" },
+  { id: "deepseek-r1", name: "DeepSeek R1", badge: "Reasoning" },
+  { id: "deepseek-coder", name: "DeepSeek Coder", badge: "Code" },
+  { id: "nemotron-cascade-2:latest", name: "Nemotron Cascade 2", badge: "" },
+  { id: "glm-4.7-flash:latest", name: "GLM 4.7 Flash", badge: "Fast" },
+  { id: "qwen3.6:latest", name: "Qwen 3.6", badge: "" },
+  { id: "medgemma:4b", name: "MedGemma 4B", badge: "Medical" },
+  { id: "nomic-embed-text:latest", name: "Nomic Embed", badge: "Embed" },
 ];
 
 interface ChatInputProps {
@@ -25,13 +27,7 @@ interface ChatInputProps {
   variant?: "welcome" | "conversation";
 }
 
-export default function ChatInput({
-  value,
-  onChange,
-  onSend,
-  isLoading,
-  variant = "conversation",
-}: ChatInputProps) {
+export default function ChatInput({ value, onChange, onSend, isLoading, variant = "conversation" }: ChatInputProps) {
   const { selectedModel, setSelectedModel } = useAppStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showModels, setShowModels] = useState(false);
@@ -46,33 +42,24 @@ export default function ChatInput({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      )
-        setShowModels(false);
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setShowModels(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        if (value.trim() && !isLoading) onSend();
-      }
-    },
-    [value, isLoading, onSend],
-  );
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (value.trim() && !isLoading) onSend();
+    }
+  }, [value, isLoading, onSend]);
 
   const currentModel = models.find((m) => m.id === selectedModel) || models[0];
   const isWelcome = variant === "welcome";
 
   return (
-    <div
-      className={`w-full ${isWelcome ? "max-w-[640px] mx-auto mt-6" : "max-w-4xl mx-auto"}`}
-    >
+    <div className={`w-full ${isWelcome ? "max-w-[640px] mx-auto mt-6" : "max-w-4xl mx-auto"}`}>
       <div className="relative rounded-2xl border bg-card shadow-md transition-shadow focus-within:shadow-lg focus-within:border-primary/20 border-border/40">
         <textarea
           ref={textareaRef}
@@ -87,10 +74,7 @@ export default function ChatInput({
 
         <div className="flex items-center justify-between px-2.5 pb-2.5">
           <div className="flex items-center gap-0.5">
-            <button
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              aria-label="Adjuntar archivo"
-            >
+            <button className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors" aria-label="Adjuntar archivo">
               <Paperclip className="w-4 h-4" />
             </button>
 
@@ -100,17 +84,8 @@ export default function ChatInput({
                 className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
               >
                 <Bot className="w-3.5 h-3.5" />
-                <span className="font-medium hidden sm:inline">
-                  {currentModel.name}
-                </span>
-                {currentModel.badge && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium text-muted-foreground/70 border border-border/20">
-                    {currentModel.badge}
-                  </span>
-                )}
-                <ChevronDown
-                  className={`w-3 h-3 transition-transform ${showModels ? "rotate-180" : ""}`}
-                />
+                <span className="font-medium hidden sm:inline">{currentModel.name}</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${showModels ? "rotate-180" : ""}`} />
               </button>
 
               <AnimatePresence>
@@ -125,27 +100,16 @@ export default function ChatInput({
                     {models.map((m) => (
                       <button
                         key={m.id}
-                        onClick={() => {
-                          setSelectedModel(m.id);
-                          setShowModels(false);
-                        }}
+                        onClick={() => { setSelectedModel(m.id); setShowModels(false); }}
                         className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] transition-colors ${
-                          m.id === selectedModel
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "text-foreground hover:bg-secondary"
+                          m.id === selectedModel ? "bg-primary/10 text-primary font-medium" : "text-foreground hover:bg-secondary"
                         }`}
                       >
                         <span className="flex-1 text-left">{m.name}</span>
                         {m.badge && (
-                          <span
-                            className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                              m.id === selectedModel
-                                ? "bg-primary/20 text-primary"
-                                : "bg-secondary text-muted-foreground"
-                            }`}
-                          >
-                            {m.badge}
-                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                            m.id === selectedModel ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"
+                          }`}>{m.badge}</span>
                         )}
                       </button>
                     ))}
@@ -165,11 +129,7 @@ export default function ChatInput({
             }`}
             aria-label="Enviar"
           >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
         </div>
       </div>

@@ -11,13 +11,15 @@ from typing import Optional
 
 app = FastAPI(title="LLM Benchmark API", version="1.0.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+allow_origins=[
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://10.130.30.40:8080",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5500",
+    "http://127.0.0.1:5500",
+],
 # CONFIGURACIÓN
 OLLAMA_URL = "https://ollama.testbot.click"
 TIMEOUT = 180

@@ -1,12 +1,12 @@
 services:
-  valkey:
-    image: valkey/valkey:8.0-alpine
-    container_name: convertIA-valkey
+  redis:
+    image: redis:7-alpine
+    container_name: redis
     ports:
       - "6379:6379"
     volumes:
-      - valkey_data:/data
-    restart: unless-stopped
+      - redis_data:/data
+    command: redis-server --save 60 1
 
 volumes:
-  valkey_data:
+  redis_data:

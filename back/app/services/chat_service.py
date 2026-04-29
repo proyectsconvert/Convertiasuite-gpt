@@ -1,3 +1,5 @@
+from click import prompt
+
 from app.security.input_sanitizer import sanitize_input
 from app.security.output_guard import sanitize_output
 from app.services.model_router import route_model
@@ -5,8 +7,11 @@ from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.memory_repository import IMemoryRepository
 from app.core.model_config import MODELS, DEFAULT_MODEL_KEY
 from app.domain.entities.message import Message
+from app.services.prompts.prompt_templates import build_prompt
 import uuid
 from datetime import datetime
+
+from app.domain.interfaces import llm_provider
 
 
 def get_messages_key(session_id: str) -> str:
@@ -35,6 +40,7 @@ async def process_chat(
     messages = await memory_repo.get(messages_key) or []
     messages = [Message.from_dict(m) if isinstance(m, dict) else m for m in messages]
 
+    # append user message
     messages.append(Message(
         id=str(uuid.uuid4()),
         role="user",
@@ -42,29 +48,43 @@ async def process_chat(
         timestamp=datetime.now(),
     ))
 
-    response_text = await llm_provider.generate(messages, model_key)
+    # Build prompt using template
+    prompt = build_prompt(messages, model_key)
 
-    safe_output = sanitize_output(response_text)
+    stream = llm_provider.generate_stream(messages, model_key)
 
-    messages.append(Message(
-        id=str(uuid.uuid4()),
-        role="assistant",
-        content=safe_output,
-        timestamp=datetime.now(),
-    ))
+    async def wrapped_stream():
+        full_response = ""
 
-    await memory_repo.set(messages_key, [m.to_dict() for m in messages])
+        async for chunk in stream:
+            safe_chunk = sanitize_output(chunk)
+            full_response += safe_chunk
+            yield safe_chunk
 
-    return safe_output, MODELS[model_key]["model"], session_id
+            # Periodic persistence to avoid loss
+            if len(full_response) % 200 == 0:
+                await memory_repo.set(messages_key, [m.to_dict() for m in messages])
+
+        # Save assistant message
+        messages.append(Message(
+            id=str(uuid.uuid4()),
+            role="assistant",
+            content=full_response,
+            timestamp=datetime.now(),
+        ))
+
+        await memory_repo.set(messages_key, [m.to_dict() for m in messages])
+
+    return wrapped_stream(), MODELS[model_key]["model"], session_id
 
 
-async def get_sessions(user_id: str, memory_repo: IMemoryRepository) -> list:
+async def get_sessions(user_id: str, memory_repo):
     return await memory_repo.get_session_list(user_id)
 
 
-async def create_session(user_id: str, title: str, memory_repo: IMemoryRepository) -> str:
+async def create_session(user_id: str, title: str, memory_repo):
     return await memory_repo.create_session(user_id, title)
 
 
-async def delete_session(user_id: str, session_id: str, memory_repo: IMemoryRepository) -> None:
-    return await memory_repo.delete_session(user_id, session_id)
+async def delete_session(user_id: str, session_id: str, memory_repo):
+    await memory_repo.delete_session(user_id, session_id)

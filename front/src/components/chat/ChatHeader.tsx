@@ -6,26 +6,26 @@ import { useAppStore } from "@/store/appStore";
 import { AnimatePresence, motion } from "framer-motion";
 
 const models = [
-  { id: "qwen2.5:7b", name: "QUANTA-IA", badge: ["Fast Reasoning"] },
-  { id: "gemma4:26b", name: "MAGMA-IA", badge: ["Smart"] },
-  { id: "llama3.2-vision:11b", name: "SPECTRA-IA", badge: ["Images"] },
-  { id: "qwen2.5-coder:7b", name: "CYPHER-IA", badge: ["Code"] },
-  { id: "deepseek-r1", name: "AETHER-IA", badge: ["Reasoning"] },
-  { id: "deepseek-coder", name: "FORGE-IA", badge: ["Code"] }, 
-  { id: "nemotron-cascade-2:latest", name: "NEURO-IA", badge: ["Strong Reasoning"] },
-  { id: "glm-4.7-flash:latest", name: "KINETIC-IA", badge: ["Fast"] },
-  { id: "qwen3.6:latest", name: "CORE-IA", badge: ["New"] },
-  { id: "medgemma:4b", name: "VITAL-IA", badge: ["Medical"] },
-  { id: "nomic-embed-text:latest", name: "VECTOR-IA", badge: ["Embed"] }, 
+  { id: "qwen2.5:7b", name: "Qwen 2.5 7B", badge: ["Fast"] },
+  { id: "gemma4:26b", name: "Gemma 4 26B", badge: ["Smart"] },
+  { id: "llama3.2-vision:11b", name: "Llama 3.2 Vision", badge: ["Vision"] },
+  { id: "qwen2.5-coder:7b", name: "Qwen 2.5 Coder", badge: ["Code"] },
+  { id: "deepseek-r1", name: "DeepSeek R1", badge: ["Reasoning"] },
+  { id: "deepseek-coder", name: "DeepSeek Coder", badge: ["Code"] },
+  { id: "nemotron-cascade-2:latest", name: "Nemotron Cascade 2", badge: [] },
+  { id: "glm-4.7-flash:latest", name: "GLM 4.7 Flash", badge: ["Fast"] },
+  { id: "qwen3.6:latest", name: "Qwen 3.6", badge: [] },
+  { id: "medgemma:4b", name: "MedGemma 4B", badge: ["Medical"] },
+  { id: "nomic-embed-text:latest", name: "Nomic Embed", badge: ["Embed"] },
 ];
 
 export default function ChatHeader() {
   const {
-    chats, currentChatId, renameChat, selectedModel,
+    sessions, currentChatId, renameSession, selectedModel,
     setSelectedModel, artifactsPanelOpen, setArtifactsPanelOpen,
   } = useAppStore();
 
-  const activeChat = chats.find((c) => c.id === currentChatId);
+  const activeChat = sessions.find((c) => c.id === currentChatId);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [showModels, setShowModels] = useState(false);
@@ -49,7 +49,7 @@ export default function ChatHeader() {
 
   const handleSave = () => {
     if (currentChatId && editValue.trim()) {
-      renameChat(currentChatId, editValue.trim());
+      renameSession(currentChatId, editValue.trim());
     }
     setIsEditing(false);
   };

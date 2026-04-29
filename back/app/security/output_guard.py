@@ -17,4 +17,4 @@ def sanitize_output(text: str) -> str:
         if re.search(pattern, t):
             return "Respuesta bloqueada por seguridad."
 
-    return text.strip()
+    return text

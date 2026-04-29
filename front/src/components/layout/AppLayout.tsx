@@ -1,15 +1,8 @@
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { useAppStore } from "@/store/appStore";
-import CommandPalette from "@/components/command/CommandPalette";
 import ChatLayout from "@/components/chat/ChatLayout";
-import SettingsView from "@/components/settings/SettingsView";
 
-/**
- * AppLayout — Full-screen layout.
- * - /app/chat → Claude-style ChatLayout (sidebar + chat + artifacts)
- * - /app/settings → Settings page inside ChatLayout sidebar
- */
 export default function AppLayout() {
   const { setView } = useAppStore();
   const location = useLocation();
@@ -22,14 +15,7 @@ export default function AppLayout() {
 
   return (
     <div className="h-screen flex bg-background overflow-hidden">
-      {isSettings ? (
-        <ChatLayout settingsMode>
-          <SettingsView />
-        </ChatLayout>
-      ) : (
-        <ChatLayout />
-      )}
-      <CommandPalette />
+      <ChatLayout />
     </div>
   );
 }

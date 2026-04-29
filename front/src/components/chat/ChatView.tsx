@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/store/appStore";
 import WelcomeScreen from "@/components/chat/WelcomeScreen";
 import ChatInput from "@/components/chat/ChatInput";
@@ -8,10 +8,9 @@ import { chatApi, ChatMessage } from "@/services/api";
 
 export default function ChatView() {
   const { currentChatId, setCurrentChatId, user, addSession } = useAppStore();
-
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -19,85 +18,81 @@ export default function ChatView() {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, isTyping, streamingContent]);
+  }, [messages.length, isLoading, streamingContent]);
 
   useEffect(() => {
     if (currentChatId) {
       chatApi.getHistory(currentChatId)
-        .then((data) => setMessages(data.messages))
+        .then((data) => {
+          if (data.messages && Array.isArray(data.messages)) {
+            setMessages(data.messages);
+          }
+        })
         .catch(() => setMessages([]));
     } else {
       setMessages([]);
     }
   }, [currentChatId]);
 
-  const handleSend = useCallback(async () => {
-    if (!input.trim() || isTyping) return;
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
 
-    const userMessage: ChatMessage = {
+    const userMsg: ChatMessage = {
       id: `${Date.now()}-user`,
       role: "user",
       content: input,
       timestamp: new Date().toISOString(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    const userInput = input;
-    setInput("");
-    setIsTyping(true);
+    setMessages(prev => [...prev, userMsg]);
     setStreamingContent("");
+    const text = input;
+    setInput("");
+    setIsLoading(true);
 
-    let sessionId = currentChatId;
+    let sid = currentChatId;
 
-    if (!sessionId && user?.id) {
-      const newSession = await chatApi.createSession(user.id, userInput.slice(0, 56));
-      sessionId = newSession.id;
-      setCurrentChatId(sessionId);
-      addSession(newSession);
+    if (!sid && user?.id) {
+      try {
+        const s = await chatApi.createSession(user.id, text.slice(0, 56));
+        sid = s.id;
+        setCurrentChatId(sid);
+        addSession(s);
+      } catch (e) {
+        console.error("Session error:", e);
+      }
     }
 
     try {
-      const res = await chatApi.sendMessage({
-        message: userInput,
-        session_id: sessionId || undefined,
-      });
+      let fullResponse = "";
 
-      if (sessionId !== res.session_id) {
-        setCurrentChatId(res.session_id);
+      for await (const chunk of chatApi.sendMessageStream({ message: text, session_id: sid || undefined })) {
+        if (chunk.type === "chunk" && chunk.content) {
+          fullResponse += chunk.content;
+          setStreamingContent(fullResponse);
+        }
       }
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-assistant`,
-          role: "assistant",
-          content: res.response,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-    } catch (error) {
-      console.error("Chat API Error:", error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-error`,
-          role: "assistant",
-          content: `Error: ${(error as Error).message}`,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+      setMessages(prev => [...prev, {
+        id: `${Date.now()}-assistant`,
+        role: "assistant",
+        content: fullResponse,
+        timestamp: new Date().toISOString(),
+      }]);
+    } catch (e) {
+      console.error("Send error:", e);
     } finally {
-      setIsTyping(false);
+      setIsLoading(false);
       setStreamingContent("");
     }
-  }, [input, isTyping, currentChatId, user, setCurrentChatId, addSession]);
+  };
 
   if (isNewChat) {
     return (
       <div className="flex-1 flex flex-col h-full min-h-0">
-        <WelcomeScreen onPromptSelect={(prompt) => setInput(prompt)} />
+        <WelcomeScreen onPromptSelect={(p) => setInput(p)} />
         <div className="px-4 pb-5 flex-shrink-0">
-          <ChatInput value={input} onChange={setInput} onSend={handleSend} isLoading={isTyping} variant="welcome" />
+          <ChatInput value={input} onChange={setInput} onSend={handleSend} isLoading={isLoading} variant="welcome" />
         </div>
       </div>
     );
@@ -106,50 +101,39 @@ export default function ChatView() {
   return (
     <div className="flex-1 flex flex-col h-full min-h-0">
       <ChatHeader />
-
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-5 lg:px-8 py-3">
-          {messages.map((message, idx) => (
+          {messages.map((m) => (
             <MessageBubble
-              key={message.id}
-              message={{
-                id: message.id,
-                role: message.role as "user" | "assistant",
-                content: message.content,
-                timestamp: new Date(message.timestamp),
-              }}
-              onRegenerate={
-                message.role === "assistant" && idx === messages.length - 1 ? () => {} : undefined
-              }
+              key={m.id}
+              message={{ id: m.id, role: m.role as "user" | "assistant", content: m.content, timestamp: new Date(m.timestamp) }}
+              onRegenerate={undefined}
             />
           ))}
-
-          {isTyping && streamingContent && (
+          {streamingContent && (
             <MessageBubble
               message={{ id: "streaming", role: "assistant", content: streamingContent, timestamp: new Date() }}
+              onRegenerate={undefined}
               isStreaming={true}
             />
           )}
-
-          {isTyping && !streamingContent && (
+          {isLoading && !streamingContent && (
             <div className="flex items-center gap-3 py-4">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/15 to-accent/15 flex items-center justify-center ring-1 ring-primary/10">
-                <img src="/favicon.ico" alt="convert-IA" className="w-5 h-5 rounded-full" />
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/15 to-accent/15 flex items-center justify-center">
+                <img src="/favicon.ico" alt="" className="w-5 h-5" />
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-secondary/50">
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-bounce" />
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:140ms]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:280ms]" />
+              <div className="flex gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce" />
+                <span className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:150ms]" />
+                <span className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:300ms]" />
               </div>
             </div>
           )}
-
           <div ref={endRef} />
         </div>
       </div>
-
       <div className="px-4 pb-3 pt-1 flex-shrink-0">
-        <ChatInput value={input} onChange={setInput} onSend={handleSend} isLoading={isTyping} variant="conversation" />
+        <ChatInput value={input} onChange={setInput} onSend={handleSend} isLoading={isLoading} variant="conversation" />
       </div>
     </div>
   );

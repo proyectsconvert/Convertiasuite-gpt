@@ -4,7 +4,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     ollama_base_url: str
-    redis_url: str = "redis://localhost:6379"
+    redis_url: str
 
     model_config = SettingsConfigDict(
         env_file=".env",

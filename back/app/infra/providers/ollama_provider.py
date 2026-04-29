@@ -19,3 +19,18 @@ class OllamaProvider(ILlmProvider):
             temperature=model_info.get("temperature"),
             num_ctx=model_info.get("num_ctx"),
         )
+
+    async def generate_stream(self, messages: list, model_key: str):
+        """
+        Generator that yields streaming response chunks.
+        """
+        model_info = self.models.get(model_key, self.models["default"])
+        prompt = build_prompt(messages, model_key)
+
+        async for chunk in self.client.generate_stream(
+            prompt=prompt,
+            model=model_info["model"],
+            temperature=model_info.get("temperature"),
+            num_ctx=model_info.get("num_ctx"),
+        ):
+            yield chunk

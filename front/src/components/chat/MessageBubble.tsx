@@ -18,6 +18,11 @@ export default function MessageBubble({ message, onRegenerate, isStreaming }: Me
 
   const isUser = message.role === "user";
 
+  // Safe timestamp conversion
+  const timestamp = message.timestamp instanceof Date
+    ? message.timestamp
+    : new Date(message.timestamp);
+
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(message.content);
@@ -27,6 +32,11 @@ export default function MessageBubble({ message, onRegenerate, isStreaming }: Me
       /* fallback: no clipboard API */
     }
   }, [message.content]);
+
+  // Don't render if content is suspicious
+  if (typeof message.content !== "string") {
+    return null;
+  }
 
   return (
     <motion.div

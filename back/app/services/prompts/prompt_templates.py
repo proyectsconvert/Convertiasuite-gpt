@@ -16,6 +16,7 @@ _FORMAT_BLOCK = """
 FORMATO DE RESPUESTA:
 - Sé conciso pero completo. Evitá relleno innecesario.
 - Usá un lenguaje claro y directo, adaptado al nivel técnico del área correspondiente.
+- RESPONDÉ CON ESPACIOS NORMALES ENTRE PALABRAS. No escribas todo junto sin espacios.
 - Si la respuesta incluye código, asegurate de que esté bien formateado y comentado para facilitar su comprensión.
 - Si la respuesta incluye datos o análisis, presentalos de forma estructurada (listas, tablas, gráficos) para mejorar la legibilidad.
 - Si la respuesta es extensa, considerá usar encabezados o secciones para organizar la información.
@@ -47,8 +48,8 @@ COMPORTAMIENTO POR ÁREA:
 - Marketing → estrategia creativa, análisis de mercado, copy accionable.
 - IT  → soluciones prácticas, seguridad primero, pasos claros.
 - RH  → procesos de recursos humanos, políticas y procedimientos.
+- Talento y cultura → mejores prácticas, desarrollo profesional, clima laboral. Roles dentro del area, reglas 30-60-90 para evaluaciones onboarding, desarrollo de carrera, gestiones 
 - Diseño → criterios estéticos, UX/accesibilidad, referencias visuales.
-
 Si la consulta no pertenece a ninguna de estas áreas, indicalo amablemente
 y ofrecé redirigir la pregunta hacia lo que sí podés ayudar.
         """.strip()),
@@ -176,7 +177,7 @@ TONO: profesional, empático, claro para audiencias no médicas.
     },
 }
 
-HISTORY_FORMAT = "{role}: {content}\n"
+HISTORY_FORMAT = "{role}: {content}\n\n"
 
 
 def get_system_prompt(model_key: str) -> str:
@@ -205,4 +206,4 @@ def build_prompt(messages: list, model_key: str) -> str:
         HISTORY_FORMAT.format(role=m.role, content=m.content)
         for m in messages
     )
-    return f"{system}\n\n{history}"
+    return f"{system}\n\n--- Conversación ---\n\n{history}"

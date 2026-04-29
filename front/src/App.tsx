@@ -6,17 +6,19 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import AppLayout from "./components/layout/AppLayout";
 import AuthPage from "./components/auth/AuthPage";
 import LandingPage from "./components/landing/LandingPage";
+import ChatView from "./components/chat/ChatView";
 import { useAppStore } from "./store/appStore";
+import { ReactNode } from "react";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAppStore();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
-function PublicRoute({ children }: { children: React.ReactNode }) {
+function PublicRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAppStore();
   if (isAuthenticated) return <Navigate to="/app/chat" replace />;
   return <>{children}</>;
@@ -34,7 +36,7 @@ const App = () => (
           <Route path="/register" element={<PublicRoute><AuthPage /></PublicRoute>} />
           <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
             <Route index element={<Navigate to="chat" replace />} />
-            <Route path="chat" element={<></>} />
+            <Route path="chat" element={<ChatView />} />
             <Route path="settings" element={<></>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

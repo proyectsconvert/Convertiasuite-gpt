@@ -1,8 +1,25 @@
+from contextlib import asynccontextmanager  # ← ojo, viene de contextlib, no de fastapi
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import chat
+from app.core.config import Settings
+from app.infra.clients.redis_client import get_redis_client, close_redis_client
+from app.infra.memory.redis_memory import RedisMemory
 
-app = FastAPI(title="ConvertiaSuite-GPT", version="1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    client = await get_redis_client(Settings().redis_url)
+    app.state.memory = RedisMemory(client)
+    yield
+    await close_redis_client()
+
+
+app = FastAPI(
+    title="ConvertiaSuite-GPT",
+    version="1.0",
+    lifespan=lifespan,       # ← lifespan aquí desde el inicio
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,6 +34,7 @@ app.add_middleware(
 )
 
 app.include_router(chat.router)
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}

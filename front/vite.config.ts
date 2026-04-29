@@ -13,6 +13,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
+      "/chat": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+        rewrite: (path) => path,
+      },
     },
     hmr: {
       overlay: false,
