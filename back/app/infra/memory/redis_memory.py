@@ -1,4 +1,5 @@
 import redis.asyncio as redis
+from redis import Redis
 import json
 import uuid
 from datetime import datetime
