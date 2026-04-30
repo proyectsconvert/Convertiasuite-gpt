@@ -23,8 +23,7 @@ export default function AuthPage() {
     e.preventDefault();
     setError("");
     setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    const success = login(email, password);
+    const success = await login(email, password);
     if (success) {
       navigate("/app/chat");
     } else {

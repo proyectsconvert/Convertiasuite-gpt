@@ -1,46 +1,34 @@
-import redis.asyncio as redis
-from redis import Redis
 import json
 import uuid
 from datetime import datetime
-
-from app.core.config import get_settings
-
+from redis.asyncio import Redis
 
 class RedisMemory:
     def __init__(self, redis_client: Redis):
         self.redis = redis_client
         self.sessions_key = "chat:sessions:{user_id}"
         self.chat_prefix = "chat:messages:"
+        self.ttl = 14400 
 
-    async def get(self, key: str) -> list:
-        value = await self.redis.get(key)
-        if value is not None:
-            return json.loads(value)
-        return None
-    
     async def get_messages(self, session_id: str) -> list:
-        key = self.chat_prefix + session_id
+        key = f"{self.chat_prefix}{session_id}"
         value = await self.redis.get(key)
         return json.loads(value) if value else []
     
     async def save_messages(self, session_id: str, messages: list) -> None:
-        key = self.chat_prefix + session_id
-        await self.redis.set(key, json.dumps(messages))
+        key = f"{self.chat_prefix}{session_id}"
+        # Seteamos el valor y el TTL en una sola operación atómica
+        await self.redis.set(key, json.dumps(messages), ex=self.ttl)
 
-    async def delete_messages(self, session_id: str) -> None:
-        key = self.chat_prefix + session_id
-        await self.redis.delete(key)
-# sesiones
-    async def set(self, key: str, value: list) -> None:
-        await self.redis.set(key, json.dumps(value))
-
-    async def delete(self, key: str) -> None:
-        await self.redis.delete(key)
+    async def get_context_window(self, session_id: str, window_size: int) -> list:
+        messages = await self.get_messages(session_id)
+        if not messages:
+            return []
+        return messages[-window_size:]
 
     async def get_session_list(self, user_id: str) -> list:
         key = self.sessions_key.format(user_id=user_id)
-        sessions = await self.redis.lrange(key, 0 ,-1)
+        sessions = await self.redis.lrange(key, 0, -1)
         return [json.loads(s) for s in sessions] if sessions else []
 
     async def create_session(self, user_id: str, title: str) -> str:
@@ -52,25 +40,40 @@ class RedisMemory:
             "updated_at": datetime.now().isoformat(),
         }
         key = self.sessions_key.format(user_id=user_id)
-        await self.redis.lpush(key, json.dumps(session_data))
+        
+        async with self.redis.pipeline() as pipe:
+            pipe.lpush(key, json.dumps(session_data))
+            pipe.expire(key, self.ttl)
+            await pipe.execute()
+            
         return session_id
 
     async def update_session(self, user_id: str, session_id: str) -> None:
+        key = self.sessions_key.format(user_id=user_id)
         sessions = await self.get_session_list(user_id)
+        
         for s in sessions:
             if s["id"] == session_id:
                 s["updated_at"] = datetime.now().isoformat()
                 break
-        key = self.sessions_key.format(user_id=user_id)
-        await self.redis.delete(key)
-        for s in sessions:
-            await self.redis.rpush(key, json.dumps(s))
+        
+        async with self.redis.pipeline() as pipe:
+            pipe.delete(key)
+            for s in sessions:
+                pipe.rpush(key, json.dumps(s))
+            pipe.expire(key, self.ttl)
+            await pipe.execute()
 
     async def delete_session(self, user_id: str, session_id: str) -> None:
         key = self.sessions_key.format(user_id=user_id)
         sessions = await self.get_session_list(user_id)
-        sessions = [s for s in sessions if s["id"] != session_id]
-        await self.redis.delete(key)
-        for s in sessions:
-            await self.redis.rpush(key, json.dumps(s))
-        await self.redis.delete(f"chat:messages:{session_id}")
+        
+        filtered_sessions = [s for s in sessions if s["id"] != session_id]
+        
+        async with self.redis.pipeline() as pipe:
+            pipe.delete(key)
+            for s in filtered_sessions:
+                pipe.rpush(key, json.dumps(s))
+            pipe.delete(f"{self.chat_prefix}{session_id}")
+            pipe.expire(key, self.ttl)
+            await pipe.execute()

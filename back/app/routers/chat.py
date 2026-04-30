@@ -117,7 +117,7 @@ async def get_chat_history(
     session_id: str,
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
-    messages = await memory_repo.get(f"chat:messages:{session_id}")
+    messages = await memory_repo.get_messages(session_id)
 
     if messages is None:
         raise HTTPException(status_code=404, detail="Session not found")

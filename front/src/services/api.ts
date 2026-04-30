@@ -1,4 +1,5 @@
 const API_BASE = "/chat";
+const AUTH_BASE = "/auth";
 
 export interface ChatMessage {
   id: string;
@@ -44,6 +45,37 @@ export interface SessionSummary {
 export interface SessionListResponse {
   sessions: SessionSummary[];
 }
+
+// Auth interfaces
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface UserInfo {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  user: UserInfo;
+}
+
+export const authApi = {
+  async login(req: LoginRequest): Promise<TokenResponse> {
+    const res = await fetch(`${AUTH_BASE}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
+};
 
 export const chatApi = {
   async sendMessage(req: SendMessageRequest): Promise<SendMessageResponse> {

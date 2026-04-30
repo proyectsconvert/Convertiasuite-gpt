@@ -36,6 +36,8 @@ services:
     build:
       context: ./front      
       dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://backend:8000
     container_name: frontend
     ports:
       - "8080:8080"

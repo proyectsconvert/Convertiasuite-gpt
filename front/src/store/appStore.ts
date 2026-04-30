@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { SessionSummary } from '@/services/api';
+import { SessionSummary, authApi } from '@/services/api';
 
 export type AppView = 'landing' | 'auth' | 'chat' | 'settings';
 export type AuthTab = 'login' | 'register';
@@ -82,7 +82,7 @@ interface AppState {
   setSelectedModel: (model: string) => void;
   setArtifactsPanelOpen: (open: boolean) => void;
   setActiveArtifact: (artifact: ChatArtifact | null) => void;
-  login: (email: string, password: string) => boolean;
+  login: (email: string, password: string) => Promise<boolean>;
   loginWithDemo: () => void;
   logout: () => void;
 }
@@ -128,22 +128,32 @@ export const useAppStore = create<AppState>()(
     setSelectedModel: (model) => set({ selectedModel: model }),
     setArtifactsPanelOpen: (open) => set({ artifactsPanelOpen: open }),
     setActiveArtifact: (artifact) => set({ activeArtifact: artifact, artifactsPanelOpen: !!artifact }),
-    login: (email: string, password: string) => {
-      if (email && password.length >= 4) {
+    login: async (email: string, password: string) => {
+      try {
+        const response = await authApi.login({ email, password });
         set({
-          user: { ...DEMO_USER, email },
+          user: {
+            id: response.user.id,
+            name: response.user.name,
+            email: response.user.email,
+            company: 'Convert-IA',
+            role: response.user.role,
+            plan: 'pro',
+          },
           isAuthenticated: true,
-          view: 'chat'
+          view: 'chat',
         });
         return true;
+      } catch (e) {
+        console.error('Login failed:', e);
+        return false;
       }
-      return false;
     },
     loginWithDemo: () => {
       set({
         user: DEMO_USER,
         isAuthenticated: true,
-        view: 'chat'
+        view: 'chat',
       });
     },
     logout: () => set({

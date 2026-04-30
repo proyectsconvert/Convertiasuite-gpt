@@ -185,16 +185,18 @@ export default function ChatSidebar() {
                         />
                       </div>
                     ) : (
-                      <button
-                        onClick={() => handleChatClick(c.id)}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[13px] transition-all duration-100 flex items-center gap-1.5 ${
-                          currentChatId === c.id && location.pathname === "/app/chat"
-                            ? "bg-sidebar-accent text-foreground"
-                            : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
-                        }`}
-                      >
-                        {c.favorite && <Star className="w-3 h-3 text-warning flex-shrink-0 fill-warning" />}
-                        <span className="truncate flex-1">{c.title}</span>
+                      <div className="flex items-center gap-0 group">
+                        <button
+                          onClick={() => handleChatClick(c.id)}
+                          className={`flex-1 text-left px-2.5 py-1.5 rounded-lg text-[13px] transition-all duration-100 flex items-center gap-1.5 ${
+                            currentChatId === c.id && location.pathname === "/app/chat"
+                              ? "bg-sidebar-accent text-foreground"
+                              : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
+                          }`}
+                        >
+                          {c.favorite && <Star className="w-3 h-3 text-warning flex-shrink-0 fill-warning" />}
+                          <span className="truncate flex-1">{c.title}</span>
+                        </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === c.id ? null : c.id); }}
                           className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-secondary transition-all flex-shrink-0"
@@ -202,7 +204,7 @@ export default function ChatSidebar() {
                         >
                           <MoreHorizontal className="w-3.5 h-3.5" />
                         </button>
-                      </button>
+                      </div>
                     )}
 
                     <AnimatePresence>
