@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.infra.repositories.composite_memory_repository import CompositeMemoryRepository
 from slowapi.errors import RateLimitExceeded
 from app.core.config import Settings, get_settings
 from app.infra.clients.redis_client import get_redis_client, close_redis_client
@@ -17,6 +18,10 @@ async def lifespan(app: FastAPI):
 
     app.state.cache = RedisCacheRepository(client)
     app.state.supabase = SupabaseMemoryRepository()
+    app.state.memory = CompositeMemoryRepository(          
+        cache=app.state.cache,
+        db=app.state.supabase
+    )
 
     yield
 

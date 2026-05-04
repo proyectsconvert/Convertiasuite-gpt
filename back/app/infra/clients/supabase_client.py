@@ -6,13 +6,11 @@ class SupabaseClient:
     def __init__(self):
         settings = Settings()
         
-        # Client with anon key (limited access, respects RLS)
         self.anon: Client = create_client(
             settings.supabase_url,
             settings.supabase_key
         )
 
-        # Client with service role key (full access, ignores RLS)
         self.admin: Client = create_client(
             settings.supabase_url,
             settings.supabase_service_key
