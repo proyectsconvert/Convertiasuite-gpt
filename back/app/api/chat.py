@@ -14,7 +14,7 @@ from app.services.chat_service import (
     delete_session as svc_delete_session,
 )
 
-from app.models.schemas import (
+from app.schemas.chat import (
     ChatRequest,
     ChatHistoryResponse,
     SessionListResponse,
@@ -23,9 +23,6 @@ from app.models.schemas import (
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-
-# --- Dependencies
-
 def get_llm_provider() -> ILlmProvider:
     from app.infra.providers.ollama_provider import OllamaProvider
     from app.infra.clients.ollama_client import OllamaClient
@@ -33,17 +30,29 @@ def get_llm_provider() -> ILlmProvider:
 
 
 def get_memory_repo(request: Request) -> IMemoryRepository:
-    return request.app.state.memory
+    return request.app.state.cache
 
 
-# --- STREAMING (endpoint principal)
+def get_supabase_memory_repo(request: Request) -> IMemoryRepository:
+    return request.app.state.supabase
+
+
+def get_memory_repo_by_type(request: Request, repo_type: str = "redis") -> IMemoryRepository:
+    if repo_type == "supabase":
+        return request.app.state.supabase
+    return request.app.state.cache
+
 
 @router.post("/stream")
 async def send_message_stream(
     request: ChatRequest,
+    repo_type: str = "redis",
     llm_provider: ILlmProvider = Depends(get_llm_provider),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
+    if repo_type == "supabase":
+        memory_repo = request.app.state.supabase
+
     async def event_generator():
         try:
             stream, model, session_id = await process_chat(
@@ -78,19 +87,27 @@ async def send_message_stream(
 
 @router.get("/sessions", response_model=SessionListResponse)
 async def list_sessions(
+    request: Request,
     user_id: str,
+    repo_type: str = "redis",
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
+    if repo_type == "supabase":
+        memory_repo = request.app.state.supabase
     sessions = await get_sessions(user_id, memory_repo)
     return SessionListResponse(sessions=sessions)
 
 
 @router.post("/sessions", response_model=SessionSummary)
 async def create_session(
+    request: Request,
     user_id: str,
     title: str,
+    repo_type: str = "redis",
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
+    if repo_type == "supabase":
+        memory_repo = request.app.state.supabase
     session_id = await svc_create_session(user_id, title, memory_repo)
     now = datetime.now().isoformat()
 
@@ -104,19 +121,27 @@ async def create_session(
 
 @router.delete("/sessions/{session_id}")
 async def delete_session(
+    request: Request,
     user_id: str,
     session_id: str,
+    repo_type: str = "redis",
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
+    if repo_type == "supabase":
+        memory_repo = request.app.state.supabase
     await svc_delete_session(user_id, session_id, memory_repo)
     return {"status": "deleted"}
 
 
 @router.get("/{session_id}", response_model=ChatHistoryResponse)
 async def get_chat_history(
+    request: Request,
     session_id: str,
+    repo_type: str = "redis",
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
+    if repo_type == "supabase":
+        memory_repo = request.app.state.supabase
     messages = await memory_repo.get_messages(session_id)
 
     if messages is None:

@@ -1,4 +1,4 @@
-from app.models.schemas import UserRole, ChatRequest
+from app.schemas.chat import UserRole, ChatRequest
 from app.core.config import get_settings
 
 settings = get_settings()

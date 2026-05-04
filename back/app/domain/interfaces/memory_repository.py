@@ -3,16 +3,21 @@ from typing import Optional
 
 
 class IMemoryRepository(ABC):
+    
     @abstractmethod
-    async def get(self, key: str) -> Optional[list]:
+    async def get_messages(self, session_id: str, limit: int = 50) -> None:
         pass
 
     @abstractmethod
-    async def set(self, key: str, value: list) -> None:
+    async def save_messages(self, session_id: str, messages: list) -> None:
         pass
 
     @abstractmethod
-    async def delete(self, key: str) -> None:
+    async def get_session(self, session_id: str) -> Optional[dict]:
+        pass
+
+    @abstractmethod
+    async def create_session(self, user_id: str, title: str, session_id: str) -> str:
         pass
 
     @abstractmethod
@@ -20,9 +25,13 @@ class IMemoryRepository(ABC):
         pass
 
     @abstractmethod
-    async def create_session(self, user_id: str, title: str) -> str:
+    async def update_session(self, session_id: str, title: str) -> None:
         pass
 
     @abstractmethod
     async def delete_session(self, user_id: str, session_id: str) -> None:
         pass
+
+    @abstractmethod
+    async def get_context_window(self, session_id: str, window_size: int) -> list:
+        pass    

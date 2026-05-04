@@ -31,7 +31,7 @@ services:
         condition: service_healthy
     volumes:
       - ./back:/app
-    working_dir: /app          # ← asegúrate que sea /app, no /app/app               
+    working_dir: /app                     
   frontend:
     build:
       context: ./front      
