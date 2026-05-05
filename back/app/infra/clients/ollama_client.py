@@ -73,6 +73,7 @@ class OllamaClient:
             await ollama_rate_limiter.wait_and_acquire("ollama")
 
             payload = self._build_payload(prompt, model, True, temperature, num_ctx)
+            emitted = False 
 
             try:
                 async with self.client.stream(
@@ -93,13 +94,23 @@ class OllamaClient:
 
                         try:
                             data = json.loads(line)
-                            if "response" in data:
+                            if "response" in data and data["response"]:
+                                emitted = True
                                 yield data["response"]
                         except json.JSONDecodeError:
                             continue
+                    
+                    # Si el stream terminó sin emitir nada
+                    if not emitted:
+                        logger.warning(f"Stream vacío para modelo {model}, reintentando...")
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(2 ** attempt)
+                            continue
+                        else:
+                            raise Exception("Stream vacío después de varios intentos")
                     return
             except Exception as e:
-                logger.error(f"Ollama request failed: {e}")
+                logger.error(f"Ollama request failed (attempt {attempt + 1}/{max_retries}): {e}")
                 if attempt == max_retries - 1:
                     raise
                 await asyncio.sleep(2 ** attempt)
