@@ -8,7 +8,7 @@ from app.infra.clients.supabase_client import SupabaseClient
 class SupabaseMemoryRepository(IMemoryRepository):
     def __init__(self, supabase_client: Optional[SupabaseClient] = None):
         self.client = supabase_client or SupabaseClient()
-        self.supabase = self.client.get_client(admin=False)
+        self.supabase = self.client.get_client(admin=True)
 
     async def get_messages(self, session_id: str, limit: int = 50) -> list | None:
         try:

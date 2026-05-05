@@ -30,7 +30,7 @@ def get_llm_provider() -> ILlmProvider:
 
 
 def get_memory_repo(request: Request) -> IMemoryRepository:
-    return request.app.state.cache
+    return request.app.state.memory  # Composite: Redis (cache) + Supabase (persist)
 
 
 def get_supabase_memory_repo(request: Request) -> IMemoryRepository:
