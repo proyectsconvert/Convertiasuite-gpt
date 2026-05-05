@@ -94,13 +94,3 @@ async def process_chat(
         await _persist_conversation(memory_repo, session_id, messages)
 
     return wrapped_stream(), MODELS[model_key]["model"], session_id
-
-
-async def get_sessions(user_id: str, memory_repo: IMemoryRepository):
-    return await memory_repo.get_session_list(user_id)
-
-async def create_session(user_id: str, title: str, memory_repo: IMemoryRepository):
-    return await memory_repo.create_session(user_id, title)
-
-async def delete_session(user_id: str, session_id: str, memory_repo: IMemoryRepository):
-    await memory_repo.delete_session(user_id, session_id)

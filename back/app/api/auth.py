@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Request
 from app.schemas.auth import LoginRequest, TokenResponse
-from app.auth.service import authenticate_with_supabase, create_access_token, build_user_info
+from app.security.auth import authenticate_with_supabase, create_access_token, build_user_info
 from app.security.rate_limiting import limiter
 import logging
 

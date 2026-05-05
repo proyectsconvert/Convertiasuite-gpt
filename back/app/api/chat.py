@@ -9,9 +9,6 @@ from app.domain.interfaces.memory_repository import IMemoryRepository
 
 from app.services.chat_service import (
     process_chat,
-    get_sessions,
-    create_session as svc_create_session,
-    delete_session as svc_delete_session,
 )
 
 from app.schemas.chat import (
@@ -94,7 +91,7 @@ async def list_sessions(
 ):
     if repo_type == "supabase":
         memory_repo = request.app.state.supabase
-    sessions = await get_sessions(user_id, memory_repo)
+    sessions = await memory_repo.get_session_list(user_id)
     return SessionListResponse(sessions=sessions)
 
 
@@ -108,7 +105,7 @@ async def create_session(
 ):
     if repo_type == "supabase":
         memory_repo = request.app.state.supabase
-    session_id = await svc_create_session(user_id, title, memory_repo)
+    session_id = await memory_repo.create_session(user_id, title)
     now = datetime.now().isoformat()
 
     return SessionSummary(
@@ -129,7 +126,7 @@ async def delete_session(
 ):
     if repo_type == "supabase":
         memory_repo = request.app.state.supabase
-    await svc_delete_session(user_id, session_id, memory_repo)
+    await memory_repo.delete_session(user_id, session_id)
     return {"status": "deleted"}
 
 

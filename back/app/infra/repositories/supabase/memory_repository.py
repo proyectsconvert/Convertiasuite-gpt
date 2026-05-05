@@ -1,8 +1,11 @@
 import uuid
+import logging
 from datetime import datetime
 from typing import Optional
 from app.domain.interfaces.memory_repository import IMemoryRepository
 from app.infra.clients.supabase_client import SupabaseClient
+
+logger = logging.getLogger(__name__)
 
 
 class SupabaseMemoryRepository(IMemoryRepository):
@@ -26,7 +29,7 @@ class SupabaseMemoryRepository(IMemoryRepository):
 
             return [row for row in reversed(response.data)]
         except Exception as e:
-            print(f"Error fetching messages for session {session_id}: {e}")
+            logger.error(f"Error fetching messages for session {session_id}: {e}")
             return None
 
     async def save_messages(self, session_id: str, messages: list) -> None:
@@ -50,7 +53,7 @@ class SupabaseMemoryRepository(IMemoryRepository):
 
             self.supabase.table("chat_messages").insert(msg_data).execute()
         except Exception as e:
-            print(f"Error saving messages for session {session_id}: {e}")
+            logger.error(f"Error saving messages for session {session_id}: {e}")
 
     async def get_session(self, session_id: str) -> dict | None:
         try:
@@ -67,7 +70,7 @@ class SupabaseMemoryRepository(IMemoryRepository):
 
             return dict(response.data)
         except Exception as e:
-            print(f"Error fetching session {session_id}: {e}")
+            logger.error(f"Error fetching session {session_id}: {e}")
             return None
 
     async def create_session(self, user_id: str, title: str) -> str:
@@ -81,7 +84,7 @@ class SupabaseMemoryRepository(IMemoryRepository):
             }).execute()
             return session_id
         except Exception as e:
-            print(f"Error creating session: {e}")
+            logger.error(f"Error creating session: {e}")
             raise
 
     async def get_session_list(self, user_id: str) -> list:
@@ -95,7 +98,7 @@ class SupabaseMemoryRepository(IMemoryRepository):
             )
             return [dict(row) for row in (response.data or [])]
         except Exception as e:
-            print(f"Error fetching sessions for user {user_id}: {e}")
+            logger.error(f"Error fetching sessions for user {user_id}: {e}")
             return []
 
     async def update_session(self, session_id: str, title: str) -> None:
@@ -105,13 +108,13 @@ class SupabaseMemoryRepository(IMemoryRepository):
                 "updated_at": datetime.utcnow().isoformat()
             }).eq("id", session_id).execute()
         except Exception as e:
-            print(f"Error updating session {session_id}: {e}")
+            logger.error(f"Error updating session {session_id}: {e}")
 
     async def delete_session(self, user_id: str, session_id: str) -> None:
         try:
             self.supabase.table("chat_sessions").delete().eq("id", session_id).execute()
         except Exception as e:
-            print(f"Error deleting session {session_id}: {e}")
+            logger.error(f"Error deleting session {session_id}: {e}")
 
     async def get_context_window(self, session_id: str, window_size: int) -> list:
         messages = await self.get_messages(session_id, window_size)

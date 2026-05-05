@@ -1,14 +1,13 @@
 from app.schemas.chat import UserRole, ChatRequest
 from app.core.config import get_settings
+from app.core.keywords_config import (
+    KEYWORDS_VISION, KEYWORDS_ANALYSIS, KEYWORDS_CODE, 
+    KEYWORDS_REASONING, KEYWORDS_OCR, KEYWORDS_MEDICAL
+)
+from app.infra.clients.ollama_client import OllamaClient
 
 settings = get_settings()
-
-KEYWORDS_VISION = ["imagen", "foto", "fotografía", "analiza esta", "qué ves", "describe la imagen"]
-KEYWORDS_ANALYSIS = ["investiga", "informe", "análisis profundo", "presenta", "reporte", "ppt"]
-KEYWORDS_CODE = ["código", "función", "bug", "error", "script", "programa", "clase"]
-KEYWORDS_REASONING = ["razona", "paso a paso", "explica por qué", "deduce", "lógica", "resuelve", "demuestra"]
-KEYWORDS_OCR = ["extrae el texto", "lee este documento", "transcribe", "escaneo", "pdf con texto"]
-KEYWORDS_MEDICAL = ["diagnóstico", "síntoma", "medicamento", "enfermedad", "tratamiento", "médico", "clínico"]
+ollama_client = OllamaClient()
 
 
 async def classify_with_model(message: str) -> UserRole:

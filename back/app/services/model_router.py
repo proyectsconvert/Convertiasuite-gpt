@@ -1,12 +1,8 @@
 from app.core.model_config import MODELS, DEFAULT_MODEL_KEY, ALLOWED_MODELS
-
-
-KEYWORDS_VISION = ["imagen", "foto", "fotografía", "analiza esta", "qué ves", "describe la imagen"]
-KEYWORDS_ANALYSIS = ["investiga", "informe", "análisis profundo", "presenta", "reporte", "ppt"]
-KEYWORDS_CODE = ["código", "función", "bug", "error", "script", "programa", "clase"]
-KEYWORDS_REASONING = ["razona", "paso a paso", "explica por qué", "deduce", "lógica", "resuelve", "demuestra"]
-KEYWORDS_OCR = ["extrae el texto", "lee este documento", "transcribe", "escaneo", "pdf con texto"]
-KEYWORDS_MEDICAL = ["diagnóstico", "síntoma", "medicamento", "enfermedad", "tratamiento", "médico", "clínico"]
+from app.core.keywords_config import (
+    KEYWORDS_VISION, KEYWORDS_ANALYSIS, KEYWORDS_CODE,
+    KEYWORDS_REASONING, KEYWORDS_OCR, KEYWORDS_MEDICAL
+)
 
 
 def route_model(message: str, user_role: str = None, has_attachment: bool = False) -> str:
