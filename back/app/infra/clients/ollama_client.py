@@ -1,13 +1,17 @@
 import httpx
 import json
+import asyncio
+import logging
 from app.core.config import get_settings
+from app.security.ollama_rate_limiter import ollama_rate_limiter
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaClient:
     def __init__(self, base_url: str = None):
         self.base_url = base_url or get_settings().ollama_base_url
 
-        # Cliente persistente (NO recrear por request)
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(
                 connect=10.0,
@@ -63,26 +67,42 @@ class OllamaClient:
         model: str,
         temperature: float = None,
         num_ctx: int = None,
+        max_retries: int = 3,
     ):
-        payload = self._build_payload(prompt, model, True, temperature, num_ctx)
+        for attempt in range(max_retries):
+            await ollama_rate_limiter.wait_and_acquire("ollama")
 
-        async with self.client.stream(
-            "POST",
-            f"{self.base_url}/api/generate",
-            json=payload,
-        ) as response:
-            response.raise_for_status()
+            payload = self._build_payload(prompt, model, True, temperature, num_ctx)
 
-            async for line in response.aiter_lines():
-                if not line:
-                    continue
+            try:
+                async with self.client.stream(
+                    "POST",
+                    f"{self.base_url}/api/generate",
+                    json=payload,
+                ) as response:
+                    if response.status_code == 429:
+                        logger.warning(f"Ollama rate limit hit, attempt {attempt + 1}/{max_retries}")
+                        await asyncio.sleep(2 ** attempt)
+                        continue
 
-                try:
-                    data = json.loads(line)
-                    if "response" in data:
-                        yield data["response"]
-                except json.JSONDecodeError:
-                    continue
+                    response.raise_for_status()
+
+                    async for line in response.aiter_lines():
+                        if not line:
+                            continue
+
+                        try:
+                            data = json.loads(line)
+                            if "response" in data:
+                                yield data["response"]
+                        except json.JSONDecodeError:
+                            continue
+                    return
+            except Exception as e:
+                logger.error(f"Ollama request failed: {e}")
+                if attempt == max_retries - 1:
+                    raise
+                await asyncio.sleep(2 ** attempt)
 
     async def close(self):
         await self.client.aclose()

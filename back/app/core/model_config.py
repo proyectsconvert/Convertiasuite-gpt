@@ -2,15 +2,15 @@ from functools import lru_cache
 
 
 MODELS = {
-    "default": {
+"default": {
         "model": "qwen2.5:7b",
         "temperature": 0.7,
-        "num_ctx": 4096,
+        "num_ctx": 2048,
     },
     "code": {
         "model": "qwen2.5-coder:7b",
         "temperature": 0.3,
-        "num_ctx": 8192,
+        "num_ctx": 4096,
     },
     "vision": {
         "model": "llama3.2-vision:11b",
@@ -20,12 +20,12 @@ MODELS = {
     "analysis": {
         "model": "gemma4:26b",
         "temperature": 0.5,
-        "num_ctx": 8192,
+        "num_ctx": 4096,
     },
     "reasoning": {
         "model": "deepseek-r1:latest",
         "temperature": 0.4,
-        "num_ctx": 16384,
+        "num_ctx": 4096,
     },
     "ocr": {
         "model": "deepseek-ocr:latest",
@@ -35,17 +35,17 @@ MODELS = {
     "medical": {
         "model": "medgemma:4b",
         "temperature": 0.3,
-        "num_ctx": 8192,
+        "num_ctx": 4096,
     },
     "gemma-small": {
         "model": "gemma4-e2b:latest",
         "temperature": 0.6,
-        "num_ctx": 4096,
+        "num_ctx": 2048,
     },
     "gemma-medium": {
         "model": "gemma4-e4b:latest",
         "temperature": 0.5,
-        "num_ctx": 8192,
+        "num_ctx": 4096,
     },
 }
 
