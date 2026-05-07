@@ -27,7 +27,15 @@ class SupabaseMemoryRepository(IMemoryRepository):
             if not response.data:
                 return None
 
-            return [row for row in reversed(response.data)]
+            return [
+                {
+                    "id": row["message_id"],
+                    "role": row["role"],
+                    "content": row["content"],
+                    "timestamp": row["created_at"],
+                }
+                for row in reversed(response.data)
+            ]
         except Exception as e:
             logger.error(f"Error fetching messages for session {session_id}: {e}")
             return None
@@ -42,13 +50,11 @@ class SupabaseMemoryRepository(IMemoryRepository):
             msg_data = []
             for msg in messages:
                 msg_data.append({
-                    "id": msg.get("id", str(uuid.uuid4())),
+                    "message_id": msg.get("id", str(uuid.uuid4())),
                     "session_id": session_id,
                     "role": msg.get("role"),
                     "content": msg.get("content"),
-                    "timestamp": msg.get("timestamp"),
-                    "attachments": msg.get("attachments", []),
-                    "artifacts": msg.get("artifacts", []),
+                    "created_at": msg.get("timestamp") or datetime.utcnow().isoformat(),
                 })
 
             self.supabase.table("chat_messages").insert(msg_data).execute()
@@ -60,7 +66,7 @@ class SupabaseMemoryRepository(IMemoryRepository):
             response = (
                 self.supabase.table("chat_sessions")
                 .select("*")
-                .eq("id", session_id)
+                .eq("session_id", session_id)
                 .single()
                 .execute()
             )
@@ -77,10 +83,9 @@ class SupabaseMemoryRepository(IMemoryRepository):
         session_id = str(uuid.uuid4())
         try:
             self.supabase.table("chat_sessions").insert({
-                "id": session_id,
+                "session_id": session_id,
                 "user_id": user_id,
                 "title": title,
-                "model_used": "default"
             }).execute()
             return session_id
         except Exception as e:
@@ -96,7 +101,15 @@ class SupabaseMemoryRepository(IMemoryRepository):
                 .order("created_at", desc=True)
                 .execute()
             )
-            return [dict(row) for row in (response.data or [])]
+            return [
+                {
+                    "id": row["session_id"],
+                    "title": row["title"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+                for row in (response.data or [])
+            ]
         except Exception as e:
             logger.error(f"Error fetching sessions for user {user_id}: {e}")
             return []
@@ -106,13 +119,13 @@ class SupabaseMemoryRepository(IMemoryRepository):
             self.supabase.table("chat_sessions").update({
                 "title": title,
                 "updated_at": datetime.utcnow().isoformat()
-            }).eq("id", session_id).execute()
+            }).eq("session_id", session_id).execute()
         except Exception as e:
             logger.error(f"Error updating session {session_id}: {e}")
 
     async def delete_session(self, user_id: str, session_id: str) -> None:
         try:
-            self.supabase.table("chat_sessions").delete().eq("id", session_id).execute()
+            self.supabase.table("chat_sessions").delete().eq("session_id", session_id).execute()
         except Exception as e:
             logger.error(f"Error deleting session {session_id}: {e}")
 

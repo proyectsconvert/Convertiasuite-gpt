@@ -17,7 +17,7 @@ class IMemoryRepository(ABC):
         pass
 
     @abstractmethod
-    async def create_session(self, user_id: str, title: str, session_id: str) -> str:
+    async def create_session(self, user_id: str, title: str) -> str:
         pass
 
     @abstractmethod

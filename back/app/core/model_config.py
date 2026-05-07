@@ -4,7 +4,7 @@ from functools import lru_cache
 MODELS = {
 "default": {
         "model": "qwen2.5:7b",
-        "temperature": 0.7,
+        "temperature": 0.2,
         "num_ctx": 2048,
     },
     "code": {
@@ -14,7 +14,7 @@ MODELS = {
     },
     "vision": {
         "model": "llama3.2-vision:11b",
-        "temperature": 0.6,
+        "temperature": 0.4,
         "num_ctx": 4096,
     },
     "analysis": {
@@ -39,7 +39,7 @@ MODELS = {
     },
     "gemma-small": {
         "model": "gemma4-e2b:latest",
-        "temperature": 0.6,
+        "temperature": 0.2,
         "num_ctx": 2048,
     },
     "gemma-medium": {

@@ -7,6 +7,7 @@ import AppLayout from "./components/layout/AppLayout";
 import AuthPage from "./components/auth/AuthPage";
 import LandingPage from "./components/landing/LandingPage";
 import ChatView from "./components/chat/ChatView";
+import SettingsView from "./components/settings/SettingsView";
 import { useAppStore } from "./store/appStore";
 import { ReactNode } from "react";
 
@@ -37,7 +38,7 @@ const App = () => (
           <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
             <Route index element={<Navigate to="chat" replace />} />
             <Route path="chat" element={<ChatView />} />
-            <Route path="settings" element={<></>} />
+            <Route path="settings" element={<SettingsView />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -1,7 +1,8 @@
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { Outlet } from "react-router-dom";
 import { useAppStore } from "@/store/appStore";
-import ChatLayout from "@/components/chat/ChatLayout";
+import ChatSidebar from "@/components/chat/ChatSidebar";
 
 export default function AppLayout() {
   const { setView } = useAppStore();
@@ -15,7 +16,18 @@ export default function AppLayout() {
 
   return (
     <div className="h-screen flex bg-background overflow-hidden">
-      <ChatLayout />
+      {isSettings ? (
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <Outlet />
+        </div>
+      ) : (
+        <>
+          <ChatSidebar />
+          <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <Outlet />
+          </main>
+        </>
+      )}
     </div>
   );
 }

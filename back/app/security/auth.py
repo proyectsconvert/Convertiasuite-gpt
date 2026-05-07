@@ -24,9 +24,10 @@ def authenticate_with_supabase(email: str, password: str) -> dict | None:
         
         return {
             "id": response.user.id,
-            "name": response.user.user_metadata.get("name", email.split("@")[0]),
+            "name": response.user.user_metadata.get("full_name") or response.user.user_metadata.get("name", email.split("@")[0]),
             "email": response.user.email,
-            "role": response.user.user_metadata.get("role", "viewer")
+            "role": response.user.user_metadata.get("role", "viewer"),
+            "avatar_url": response.user.user_metadata.get("avatar_url"),
         }
     except Exception as e:
         logger.error(f"Error en autenticación Supabase: {type(e).__name__}: {e}")
