@@ -1,6 +1,9 @@
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.core.model_config import get_model_config
-from app.services.prompts.prompt_templates import build_prompt
+from app.services.prompts.prompt_templates import build_messages
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaProvider(ILlmProvider):
@@ -11,7 +14,13 @@ class OllamaProvider(ILlmProvider):
     async def generate(self, messages: list, model_key: str) -> str:
         model_info = self.models.get(model_key, self.models["default"])
 
-        prompt = build_prompt(messages, model_key)
+        # Usar build_messages en lugar de build_prompt
+        msg_dict = build_messages(messages, model_key)
+        
+        # Convertir al formato que espera la API /api/chat
+        prompt = f"{msg_dict['system']}\n\n--- Conversation ---\n\n"
+        for msg in msg_dict['messages']:
+            prompt += f"{msg['role']}: {msg['content']}\n\n"
 
         return await self.client.generate(
             prompt=prompt,
@@ -22,13 +31,29 @@ class OllamaProvider(ILlmProvider):
 
     async def generate_stream(self, messages: list, model_key: str):
         """
-        Generator that yields streaming response chunks.
+        Generator que emite chunks de respuesta usando /api/chat.
+        Estrategia: Si Ollama no respeta el rol "system", inyectamos el sistema 
+        al inicio del primer mensaje del usuario.
         """
         model_info = self.models.get(model_key, self.models["default"])
-        prompt = build_prompt(messages, model_key)
-
-        async for chunk in self.client.generate_stream(
-            prompt=prompt,
+        
+        # Construir los mensajes con el sistema incluido
+        msg_dict = build_messages(messages, model_key)
+        
+        logger.debug(f"Model: {model_key} ({model_info['model']})")
+        logger.debug(f"System prompt length: {len(msg_dict['system'])} chars")
+        logger.debug(f"Total messages: {len(msg_dict['messages'])}")
+        
+        chat_messages = [{"role": "system", "content": msg_dict["system"]}]
+        
+        for msg in msg_dict["messages"]:
+            chat_messages.append(msg)
+        
+        logger.info(f"[ENHANCED_CHAT] Model: {model_key}, Messages: {len(chat_messages)}")
+        logger.info(f"[FIRST_MSG] {chat_messages[0]['content'][:200]}...")
+        
+        async for chunk in self.client.generate_chat_stream(
+            messages=chat_messages,
             model=model_info["model"],
             temperature=model_info.get("temperature"),
             num_ctx=model_info.get("num_ctx"),

@@ -125,7 +125,7 @@ class SupabaseMemoryRepository(IMemoryRepository):
 
     async def delete_session(self, user_id: str, session_id: str) -> None:
         try:
-            self.supabase.table("chat_sessions").delete().eq("session_id", session_id).execute()
+            self.supabase.table("chat_sessions").update({"deleted_at": datetime.utcnow().isoformat()}).eq("session_id", session_id).execute()
         except Exception as e:
             logger.error(f"Error deleting session {session_id}: {e}")
 

@@ -115,5 +115,91 @@ class OllamaClient:
                     raise
                 await asyncio.sleep(2 ** attempt)
 
+    async def generate_chat_stream(
+        self,
+        messages: list,
+        model: str,
+        temperature: float = None,
+        num_ctx: int = None,
+        max_retries: int = 3,
+    ):
+        """
+        Usa la API /api/chat de Ollama que respeta mensajes con roles (system, user, assistant).
+        Esto es crítico para que el prompt del sistema se aplique correctamente.
+        """
+        for attempt in range(max_retries):
+            await ollama_rate_limiter.wait_and_acquire("ollama")
+
+            payload = {
+                "model": model,
+                "messages": messages,
+                "stream": True,
+            }
+
+            options = {}
+            if temperature is not None:
+                options["temperature"] = temperature
+            if num_ctx is not None:
+                options["num_ctx"] = num_ctx
+
+            if options:
+                payload["options"] = options
+
+            emitted = False
+
+            try:
+                logger.info(f"[CHAT API] Model: {model}, Messages: {len(messages)}")
+                
+                # Log del primer mensaje (sistema)
+                if messages and messages[0].get("role") == "system":
+                    system_msg = messages[0].get("content", "")
+                    logger.info(f"[SYSTEM] {system_msg[:150]}...")
+                
+                # Log del último mensaje del usuario
+                if len(messages) > 1:
+                    user_messages = [m for m in messages if m.get("role") == "user"]
+                    if user_messages:
+                        logger.info(f"[USER] {user_messages[-1].get('content', '')[:100]}...")
+                
+                async with self.client.stream(
+                    "POST",
+                    f"{self.base_url}/api/chat",
+                    json=payload,
+                ) as response:
+                    if response.status_code == 429:
+                        logger.warning(f"Ollama rate limit hit (chat), attempt {attempt + 1}/{max_retries}")
+                        await asyncio.sleep(2 ** attempt)
+                        continue
+
+                    response.raise_for_status()
+
+                    async for line in response.aiter_lines():
+                        if not line:
+                            continue
+
+                        try:
+                            data = json.loads(line)
+                            if "message" in data and "content" in data["message"]:
+                                content = data["message"]["content"]
+                                if content:
+                                    emitted = True
+                                    yield content
+                        except json.JSONDecodeError:
+                            continue
+
+                    if not emitted:
+                        logger.warning(f"Chat stream vacío para modelo {model}, reintentando...")
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(2 ** attempt)
+                            continue
+                        else:
+                            raise Exception("Chat stream vacío después de varios intentos")
+                    return
+            except Exception as e:
+                logger.error(f"Ollama chat request failed (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt == max_retries - 1:
+                    raise
+                await asyncio.sleep(2 ** attempt)
+
     async def close(self):
         await self.client.aclose()

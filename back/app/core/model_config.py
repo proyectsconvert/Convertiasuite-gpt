@@ -5,7 +5,7 @@ MODELS = {
 "default": {
         "model": "qwen2.5:7b",
         "temperature": 0.2,
-        "num_ctx": 1024,
+        "num_ctx": 4096,
     },
     "code": {
         "model": "qwen2.5-coder:7b",

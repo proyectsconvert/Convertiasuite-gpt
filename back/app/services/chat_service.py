@@ -50,6 +50,8 @@ async def process_chat(
     )
 
     model_name = MODELS[model_key]["model"]
+    
+    logger.info(f"Model Key: {model_key} | User Role: {request.user_role} | Model Name: {model_name}")
 
     session_id = request.session_id or str(uuid.uuid4())
 
