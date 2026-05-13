@@ -9,7 +9,7 @@ def get_client_identifier(request: Request) -> str:
     if user_id:
         return f"user:{user_id}"
     
- 
+
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
         ip = forwarded_for.split(",")[0].strip()

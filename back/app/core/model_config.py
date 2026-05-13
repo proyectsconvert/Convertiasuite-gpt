@@ -4,8 +4,8 @@ from functools import lru_cache
 MODELS = {
 "default": {
         "model": "qwen2.5:7b",
-        "temperature": 0.2,
-        "num_ctx": 4096,
+        "temperature": 0.3,
+        "num_ctx": 8192,
     },
     "code": {
         "model": "qwen2.5-coder:7b",

@@ -87,15 +87,45 @@ interface AppState {
   logout: () => void;
 }
 
+const STORAGE_KEY = 'convertia_chat_state';
+
+function loadPersistedState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        currentChatId: parsed.currentChatId || null,
+        sessions: parsed.sessions || [],
+      };
+    }
+  } catch (e) {
+    console.error('Failed to load persisted state:', e);
+  }
+  return { currentChatId: null, sessions: [] };
+}
+
+function persistState(state: Partial<{ currentChatId: string | null; sessions: SessionSummary[] }>) {
+  try {
+    const current = loadPersistedState();
+    const merged = { ...current, ...state };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+  } catch (e) {
+    console.error('Failed to persist state:', e);
+  }
+}
+
+const persisted = loadPersistedState();
+
 export const useAppStore = create<AppState>()(
-  (set) => ({
+  (set, get) => ({
     view: 'landing',
     authTab: 'login',
     sidebarOpen: true,
     chatSidebarOpen: true,
     darkMode: false,
-    currentChatId: null,
-    sessions: [],
+    currentChatId: persisted.currentChatId,
+    sessions: persisted.sessions,
     commandOpen: false,
     user: null,
     isAuthenticated: false,
@@ -114,16 +144,27 @@ export const useAppStore = create<AppState>()(
       document.documentElement.classList.toggle('dark', next);
       return { darkMode: next };
     }),
-    setCurrentChatId: (id) => set({ currentChatId: id }),
+    setCurrentChatId: (id) => {
+      set({ currentChatId: id });
+      persistState({ currentChatId: id });
+    },
     setSessions: (sessions) => set({ sessions }),
-    addSession: (session) => set((s) => ({ sessions: [session, ...s.sessions] })),
-    deleteSession: (id) => set((s) => ({
-      sessions: s.sessions.filter((c) => c.id !== id),
-      currentChatId: s.currentChatId === id ? null : s.currentChatId,
-    })),
-    renameSession: (id, title) => set((s) => ({
-      sessions: s.sessions.map((c) => c.id === id ? { ...c, title } : c),
-    })),
+    addSession: (session) => {
+      set((s) => ({ sessions: [session, ...s.sessions] }));
+      const currentSessions = get().sessions;
+      persistState({ sessions: [session, ...currentSessions] });
+    },
+    deleteSession: (id) => set((s) => {
+      const newSessions = s.sessions.filter((c) => c.id !== id);
+      const newCurrentChatId = s.currentChatId === id ? null : s.currentChatId;
+      set({ sessions: newSessions, currentChatId: newCurrentChatId });
+      persistState({ sessions: newSessions, currentChatId: newCurrentChatId });
+    }),
+    renameSession: (id, title) => set((s) => {
+      const newSessions = s.sessions.map((c) => c.id === id ? { ...c, title } : c);
+      set({ sessions: newSessions });
+      persistState({ sessions: newSessions });
+    }),
     setCommandOpen: (open) => set({ commandOpen: open }),
     setSelectedModel: (model) => set({ selectedModel: model }),
     setArtifactsPanelOpen: (open) => set({ artifactsPanelOpen: open }),
@@ -156,12 +197,15 @@ export const useAppStore = create<AppState>()(
         view: 'chat',
       });
     },
-    logout: () => set({
-      user: null,
-      isAuthenticated: false,
-      view: 'landing',
-      sessions: [],
-      currentChatId: null,
-    }),
+    logout: () => {
+      set({
+        user: null,
+        isAuthenticated: false,
+        view: 'landing',
+        sessions: [],
+        currentChatId: null,
+      });
+      localStorage.removeItem(STORAGE_KEY);
+    },
   })
 );

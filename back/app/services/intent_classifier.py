@@ -1,35 +1,22 @@
+"""
+Intent classifier para detectar solicitudes potencialmente dañinas.
+Reemplazado por risk_scorer para análisis semántico.
+Este módulo se mantiene para compatibilidad con clasificación de dominio.
+"""
+
 from app.schemas.chat import UserRole, ChatRequest
-from app.core.config import get_settings
 from app.core.keywords_config import (
-    KEYWORDS_VISION, KEYWORDS_ANALYSIS, KEYWORDS_CODE, 
+    KEYWORDS_VISION, KEYWORDS_ANALYSIS, KEYWORDS_CODE,
     KEYWORDS_REASONING, KEYWORDS_OCR, KEYWORDS_MEDICAL
 )
-from app.infra.clients.ollama_client import OllamaClient
-
-settings = get_settings()
-ollama_client = OllamaClient()
-
-
-async def classify_with_model(message: str) -> UserRole:
-    prompt = f"""Clasifica este mensaje en una sola palabra.
-Opciones: default, code, vision, analysis, reasoning, ocr, medical, gemma-small
-
-Mensaje: "{message}"
-Responde solo con la palabra, sin explicación."""
-
-    response = await ollama_client.generate(
-        model="gemma4-e2b:latest",
-        prompt=prompt
-    )
-
-    role = response.strip().lower()
-    try:
-        return UserRole(role)
-    except ValueError:
-        return UserRole.default
+from app.security.risk_scorer import risk_scorer
 
 
 async def classify_intent(request: ChatRequest) -> UserRole:
+    """
+    Clasifica el dominio/intención del mensaje para routing de modelo.
+    Ahora usa risk_scorer para detección de ataques.
+    """
     message = request.message.lower()
 
     if request.has_attachment:
@@ -37,6 +24,10 @@ async def classify_intent(request: ChatRequest) -> UserRole:
 
     if request.user_role != UserRole.default:
         return request.user_role
+
+    risk = risk_scorer.score(request.message)
+    if risk.should_block:
+        return UserRole.default
 
     if any(k in message for k in KEYWORDS_VISION):
         return UserRole.vision
@@ -56,4 +47,4 @@ async def classify_intent(request: ChatRequest) -> UserRole:
     if any(k in message for k in KEYWORDS_MEDICAL):
         return UserRole.medical
 
-    return await classify_with_model(request.message)
+    return UserRole.default

@@ -123,10 +123,6 @@ class OllamaClient:
         num_ctx: int = None,
         max_retries: int = 3,
     ):
-        """
-        Usa la API /api/chat de Ollama que respeta mensajes con roles (system, user, assistant).
-        Esto es crítico para que el prompt del sistema se aplique correctamente.
-        """
         for attempt in range(max_retries):
             await ollama_rate_limiter.wait_and_acquire("ollama")
 
@@ -148,18 +144,7 @@ class OllamaClient:
             emitted = False
 
             try:
-                logger.info(f"[CHAT API] Model: {model}, Messages: {len(messages)}")
-                
-                # Log del primer mensaje (sistema)
-                if messages and messages[0].get("role") == "system":
-                    system_msg = messages[0].get("content", "")
-                    logger.info(f"[SYSTEM] {system_msg[:150]}...")
-                
-                # Log del último mensaje del usuario
-                if len(messages) > 1:
-                    user_messages = [m for m in messages if m.get("role") == "user"]
-                    if user_messages:
-                        logger.info(f"[USER] {user_messages[-1].get('content', '')[:100]}...")
+                logger.info(f"chat_request model={model} messages={len(messages)}")
                 
                 async with self.client.stream(
                     "POST",

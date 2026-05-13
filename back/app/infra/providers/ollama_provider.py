@@ -30,27 +30,17 @@ class OllamaProvider(ILlmProvider):
         )
 
     async def generate_stream(self, messages: list, model_key: str):
-        """
-        Generator que emite chunks de respuesta usando /api/chat.
-        Estrategia: Si Ollama no respeta el rol "system", inyectamos el sistema 
-        al inicio del primer mensaje del usuario.
-        """
         model_info = self.models.get(model_key, self.models["default"])
         
         # Construir los mensajes con el sistema incluido
         msg_dict = build_messages(messages, model_key)
         
-        logger.debug(f"Model: {model_key} ({model_info['model']})")
-        logger.debug(f"System prompt length: {len(msg_dict['system'])} chars")
-        logger.debug(f"Total messages: {len(msg_dict['messages'])}")
+        logger.debug(f"model_key={model_key} model={model_info['model']} messages={len(msg_dict['messages'])}")
         
         chat_messages = [{"role": "system", "content": msg_dict["system"]}]
         
         for msg in msg_dict["messages"]:
             chat_messages.append(msg)
-        
-        logger.info(f"[ENHANCED_CHAT] Model: {model_key}, Messages: {len(chat_messages)}")
-        logger.info(f"[FIRST_MSG] {chat_messages[0]['content'][:200]}...")
         
         async for chunk in self.client.generate_chat_stream(
             messages=chat_messages,
