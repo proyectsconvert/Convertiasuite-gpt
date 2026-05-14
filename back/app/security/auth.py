@@ -15,8 +15,6 @@ def authenticate_with_supabase(email: str, password: str) -> dict | None:
         supabase = SupabaseClient().get_client(admin=False)
         logger.info(f"Intento de login: {email}")
         
-        # Supabase espera auth.sign_in_with_password() pero nuestro cliente es PostgreSQL
-        # Así que usamos el endpoint REST de Supabase
         response = supabase.auth.sign_in_with_password({
             "email": email,
             "password": password

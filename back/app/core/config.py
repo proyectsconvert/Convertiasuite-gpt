@@ -4,7 +4,6 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     
-    # OAuth / JWT
     secret_key: str
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30

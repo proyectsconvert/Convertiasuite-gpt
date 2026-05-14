@@ -47,8 +47,8 @@ class RedisCacheRepository(IMemoryRepository):
         return messages or []
 
 
-    async def create_session(self, user_id: str, title: str) -> None:
-        session_id = str(uuid.uuid4())
+    async def create_session(self, user_id: str, title: str, session_id: str = None) -> str:
+        session_id = session_id or str(uuid.uuid4())
         now = datetime.utcnow().isoformat()
 
         meta_key = self._meta_key(session_id)

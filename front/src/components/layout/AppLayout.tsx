@@ -3,9 +3,11 @@ import { useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { useAppStore } from "@/store/appStore";
 import ChatSidebar from "@/components/chat/ChatSidebar";
+import ArtifactsPanel from "@/components/chat/ArtifactsPanel";
 
 export default function AppLayout() {
   const { setView } = useAppStore();
+  const { artifactsPanelOpen } = useAppStore();
   const location = useLocation();
   const isSettings = location.pathname.startsWith("/app/settings");
 
@@ -26,6 +28,7 @@ export default function AppLayout() {
           <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
             <Outlet />
           </main>
+          {artifactsPanelOpen && <ArtifactsPanel />}
         </>
       )}
     </div>

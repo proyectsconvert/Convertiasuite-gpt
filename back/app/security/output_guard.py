@@ -1,8 +1,3 @@
-"""
-Output guard para validación de respuestas del modelo.
-Arquitectura: Validación en tiempo real DURANTE streaming + validación completa post-generation.
-"""
-
 import re
 import logging
 import unicodedata
@@ -18,11 +13,6 @@ class OutputValidationAction(Enum):
 
 
 class OutputValidator:
-    """
-    Validador de output con scoring y acciones determinísticas.
-    No revela patrones internos al usuario.
-    """
-
     MAX_OUTPUT_LENGTH = 15000
     MAX_LINE_LENGTH = 500
 
@@ -37,14 +27,15 @@ class OutputValidator:
         r"(?i)token\s*=\s*[a-zA-Z0-9_-]+",
     ]
 
-    LANGUAGE_BLOCK_PATTERNS = [
+    '''LANGUAGE_BLOCK_PATTERNS = [
         r"[\u4e00-\u9fff]",  # Chinese
         r"[\uac00-\ud7af]",  # Korean
         r"[\u3040-\u309f\u30a0-\u30ff]",  # Japanese hiragana/katakana
     ]
+    '''
 
     FORMAT_BREAK_PATTERNS = [
-        r"[\x00-\x08\x0b\x0c\x0e-\x1f]",  # Control chars except tab/newline/cr
+        r"[\x00-\x08\x0b\x0c\x0e-\x1f]", 
     ]
 
     def __init__(self):
@@ -53,10 +44,6 @@ class OutputValidator:
         self._format_re = [re.compile(p) for p in self.FORMAT_BREAK_PATTERNS]
 
     def validate_output(self, text: str) -> tuple[bool, OutputValidationAction, str | None]:
-        """
-        Valida output completo.
-        Returns: (is_safe, action, error_message)
-        """
         if not text or not text.strip():
             return True, OutputValidationAction.ALLOW, None
 
@@ -103,10 +90,6 @@ class OutputValidator:
         return False
 
     def validate_chunk(self, chunk: str) -> tuple[bool, str | None]:
-        """
-        Validación en tiempo real durante streaming.
-        Returns: (is_safe, error_message)
-        """
         if not chunk:
             return True, None
 
@@ -127,15 +110,10 @@ class OutputValidator:
 
 
 def validate_chunk_realtime(chunk: str) -> tuple[bool, str | None]:
-    """Backward compatibility wrapper."""
     return output_validator.validate_chunk(chunk)
 
 
 def sanitize_output(text: str) -> str | None:
-    """
-    Valida y limpia output del modelo.
-    Returns None if output should be blocked.
-    """
     is_safe, action, _ = output_validator.validate_output(text)
 
     if action == OutputValidationAction.BLOCK:

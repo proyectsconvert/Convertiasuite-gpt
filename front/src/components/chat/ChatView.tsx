@@ -5,6 +5,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import ChatHeader from "@/components/chat/ChatHeader";
 import MessageBubble from "@/components/chat/MessageBubble";
 import { chatApi, ChatMessage } from "@/services/api";
+import { set } from "date-fns";
 
 export default function ChatView() {
   const { currentChatId, setCurrentChatId, user, addSession } = useAppStore();
@@ -21,6 +22,24 @@ export default function ChatView() {
   }, [messages.length, isLoading, streamingContent]);
 
   useEffect(() => {
+    const fetchChatHistory = async () => {
+      try {
+        const data = await chatApi.getHistory(currentChatId!);
+        if (data?.messages && Array.isArray(data.messages)) {
+          setMessages(data.messages);
+        } else {
+          setMessages([]);
+        }
+      } catch (error: unknown){
+        if (error instanceof Error) {
+          console.error("Error al traer el historial de chat:", error.message);
+        } else {
+          console.error("Error desconocido al traer el historial de chat:", error);
+        }
+        setMessages([]);
+      }
+    };
+    
     if (currentChatId) {
       chatApi.getHistory(currentChatId)
         .then((data) => {
@@ -29,6 +48,7 @@ export default function ChatView() {
           }
         })
         .catch(() => setMessages([]));
+  
     } else {
       setMessages([]);
     }

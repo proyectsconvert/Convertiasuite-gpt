@@ -1,8 +1,3 @@
-"""
-Centralized keyword configuration for intent classification and model routing.
-Single source of truth for domain keywords.
-"""
-
 KEYWORDS_VISION = [
     "imagen", "foto", "fotografía", "analiza esta", "qué ves", "describe la imagen"
 ]

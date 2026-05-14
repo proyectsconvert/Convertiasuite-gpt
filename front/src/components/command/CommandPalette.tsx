@@ -9,7 +9,7 @@ const actions = [
 ];
 
 export default function CommandPalette() {
-  const { commandOpen, setCommandOpen, chats, setCurrentChatId } = useAppStore();
+  const { commandOpen, setCommandOpen, sessions, setCurrentChatId } = useAppStore();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -56,10 +56,10 @@ export default function CommandPalette() {
               {a.shortcut && <span className="ml-auto text-xs text-muted-foreground font-mono bg-secondary px-1.5 py-0.5 rounded">{a.shortcut}</span>}
             </button>
           ))}
-          {chats.length > 0 && (
+          {sessions.length > 0 && (
             <>
               <p className="text-xs font-semibold text-muted-foreground uppercase px-2 py-1.5 mt-2">Chats recientes</p>
-              {chats.slice(0, 5).map((c) => (
+              {sessions.slice(0, 5).map((c) => (
                 <button
                   key={c.id}
                   onClick={() => {

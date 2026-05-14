@@ -1,7 +1,3 @@
-"""
-Chat API endpoints with proper SSE streaming and cancellation handling.
-"""
-
 import json
 import logging
 import asyncio
@@ -12,6 +8,7 @@ from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.memory_repository import IMemoryRepository
 from app.security.exceptions import SecurityException
 from app.security.output_guard import get_safety_fallback
+from app.dependencies.auth import get_current_user
 
 from app.services.chat_service import process_chat
 
@@ -54,6 +51,7 @@ async def sse_message(event_type: str, data: dict) -> str:
 async def send_message_stream(
     request: ChatRequest,
     http_request: Request,
+    current_user: dict = Depends(get_current_user),
     repo_type: str = "redis",
     llm_provider: ILlmProvider = Depends(get_llm_provider),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),

@@ -8,7 +8,7 @@ class CompositeMemoryRepository(IMemoryRepository):
 
     async def create_session(self, user_id: str, title: str) -> str:
         session_id = await self._db.create_session(user_id, title)
-        await self._cache.create_session(user_id, title)
+        await self._cache.create_session(user_id, title, session_id=session_id)
         return session_id
 
     async def get_messages(self, session_id: str) -> list:

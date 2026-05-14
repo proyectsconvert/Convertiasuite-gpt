@@ -29,19 +29,12 @@ from app.security.rate_limiting import limiter
 from app.api import chat, auth
 
 
-
-
-
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s"
 )
 
 logger = logging.getLogger("performance")
-
-
-
 
 
 @asynccontextmanager
