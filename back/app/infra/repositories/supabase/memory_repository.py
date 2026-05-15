@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class SupabaseMemoryRepository(IMemoryRepository):
     def __init__(self, supabase_client: Optional[SupabaseClient] = None):
         self.client = supabase_client or SupabaseClient()
-        self.supabase = self.client.get_client(admin=True)
+        self.supabase = self.client.admin
 
     async def get_messages(self, session_id: str, limit: int = 50) -> list | None:
         try:

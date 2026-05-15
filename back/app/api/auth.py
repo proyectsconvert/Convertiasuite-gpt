@@ -1,17 +1,7 @@
-from fastapi import (
-    APIRouter,
-    HTTPException,
-    status,
-    Request
-)
-
-from app.schemas.auth import LoginRequest
-
+from fastapi import (APIRouter, HTTPException, Request, status,)
+from app.schemas.auth import (LoginRequest, TokenResponse,)
 from app.security.rate_limiting import limiter
-
-from app.infra.clients.supabase_client import (
-    SupabaseClient
-)
+from app.infra.clients.supabase_client import SupabaseClient
 
 import logging
 
@@ -19,83 +9,96 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/auth",
-    tags=["auth"]
+    tags=["auth"],
 )
 
 
-@router.post("/login")
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+)
 @limiter.limit("5/minute")
-def login(
+async def login(
     request: Request,
-    body: LoginRequest
+    body: LoginRequest,
 ):
 
     try:
 
-        supabase = (
-            SupabaseClient()
-            .get_client(admin=False)
-        )
+        supabase = SupabaseClient().anon
 
         response = (
             supabase.auth
-            .sign_in_with_password({
-                "email": body.email,
-                "password": body.password
-            })
-        )
-
-        if not response.user:
-
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Credenciales inválidas"
+            .sign_in_with_password(
+                {
+                    "email": body.email,
+                    "password": body.password,
+                }
             )
-
-        logger.info(
-            f"Usuario autenticado "
-            f"user_id={response.user.id}"
         )
 
-        return {
+    except Exception:
 
-            "access_token":
-                response.session.access_token,
+        logger.exception(
+            "Supabase authentication failure"
+        )
 
-            "refresh_token":
-                response.session.refresh_token,
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service unavailable",
+        )
 
-            "user": {
+    if (
+        not response
+        or not response.user
+        or not response.session
+    ):
 
-                "id":
-                    response.user.id,
-
-                "name":
-                    response.user.user_metadata.get(
-                        "full_name"
-                    )
-                    or
-                    response.user.user_metadata.get(
-                        "name",
-                        body.email.split("@")[0]
-                    ),
-
-                "email":
-                    response.user.email,
-
-                "role":
-                    response.user.user_metadata.get(
-                        "role",
-                        "viewer"
-                    )
-            }
-        }
-
-    except Exception as e:
-
-        logger.exception("Authentication error")
+        logger.warning(
+            "Invalid login attempt"
+        )
 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Error en la autenticación"
+            detail="Correo o contraseña incorrectos",
         )
+
+    user_metadata = (
+        response.user.user_metadata or {}
+    )
+
+    app_metadata = (
+        response.user.app_metadata or {}
+    )
+
+    user_data = {
+        "id": response.user.id,
+
+        "name": (
+            user_metadata.get("full_name")
+            or user_metadata.get("name")
+            or "Usuario"
+        ),
+
+        "email": response.user.email,
+
+        "role": (
+            app_metadata.get(
+                "role",
+                "authenticated",
+            )
+        ),
+    }
+
+    logger.info(
+        "User authenticated user_id=%s",
+        response.user.id,
+    )
+
+    return TokenResponse(
+        access_token=response.session.access_token,
+        refresh_token=response.session.refresh_token,
+        token_type="bearer",
+        expires_in=response.session.expires_in,
+        user=user_data,
+    )

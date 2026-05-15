@@ -26,21 +26,15 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 def get_llm_provider() -> ILlmProvider:
     from app.infra.providers.ollama_provider import OllamaProvider
     from app.infra.clients.ollama_client import OllamaClient
+
     return OllamaProvider(OllamaClient())
 
 
 def get_memory_repo(request: Request) -> IMemoryRepository:
-    return request.app.state.memory
-
-
-def get_supabase_memory_repo(request: Request) -> IMemoryRepository:
-    return request.app.state.supabase
-
-
-def get_memory_repo_by_type(request: Request, repo_type: str = "redis") -> IMemoryRepository:
-    if repo_type == "supabase":
-        return request.app.state.supabase
     return request.app.state.cache
+
+
+# SSE helper
 
 
 async def sse_message(event_type: str, data: dict) -> str:
@@ -52,12 +46,11 @@ async def send_message_stream(
     request: ChatRequest,
     http_request: Request,
     current_user: dict = Depends(get_current_user),
-    repo_type: str = "redis",
     llm_provider: ILlmProvider = Depends(get_llm_provider),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
-    if repo_type == "supabase":
-        memory_repo = http_request.app.state.supabase
+
+    user_id = current_user["id"]
 
     async def event_generator():
         session_id = None
@@ -65,15 +58,12 @@ async def send_message_stream(
 
         try:
             stream, model, session_id = await process_chat(
-                request,
-                llm_provider,
-                memory_repo
+                request, llm_provider, memory_repo, user_id=user_id
             )
 
-            yield await sse_message("start", {
-                "session_id": session_id,
-                "model": model or "unknown"
-            })
+            yield await sse_message(
+                "start", {"session_id": session_id, "model": model or "unknown"}
+            )
 
             async for chunk in stream:
                 if await http_request.is_disconnected():
@@ -85,38 +75,29 @@ async def send_message_stream(
 
             yield await sse_message("done", {"session_id": session_id})
 
-        except asyncio.CancelledError:
-            logger.info(f"Stream cancelled session={session_id}")
-            if session_id:
-                yield await sse_message("error", {
-                    "session_id": session_id,
-                    "message": "Stream cancelled"
-                })
-            raise
-
-        except SecurityException as e:
-            logger.warning(f"Security exception: {str(e)}")
+        except SecurityException:
             fallback = get_safety_fallback()
-            sid = session_id or "unknown"
 
-            yield await sse_message("start", {
-                "session_id": sid,
-                "model": "security"
-            })
+            yield await sse_message(
+                "start", {"session_id": session_id or "unknown", "model": "security"}
+            )
+
             yield await sse_message("chunk", {"content": fallback})
-            yield await sse_message("done", {"session_id": sid})
+
+            yield await sse_message("done", {"session_id": session_id or "unknown"})
 
         except Exception as e:
             logger.error(f"Unexpected error: {str(e)}")
-            fallback = get_safety_fallback()
-            sid = session_id or "unknown"
 
-            yield await sse_message("start", {
-                "session_id": sid,
-                "model": "error"
-            })
+            fallback = get_safety_fallback()
+
+            yield await sse_message(
+                "start", {"session_id": session_id or "unknown", "model": "error"}
+            )
+
             yield await sse_message("chunk", {"content": fallback})
-            yield await sse_message("done", {"session_id": sid})
+
+            yield await sse_message("done", {"session_id": session_id or "unknown"})
 
     return StreamingResponse(
         event_generator(),
@@ -131,28 +112,28 @@ async def send_message_stream(
 
 @router.get("/sessions", response_model=SessionListResponse)
 async def list_sessions(
-    request: Request,
-    user_id: str,
-    repo_type: str = "redis",
+    current_user: dict = Depends(get_current_user),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
-    if repo_type == "supabase":
-        memory_repo = request.app.state.supabase
+
+    user_id = current_user["id"]
+
     sessions = await memory_repo.get_session_list(user_id)
+
     return SessionListResponse(sessions=sessions)
 
 
 @router.post("/sessions", response_model=SessionSummary)
 async def create_session(
-    request: Request,
-    user_id: str,
     title: str,
-    repo_type: str = "redis",
+    current_user: dict = Depends(get_current_user),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
-    if repo_type == "supabase":
-        memory_repo = request.app.state.supabase
+
+    user_id = current_user["id"]
+
     session_id = await memory_repo.create_session(user_id, title)
+
     now = datetime.now().isoformat()
 
     return SessionSummary(
@@ -165,33 +146,30 @@ async def create_session(
 
 @router.delete("/sessions/{session_id}")
 async def delete_session(
-    request: Request,
-    user_id: str,
     session_id: str,
-    repo_type: str = "redis",
+    current_user: dict = Depends(get_current_user),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
-    if repo_type == "supabase":
-        memory_repo = request.app.state.supabase
+
+    user_id = current_user["id"]
+
     await memory_repo.delete_session(user_id, session_id)
+
     return {"status": "deleted"}
 
 
 @router.get("/{session_id}", response_model=ChatHistoryResponse)
 async def get_chat_history(
-    request: Request,
     session_id: str,
-    repo_type: str = "redis",
+    current_user: dict = Depends(get_current_user),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
-    if repo_type == "supabase":
-        memory_repo = request.app.state.supabase
+
+    user_id = current_user["id"]
+
     messages = await memory_repo.get_messages(session_id)
 
     if messages is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    return ChatHistoryResponse(
-        messages=messages,
-        session_id=session_id
-    )
+    return ChatHistoryResponse(messages=messages, session_id=session_id)

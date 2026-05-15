@@ -1,9 +1,7 @@
 from pydantic import BaseModel, EmailStr
-from typing import Any
 
 
 class UserInfo(BaseModel):
-    """User information returned after authentication"""
     id: str
     email: str
     name: str
@@ -17,5 +15,7 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
+    expires_in: int
     user: UserInfo

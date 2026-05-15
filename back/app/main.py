@@ -109,6 +109,8 @@ async def measure_requests(request: Request, call_next):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://localhost:8083",
+        "http://127.0.0.1:8083",
         "http://localhost:8080",
         "http://127.0.0.1:8080",
         "http://10.130.30.40:8080"

@@ -1,5 +1,6 @@
-const API_BASE = "/chat";
-const AUTH_BASE = "/auth";
+const API_URL = import.meta.env.VITE_API_URL || "";
+const API_BASE = `${API_URL}/chat`;
+const AUTH_BASE = `${API_URL}/auth`;
 
 export interface ChatMessage {
   id: string;
@@ -46,7 +47,6 @@ export interface SessionListResponse {
   sessions: SessionSummary[];
 }
 
-// Auth interfaces
 export interface LoginRequest {
   email: string;
   password: string;
@@ -65,103 +65,201 @@ export interface TokenResponse {
   user: UserInfo;
 }
 
+//AUTH HELPERS
+
+function getAccessToken(): string | null {
+  return localStorage.getItem("accessToken");
+}
+
+function clearSession(): void {
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("user");
+}
+
+function buildHeaders(customHeaders: HeadersInit = {}): HeadersInit {
+  const token = getAccessToken();
+
+  return {
+    "Content-Type": "application/json",
+    ...(token && {
+      Authorization: `Bearer ${token}`,
+    }),
+    ...customHeaders,
+  };
+}
+
+async function apiFetch(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const response = await fetch(url, {
+    ...options,
+    headers: buildHeaders(options.headers),
+  });
+
+  if (response.status === 401) {
+    clearSession();
+    window.location.href = "/login";
+    throw new Error("Unauthorized");
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+
+    throw new Error(
+      `HTTP ${response.status}: ${errorText || response.statusText}`
+    );
+  }
+
+  return response;
+}
+
+//AUTH API
+
 export const authApi = {
   async login(req: LoginRequest): Promise<TokenResponse> {
-    const res = await fetch(`${AUTH_BASE}/login`, {
+    const response = await fetch(`${AUTH_BASE}/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(req),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+
+    if (!response.ok) {
+      const errorText = await response.text();
+
+      throw new Error(
+        `HTTP ${response.status}: ${errorText || response.statusText}`
+      );
+    }
+
+    return response.json();
   },
 };
 
+//CHAT API
+
 export const chatApi = {
-  async sendMessage(req: SendMessageRequest): Promise<SendMessageResponse> {
-    const res = await fetch(API_BASE, {
+  async sendMessage(
+    req: SendMessageRequest
+  ): Promise<SendMessageResponse> {
+    const response = await apiFetch(API_BASE, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+
+    return response.json();
   },
 
-  sendMessageStream(req: SendMessageRequest): AsyncGenerator<StreamChunk, void, unknown> {
-    return (async function* () {
-      const response = await fetch(`${API_BASE}/stream`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(req),
-      });
+  async *sendMessageStream(
+    req: SendMessageRequest
+  ): AsyncGenerator<StreamChunk, void, unknown> {
+    const response = await apiFetch(`${API_BASE}/stream`, {
+      method: "POST",
+      body: JSON.stringify(req),
+    });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+    const reader = response.body?.getReader();
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("No response body");
-      }
+    if (!reader) {
+      throw new Error("No response body");
+    }
 
-      const decoder = new TextDecoder();
-      let buffer = "";
+    const decoder = new TextDecoder();
+    let buffer = "";
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
+        if (done) {
+          break;
+        }
 
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const data = line.slice(6);
-              try {
-                const chunk: StreamChunk = JSON.parse(data);
-                yield chunk;
-                if (chunk.type === "done" || chunk.type === "error") {
-                  return;
-                }
-              } catch (e) {
-                console.error("Failed to parse SSE data:", data);
-              }
+        buffer += decoder.decode(value, {
+          stream: true,
+        });
+
+        const lines = buffer.split(/\r?\n/);
+
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) {
+            continue;
+          }
+
+          const data = line.slice(6).trim();
+
+          if (!data) {
+            continue;
+          }
+
+          try {
+            const chunk: StreamChunk = JSON.parse(data);
+
+            yield chunk;
+
+            if (
+              chunk.type === "done" ||
+              chunk.type === "error"
+            ) {
+              return;
             }
+          } catch (error) {
+            console.error("Invalid SSE JSON:", data);
+
+            throw new Error("Stream parsing failed");
           }
         }
-      } finally {
-        reader.releaseLock();
       }
-    })();
+    } finally {
+      reader.releaseLock();
+    }
   },
 
-  async getHistory(sessionId: string): Promise<ChatHistoryResponse> {
-    const res = await fetch(`${API_BASE}/${sessionId}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+  async getHistory(
+    sessionId: string
+  ): Promise<ChatHistoryResponse> {
+    const response = await apiFetch(
+      `${API_BASE}/${sessionId}`
+    );
+
+    return response.json();
   },
 
-  async getSessions(userId: string): Promise<SessionListResponse> {
-    const res = await fetch(`${API_BASE}/sessions?user_id=${userId}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  },
+async getSessions(): Promise<SessionListResponse> {
+  const response = await apiFetch(
+    `${API_BASE}/sessions`
+  );
 
-  async createSession(userId: string, title: string): Promise<SessionSummary> {
-    const res = await fetch(`${API_BASE}/sessions?user_id=${userId}&title=${encodeURIComponent(title)}`, {
+  return response.json();
+},
+
+async createSession(
+  title: string
+): Promise<SessionSummary> {
+
+  const response = await apiFetch(
+    `${API_BASE}/sessions?title=${encodeURIComponent(title)}`,
+    {
       method: "POST",
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  },
+    }
+  );
 
-  async deleteSession(userId: string, sessionId: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}?user_id=${userId}`, {
+  return response.json();
+},
+
+async deleteSession(
+  sessionId: string
+): Promise<void> {
+
+  await apiFetch(
+    `${API_BASE}/sessions/${sessionId}`,
+    {
       method: "DELETE",
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  },
+    }
+  );
+},
 };

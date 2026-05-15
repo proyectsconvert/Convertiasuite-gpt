@@ -12,17 +12,17 @@ export default defineConfig(({ mode }) => {
       port: 8080,
       proxy: {
         "/api": {
-          target: env.VITE_API_URL || "http://localhost:8000",
+          target: env.VITE_API_URL || "http://backend:8000",
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, ""),
         },
         "/chat": {
-          target: env.VITE_API_URL || "http://localhost:8000",
+          target: env.VITE_API_URL || "http://backend:8000",
           changeOrigin: true,
           rewrite: (path) => path,
         },
         "/auth": {
-          target: env.VITE_API_URL || "http://localhost:8000",
+          target: env.VITE_API_URL || "http://backend:8000",
           changeOrigin: true,
           rewrite: (path) => path,
         },

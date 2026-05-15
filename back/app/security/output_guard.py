@@ -27,12 +27,11 @@ class OutputValidator:
         r"(?i)token\s*=\s*[a-zA-Z0-9_-]+",
     ]
 
-    '''LANGUAGE_BLOCK_PATTERNS = [
+    LANGUAGE_BLOCK_PATTERNS = [
         r"[\u4e00-\u9fff]",  # Chinese
         r"[\uac00-\ud7af]",  # Korean
         r"[\u3040-\u309f\u30a0-\u30ff]",  # Japanese hiragana/katakana
     ]
-    '''
 
     FORMAT_BREAK_PATTERNS = [
         r"[\x00-\x08\x0b\x0c\x0e-\x1f]", 

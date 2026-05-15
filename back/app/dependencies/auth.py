@@ -1,35 +1,24 @@
+import logging
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
-from app.security.auth import decode_token, build_user_info, get_user
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from app.services.auth_service import AuthService
+logger = logging.getLogger(__name__)
 
 security = HTTPBearer()
+auth_service = AuthService()
 
 
-async def get_current_user(credentials: HTTPAuthCredentials = Depends(security)) -> dict:
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> dict:
+
     token = credentials.credentials
+    payload = auth_service.decode_token(token)
 
-    payload = decode_token(token)
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido o expirado",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Invalid token"
         )
 
-    email: str = payload.get("sub")
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user = get_user(email)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuario no encontrado",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    return build_user_info(user)
+    return auth_service.get_user_from_token(payload)
