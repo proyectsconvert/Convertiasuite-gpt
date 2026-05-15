@@ -2,6 +2,7 @@ import json
 import logging
 import asyncio
 from datetime import datetime
+import re
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from app.domain.interfaces.llm_provider import ILlmProvider
@@ -31,11 +32,10 @@ def get_llm_provider() -> ILlmProvider:
 
 
 def get_memory_repo(request: Request) -> IMemoryRepository:
-    return request.app.state.cache
+    return request.app.state.memory
 
 
 # SSE helper
-
 
 async def sse_message(event_type: str, data: dict) -> str:
     return f"data: {json.dumps({'type': event_type, **data})}\n\n"
@@ -129,11 +129,13 @@ async def create_session(
     current_user: dict = Depends(get_current_user),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
-
     user_id = current_user["id"]
+    
+    uuid_regex = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    if title == user_id or re.match(uuid_regex, title.lower()):
+        title = "Nueva Conversación"
 
     session_id = await memory_repo.create_session(user_id, title)
-
     now = datetime.now().isoformat()
 
     return SessionSummary(

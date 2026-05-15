@@ -73,15 +73,20 @@ export default function ChatView() {
     let sid = currentChatId;
 
     if (!sid && user?.id) {
-      try {
-        const s = await chatApi.createSession(user.id, text.slice(0, 56));
-        sid = s.id;
-        setCurrentChatId(sid);
-        addSession(s);
-      } catch (e) {
-        console.error("Session error:", e);
-      }
-    }
+  try {
+    const sessionTitle = text?.trim().length > 0 
+      ? text.slice(0, 50) 
+      : "Nueva Conversación";
+
+    const s = await chatApi.createSession(sessionTitle);
+    
+    sid = s.id;
+    setCurrentChatId(sid);
+    addSession(s);
+  } catch (e) {
+    console.error("Session error:", e);
+  }
+}
 
     try {
       let fullResponse = "";

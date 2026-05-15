@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 
 
 class IMemoryRepository(ABC):
@@ -23,7 +22,7 @@ class IMemoryRepository(ABC):
     async def get_session(
         self,
         session_id: str,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         pass
 
     @abstractmethod

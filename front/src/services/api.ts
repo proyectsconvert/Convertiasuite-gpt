@@ -100,12 +100,11 @@ async function apiFetch(
   if (response.status === 401) {
     clearSession();
     window.location.href = "/login";
-    throw new Error("Unauthorized");
+    return new Promise(() => {}); 
   }
 
   if (!response.ok) {
     const errorText = await response.text();
-
     throw new Error(
       `HTTP ${response.status}: ${errorText || response.statusText}`
     );
@@ -113,8 +112,6 @@ async function apiFetch(
 
   return response;
 }
-
-//AUTH API
 
 export const authApi = {
   async login(req: LoginRequest): Promise<TokenResponse> {

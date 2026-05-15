@@ -1,8 +1,3 @@
-"""
-Prompt injection guard usando risk scoring en lugar de blacklist.
-Separación entre validación (lógica) y decisión (política).
-"""
-
 import logging
 from app.security.risk_scorer import risk_scorer, RiskLevel
 from app.security.exceptions import PromptInjectionException
@@ -11,10 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 def detect_prompt_injection(text: str) -> bool:
-    """
-    Detecta prompt injection usando scoring semántico.
-    No revela qué patrón fue detectado.
-    """
+
     if not text or not isinstance(text, str):
         return False
 
@@ -37,9 +29,7 @@ def detect_prompt_injection(text: str) -> bool:
 
 
 def validate_prompt_safety(text: str, risk_level: str = "HIGH") -> bool:
-    """
-    Valida seguridad del prompt según nivel de riesgo configurado.
-    """
+
     if not text:
         return True
 

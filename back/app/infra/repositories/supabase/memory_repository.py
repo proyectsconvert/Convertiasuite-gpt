@@ -3,48 +3,39 @@ import logging
 from datetime import datetime, UTC
 from typing import Optional
 
-from app.domain.interfaces.memory_repository import (
-    IMemoryRepository,
-)
-
-from app.infra.clients.supabase_client import (
-    SupabaseClient,
-)
+from app.domain.interfaces.memory_repository import IMemoryRepository
+from app.infra.clients.supabase_client import SupabaseClient
 
 logger = logging.getLogger(__name__)
 
 
 class SupabaseMemoryRepository(IMemoryRepository):
-    def __init__(
-        self,
-        supabase_client: Optional[SupabaseClient] = None,
-    ):
+    def __init__(self, supabase_client: Optional[SupabaseClient] = None):
         self.client = supabase_client or SupabaseClient()
         self.supabase = self.client.admin
+
+    @staticmethod
+    def _now() -> str:
+        return datetime.now(UTC).isoformat()
 
     async def get_messages(
         self,
         session_id: str,
         limit: int = 50,
     ) -> list | None:
-
         try:
             response = (
                 self.supabase.table("chat_conversations")
                 .select("messages")
                 .eq("session_id", session_id)
-                .single()
+                .maybe_single()
                 .execute()
             )
 
-            if not response.data:
+            if not response or not response.data:
                 return []
 
-            messages = response.data.get(
-                "messages",
-                [],
-            )
-
+            messages = response.data.get("messages", []) or []
             return messages[-limit:]
 
         except Exception as e:
@@ -53,7 +44,6 @@ class SupabaseMemoryRepository(IMemoryRepository):
                 session_id,
                 str(e),
             )
-
             return None
 
     async def save_messages(
@@ -61,46 +51,40 @@ class SupabaseMemoryRepository(IMemoryRepository):
         session_id: str,
         messages: list,
     ) -> None:
-
         try:
             session_response = (
                 self.supabase.table("chat_sessions")
                 .select("user_id")
                 .eq("session_id", session_id)
                 .is_("deleted_at", "null")
-                .single()
+                .maybe_single()
                 .execute()
             )
 
-            if not session_response.data:
-                raise Exception("Session not found")
+            if not session_response or not session_response.data:
+                raise ValueError(f"Session not found: {session_id}")
 
             user_id = session_response.data["user_id"]
-
-            payload = {
-                "session_id": session_id,
-                "user_id": user_id,
-                "messages": messages,
-                "updated_at": datetime.now(UTC).isoformat(),
-            }
+            now = self._now()
 
             (
                 self.supabase.table("chat_conversations")
-                .update(
-                    payload,
+                .upsert(
+                    {
+                        "session_id": session_id,
+                        "user_id": user_id,
+                        "messages": messages,
+                        "updated_at": now,
+                    },
                     on_conflict="session_id",
                 )
-                .eq("session_id", session_id)
                 .execute()
             )
 
             (
                 self.supabase.table("chat_sessions")
-                .update({"updated_at": datetime.now(UTC).isoformat()})
-                .eq(
-                    "session_id",
-                    session_id,
-                )
+                .update({"updated_at": now})
+                .eq("session_id", session_id)
                 .execute()
             )
 
@@ -110,29 +94,23 @@ class SupabaseMemoryRepository(IMemoryRepository):
                 session_id,
                 str(e),
             )
+            raise
 
     async def get_session(
         self,
         session_id: str,
     ) -> dict | None:
-
         try:
             response = (
                 self.supabase.table("chat_sessions")
                 .select("*")
-                .eq(
-                    "session_id",
-                    session_id,
-                )
-                .is_(
-                    "deleted_at",
-                    "null",
-                )
-                .single()
+                .eq("session_id", session_id)
+                .is_("deleted_at", "null")
+                .maybe_single()
                 .execute()
             )
 
-            return response.data
+            return response.data if response else None
 
         except Exception as e:
             logger.error(
@@ -140,7 +118,6 @@ class SupabaseMemoryRepository(IMemoryRepository):
                 session_id,
                 str(e),
             )
-
             return None
 
     async def create_session(
@@ -149,7 +126,6 @@ class SupabaseMemoryRepository(IMemoryRepository):
         title: str,
         session_id: str | None = None,
     ) -> str:
-
         try:
             session_id = session_id or str(uuid.uuid4())
 
@@ -180,34 +156,20 @@ class SupabaseMemoryRepository(IMemoryRepository):
             return session_id
 
         except Exception as e:
-            logger.error(
-                "Error creating session error=%s",
-                str(e),
-            )
-
+            logger.error("Error creating session error=%s", str(e))
             raise
 
     async def get_session_list(
         self,
         user_id: str,
     ) -> list:
-
         try:
             response = (
                 self.supabase.table("chat_sessions")
                 .select("*")
-                .eq(
-                    "user_id",
-                    user_id,
-                )
-                .is_(
-                    "deleted_at",
-                    "null",
-                )
-                .order(
-                    "updated_at",
-                    desc=True,
-                )
+                .eq("user_id", user_id)
+                .is_("deleted_at", "null")
+                .order("updated_at", desc=True)
                 .execute()
             )
 
@@ -227,7 +189,6 @@ class SupabaseMemoryRepository(IMemoryRepository):
                 user_id,
                 str(e),
             )
-
             return []
 
     async def update_session(
@@ -235,20 +196,16 @@ class SupabaseMemoryRepository(IMemoryRepository):
         session_id: str,
         title: str,
     ) -> None:
-
         try:
             (
                 self.supabase.table("chat_sessions")
                 .update(
                     {
                         "title": title,
-                        "updated_at": datetime.now(UTC).isoformat(),
+                        "updated_at": self._now(),
                     }
                 )
-                .eq(
-                    "session_id",
-                    session_id,
-                )
+                .eq("session_id", session_id)
                 .execute()
             )
 
@@ -258,29 +215,19 @@ class SupabaseMemoryRepository(IMemoryRepository):
                 session_id,
                 str(e),
             )
+            raise
 
     async def delete_session(
         self,
         user_id: str,
         session_id: str,
     ) -> None:
-
         try:
             (
                 self.supabase.table("chat_sessions")
-                .update(
-                    {
-                        "deleted_at": datetime.now(UTC).isoformat(),
-                    }
-                )
-                .eq(
-                    "session_id",
-                    session_id,
-                )
-                .eq(
-                    "user_id",
-                    user_id,
-                )
+                .update({"deleted_at": self._now()})
+                .eq("session_id", session_id)
+                .eq("user_id", user_id)
                 .execute()
             )
 
@@ -290,16 +237,15 @@ class SupabaseMemoryRepository(IMemoryRepository):
                 session_id,
                 str(e),
             )
+            raise
 
     async def get_context_window(
         self,
         session_id: str,
         window_size: int,
     ) -> list:
-
         messages = await self.get_messages(
             session_id=session_id,
             limit=window_size,
         )
-
         return messages or []
