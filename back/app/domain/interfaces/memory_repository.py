@@ -3,35 +3,65 @@ from typing import Optional
 
 
 class IMemoryRepository(ABC):
-    
     @abstractmethod
-    async def get_messages(self, session_id: str, limit: int = 50) -> None:
+    async def get_messages(
+        self,
+        session_id: str,
+        limit: int = 50,
+    ) -> list | None:
         pass
 
     @abstractmethod
-    async def save_messages(self, session_id: str, messages: list) -> None:
+    async def save_messages(
+        self,
+        session_id: str,
+        messages: list,
+    ) -> None:
         pass
 
     @abstractmethod
-    async def get_session(self, session_id: str) -> Optional[dict]:
+    async def get_session(
+        self,
+        session_id: str,
+    ) -> Optional[dict]:
         pass
 
     @abstractmethod
-    async def create_session(self, user_id: str, title: str) -> str:
+    async def create_session(
+        self,
+        user_id: str,
+        title: str,
+        session_id: str | None = None,
+    ) -> str:
         pass
 
     @abstractmethod
-    async def get_session_list(self, user_id: str) -> list:
+    async def get_session_list(
+        self,
+        user_id: str,
+    ) -> list:
         pass
 
     @abstractmethod
-    async def update_session(self, session_id: str, title: str) -> None:
+    async def update_session(
+        self,
+        session_id: str,
+        title: str,
+    ) -> None:
         pass
 
     @abstractmethod
-    async def delete_session(self, user_id: str, session_id: str) -> None:
+    async def delete_session(
+        self,
+        user_id: str,
+        session_id: str,
+    ) -> None:
         pass
 
     @abstractmethod
-    async def get_context_window(self, session_id: str, window_size: int) -> list:
-        pass    
+    async def get_context_window(
+        self,
+        session_id: str,
+        window_size: int,
+    ) -> list:
+        pass

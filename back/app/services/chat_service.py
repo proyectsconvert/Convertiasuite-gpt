@@ -1,35 +1,62 @@
 import uuid
 import logging
 import time
-from datetime import datetime
+
+from datetime import (
+    datetime,
+    UTC,
+)
+
 from app.security.input_sanitizer import (
     sanitize_input,
     _truncate_history,
 )
+
 from app.security.output_guard import (
     get_safety_fallback,
     validate_chunk_realtime,
     output_validator,
     OutputValidationAction,
 )
+
 from app.security.prompt_injection_guard import (
     validate_prompt_safety,
 )
-from app.security.risk_scorer import risk_scorer
+
+from app.security.risk_scorer import (
+    risk_scorer,
+)
+
 from app.security.exceptions import (
     SecurityException,
     PromptInjectionException,
     PolicyViolationException,
 )
-from app.services.model_router import route_model
-from app.domain.interfaces.llm_provider import ILlmProvider
-from app.domain.interfaces.memory_repository import IMemoryRepository
-from app.core.model_config import MODELS
-from app.domain.entities.message import Message
+
+from app.services.model_router import (
+    route_model,
+)
+
+from app.domain.interfaces.llm_provider import (
+    ILlmProvider,
+)
+
+from app.domain.interfaces.memory_repository import (
+    IMemoryRepository,
+)
+
+from app.core.model_config import (
+    MODELS,
+)
+
+from app.domain.entities.message import (
+    Message,
+)
 
 logger = logging.getLogger(__name__)
 
 MAX_STREAM_SECONDS = 120
+MAX_MESSAGES = 100
 
 
 async def _persist_messages(
@@ -39,7 +66,12 @@ async def _persist_messages(
 ):
 
     try:
-        await memory_repo.save_messages(session_id, [m.to_dict() for m in messages])
+        trimmed_messages = messages[-MAX_MESSAGES:]
+
+        await memory_repo.save_messages(
+            session_id,
+            [m.to_dict() for m in trimmed_messages],
+        )
 
     except Exception as e:
         logger.error(
@@ -57,7 +89,9 @@ async def process_chat(
 ):
 
     model_name = None
+
     request_start = time.perf_counter()
+
     session_id = request.session_id
 
     try:
@@ -77,7 +111,9 @@ async def process_chat(
             )
 
         else:
-            existing_session = await memory_repo.get_session(session_id)
+            existing_session = await memory_repo.get_session(
+                session_id,
+            )
 
             if not existing_session:
                 logger.warning(
@@ -91,7 +127,9 @@ async def process_chat(
                     session_id=session_id,
                 )
 
-        risk = risk_scorer.score(request.message)
+        risk = risk_scorer.score(
+            request.message,
+        )
 
         if risk.should_block:
             logger.warning(
@@ -104,7 +142,9 @@ async def process_chat(
             raise SecurityException("Consulta bloqueada por políticas de seguridad")
 
         try:
-            clean_input = sanitize_input(request.message)
+            clean_input = sanitize_input(
+                request.message,
+            )
 
         except PolicyViolationException as e:
             logger.warning(
@@ -129,7 +169,13 @@ async def process_chat(
 
             raise SecurityException("Entrada bloqueada por seguridad")
 
-        history = await memory_repo.get_messages(session_id) or []
+        history = (
+            await memory_repo.get_messages(
+                session_id,
+            )
+            or []
+        )
+
         if len(history) > 10:
             history = _truncate_history(
                 history,
@@ -162,7 +208,9 @@ async def process_chat(
 
                         continue
 
-                sanitized_history.append(msg_obj)
+                sanitized_history.append(
+                    msg_obj,
+                )
 
             except Exception as e:
                 logger.warning(
@@ -177,15 +225,11 @@ async def process_chat(
             id=str(uuid.uuid4()),
             role="user",
             content=clean_input,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
         )
 
-        messages.append(user_message)
-
-        await _persist_messages(
-            memory_repo,
-            session_id,
-            messages,
+        messages.append(
+            user_message,
         )
 
         model_key = route_model(
@@ -215,8 +259,6 @@ async def process_chat(
 
             stream_start = time.perf_counter()
 
-            validation_failed = False
-
             stream_stopped = False
 
             fallback_emitted = False
@@ -245,7 +287,9 @@ async def process_chat(
                         )
 
                     if chunk:
-                        is_safe, error_msg = validate_chunk_realtime(chunk)
+                        is_safe, error_msg = validate_chunk_realtime(
+                            chunk,
+                        )
 
                         if not is_safe:
                             logger.warning(
@@ -255,8 +299,6 @@ async def process_chat(
                             )
 
                             stream_stopped = True
-
-                            validation_failed = True
 
                             break
 
@@ -274,15 +316,15 @@ async def process_chat(
                     full_response = fallback
 
                 elif not stream_stopped:
-                    is_safe, action, _ = output_validator.validate_output(full_response)
+                    is_safe, action, _ = output_validator.validate_output(
+                        full_response,
+                    )
 
                     if action == OutputValidationAction.BLOCK:
                         logger.warning(
                             "Output blocked session=%s",
                             session_id,
                         )
-
-                        validation_failed = True
 
                         full_response = get_safety_fallback()
 
@@ -292,18 +334,18 @@ async def process_chat(
                             session_id,
                         )
 
-                        validation_failed = True
-
                         full_response = get_safety_fallback()
 
                 assistant_message = Message(
                     id=str(uuid.uuid4()),
                     role="assistant",
                     content=full_response,
-                    timestamp=datetime.now(),
+                    timestamp=datetime.now(UTC),
                 )
 
-                messages.append(assistant_message)
+                messages.append(
+                    assistant_message,
+                )
 
                 await _persist_messages(
                     memory_repo,
@@ -326,7 +368,26 @@ async def process_chat(
                     session_id,
                 )
 
-                yield get_safety_fallback()
+                fallback = get_safety_fallback()
+
+                assistant_message = Message(
+                    id=str(uuid.uuid4()),
+                    role="assistant",
+                    content=fallback,
+                    timestamp=datetime.now(UTC),
+                )
+
+                messages.append(
+                    assistant_message,
+                )
+
+                await _persist_messages(
+                    memory_repo,
+                    session_id,
+                    messages,
+                )
+
+                yield fallback
 
             except Exception as e:
                 logger.error(
@@ -336,7 +397,26 @@ async def process_chat(
                     str(e),
                 )
 
-                yield get_safety_fallback()
+                fallback = get_safety_fallback()
+
+                assistant_message = Message(
+                    id=str(uuid.uuid4()),
+                    role="assistant",
+                    content=fallback,
+                    timestamp=datetime.now(UTC),
+                )
+
+                messages.append(
+                    assistant_message,
+                )
+
+                await _persist_messages(
+                    memory_repo,
+                    session_id,
+                    messages,
+                )
+
+                yield fallback
 
         total_request_time = time.perf_counter() - request_start
 
@@ -355,10 +435,9 @@ async def process_chat(
     except SecurityException:
         raise
 
-    except Exception as e:
+    except Exception:
         logger.exception(
             "Unexpected process_chat error session=%s",
             session_id,
         )
-
         raise
