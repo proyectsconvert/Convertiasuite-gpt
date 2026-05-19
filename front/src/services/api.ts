@@ -2,11 +2,17 @@ const API_URL = import.meta.env.VITE_API_URL || "";
 const API_BASE = `${API_URL}/chat`;
 const AUTH_BASE = `${API_URL}/auth`;
 
+export interface ChatMessageAttachment {
+  filename: string;
+  type?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  attachment?: ChatMessageAttachment;
 }
 
 export interface SendMessageRequest {
@@ -15,6 +21,9 @@ export interface SendMessageRequest {
   model?: string;
   user_role?: string;
   has_attachment?: boolean;
+  extracted_context?: string;
+  attachment_type?: string;
+  attachment_name?: string;
 }
 
 export interface SendMessageResponse {
@@ -32,7 +41,14 @@ export interface StreamChunk {
 }
 
 export interface ChatHistoryResponse {
-  messages: ChatMessage[];
+  messages: Array<
+    ChatMessage & {
+      attachments?: Array<{
+        filename?: string;
+        type?: string;
+      }>;
+    }
+  >;
   session_id: string;
 }
 
@@ -65,7 +81,6 @@ export interface TokenResponse {
   user: UserInfo;
 }
 
-//AUTH HELPERS
 
 function getAccessToken(): string | null {
   return localStorage.getItem("accessToken");
@@ -76,31 +91,36 @@ function clearSession(): void {
   localStorage.removeItem("user");
 }
 
-function buildHeaders(customHeaders: HeadersInit = {}): HeadersInit {
+function buildHeaders(customHeaders: HeadersInit = {}, isFormData = false): HeadersInit {
   const token = getAccessToken();
+  const headers: Record<string, string> = {};
 
-  return {
-    "Content-Type": "application/json",
-    ...(token && {
-      Authorization: `Bearer ${token}`,
-    }),
-    ...customHeaders,
-  };
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  return { ...headers, ...(customHeaders as Record<string, string>) };
 }
 
 async function apiFetch(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
+  const isFormData = options.body instanceof FormData;
+
   const response = await fetch(url, {
     ...options,
-    headers: buildHeaders(options.headers),
+    headers: buildHeaders(options.headers, isFormData),
   });
 
   if (response.status === 401) {
     clearSession();
     window.location.href = "/login";
-    return new Promise(() => {}); 
+    return new Promise(() => { });
   }
 
   if (!response.ok) {
@@ -112,6 +132,7 @@ async function apiFetch(
 
   return response;
 }
+
 
 export const authApi = {
   async login(req: LoginRequest): Promise<TokenResponse> {
@@ -135,7 +156,6 @@ export const authApi = {
   },
 };
 
-//CHAT API
 
 export const chatApi = {
   async sendMessage(
@@ -226,37 +246,56 @@ export const chatApi = {
     return response.json();
   },
 
-async getSessions(): Promise<SessionListResponse> {
-  const response = await apiFetch(
-    `${API_BASE}/sessions`
-  );
+  async getSessions(): Promise<SessionListResponse> {
+    const response = await apiFetch(
+      `${API_BASE}/sessions`
+    );
 
-  return response.json();
-},
+    return response.json();
+  },
 
-async createSession(
-  title: string
-): Promise<SessionSummary> {
+  async createSession(
+    title: string
+  ): Promise<SessionSummary> {
 
-  const response = await apiFetch(
-    `${API_BASE}/sessions?title=${encodeURIComponent(title)}`,
-    {
+    const response = await apiFetch(
+      `${API_BASE}/sessions?title=${encodeURIComponent(title)}`,
+      {
+        method: "POST",
+      }
+    );
+
+    return response.json();
+  },
+
+  async deleteSession(
+    sessionId: string
+  ): Promise<void> {
+
+    await apiFetch(
+      `${API_BASE}/sessions/${sessionId}`,
+      {
+        method: "DELETE",
+      }
+    );
+  },
+
+  async uploadFile(
+    file: File,
+    sessionId?: string
+  ): Promise<{ filename: string; has_attachment: boolean; extracted_context: string; attachment_type?: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    if (sessionId) {
+      formData.append("session_id", sessionId);
+    }
+
+    const response = await apiFetch(`${API_BASE}/upload`, {
       method: "POST",
-    }
-  );
+      body: formData,
+    });
 
-  return response.json();
-},
-
-async deleteSession(
-  sessionId: string
-): Promise<void> {
-
-  await apiFetch(
-    `${API_BASE}/sessions/${sessionId}`,
-    {
-      method: "DELETE",
-    }
-  );
-},
+    return response.json();
+  }
 };

@@ -26,7 +26,9 @@ class OllamaClient:
             follow_redirects=True,
         )
 
-    def _build_payload(self, prompt, model, stream, temperature, num_ctx):
+    def _build_payload(
+        self, prompt, model, stream, temperature, num_ctx, max_tokens=None
+    ):
         payload = {
             "model": model,
             "prompt": prompt,
@@ -38,6 +40,8 @@ class OllamaClient:
             options["temperature"] = temperature
         if num_ctx is not None:
             options["num_ctx"] = num_ctx
+        if max_tokens is not None:
+            options["max_tokens"] = max_tokens
 
         if options:
             payload["options"] = options
@@ -50,8 +54,11 @@ class OllamaClient:
         model: str,
         temperature: float = None,
         num_ctx: int = None,
+        max_tokens: int = None,
     ) -> str:
-        payload = self._build_payload(prompt, model, False, temperature, num_ctx)
+        payload = self._build_payload(
+            prompt, model, False, temperature, num_ctx, max_tokens
+        )
 
         response = await self.client.post(
             f"{self.base_url}/api/generate",
@@ -67,13 +74,16 @@ class OllamaClient:
         model: str,
         temperature: float = None,
         num_ctx: int = None,
+        max_tokens: int = None,
         max_retries: int = 3,
     ):
         for attempt in range(max_retries):
             await ollama_rate_limiter.wait_and_acquire("ollama")
 
-            payload = self._build_payload(prompt, model, True, temperature, num_ctx)
-            emitted = False 
+            payload = self._build_payload(
+                prompt, model, True, temperature, num_ctx, max_tokens
+            )
+            emitted = False
 
             try:
                 async with self.client.stream(
@@ -82,8 +92,10 @@ class OllamaClient:
                     json=payload,
                 ) as response:
                     if response.status_code == 429:
-                        logger.warning(f"Ollama rate limit hit, attempt {attempt + 1}/{max_retries}")
-                        await asyncio.sleep(2 ** attempt)
+                        logger.warning(
+                            f"Ollama rate limit hit, attempt {attempt + 1}/{max_retries}"
+                        )
+                        await asyncio.sleep(2**attempt)
                         continue
 
                     response.raise_for_status()
@@ -99,21 +111,25 @@ class OllamaClient:
                                 yield data["response"]
                         except json.JSONDecodeError:
                             continue
-                    
+
                     # Si el stream terminó sin emitir nada
                     if not emitted:
-                        logger.warning(f"Stream vacío para modelo {model}, reintentando...")
+                        logger.warning(
+                            f"Stream vacío para modelo {model}, reintentando..."
+                        )
                         if attempt < max_retries - 1:
-                            await asyncio.sleep(2 ** attempt)
+                            await asyncio.sleep(2**attempt)
                             continue
                         else:
                             raise Exception("Stream vacío después de varios intentos")
                     return
             except Exception as e:
-                logger.error(f"Ollama request failed (attempt {attempt + 1}/{max_retries}): {e}")
+                logger.error(
+                    f"Ollama request failed (attempt {attempt + 1}/{max_retries}): {e}"
+                )
                 if attempt == max_retries - 1:
                     raise
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
 
     async def generate_chat_stream(
         self,
@@ -121,6 +137,7 @@ class OllamaClient:
         model: str,
         temperature: float = None,
         num_ctx: int = None,
+        max_tokens: int = None,
         max_retries: int = 3,
     ):
         for attempt in range(max_retries):
@@ -137,6 +154,8 @@ class OllamaClient:
                 options["temperature"] = temperature
             if num_ctx is not None:
                 options["num_ctx"] = num_ctx
+            if max_tokens is not None:
+                options["max_tokens"] = max_tokens
 
             if options:
                 payload["options"] = options
@@ -145,15 +164,17 @@ class OllamaClient:
 
             try:
                 logger.info(f"chat_request model={model} messages={len(messages)}")
-                
+
                 async with self.client.stream(
                     "POST",
                     f"{self.base_url}/api/chat",
                     json=payload,
                 ) as response:
                     if response.status_code == 429:
-                        logger.warning(f"Ollama rate limit hit (chat), attempt {attempt + 1}/{max_retries}")
-                        await asyncio.sleep(2 ** attempt)
+                        logger.warning(
+                            f"Ollama rate limit hit (chat), attempt {attempt + 1}/{max_retries}"
+                        )
+                        await asyncio.sleep(2**attempt)
                         continue
 
                     response.raise_for_status()
@@ -173,18 +194,24 @@ class OllamaClient:
                             continue
 
                     if not emitted:
-                        logger.warning(f"Chat stream vacío para modelo {model}, reintentando...")
+                        logger.warning(
+                            f"Chat stream vacío para modelo {model}, reintentando..."
+                        )
                         if attempt < max_retries - 1:
-                            await asyncio.sleep(2 ** attempt)
+                            await asyncio.sleep(2**attempt)
                             continue
                         else:
-                            raise Exception("Chat stream vacío después de varios intentos")
+                            raise Exception(
+                                "Chat stream vacío después de varios intentos"
+                            )
                     return
             except Exception as e:
-                logger.error(f"Ollama chat request failed (attempt {attempt + 1}/{max_retries}): {e}")
+                logger.error(
+                    f"Ollama chat request failed (attempt {attempt + 1}/{max_retries}): {e}"
+                )
                 if attempt == max_retries - 1:
                     raise
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
 
     async def close(self):
         await self.client.aclose()

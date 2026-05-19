@@ -1,10 +1,16 @@
 import { useState, useCallback } from "react";
 import {
-  Copy, ThumbsUp, ThumbsDown, RefreshCcw, Check, Sparkles, User,
+  Copy,
+  ThumbsUp,
+  ThumbsDown,
+  RefreshCcw,
+  Check,
+  User,
+  FileText,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion } from "framer-motion";
-import type { ChatMessage } from "@/store/appStore";
+import type { ChatMessage } from "@/services/api";
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -12,16 +18,20 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
 }
 
-export default function MessageBubble({ message, onRegenerate, isStreaming }: MessageBubbleProps) {
+export default function MessageBubble({
+  message,
+  onRegenerate,
+  isStreaming,
+}: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
 
   const isUser = message.role === "user";
 
-  // Safe timestamp conversion
-  const timestamp = message.timestamp instanceof Date
-    ? message.timestamp
-    : new Date(message.timestamp);
+  const timestamp =
+    message.timestamp instanceof Date
+      ? message.timestamp
+      : new Date(message.timestamp);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -29,11 +39,9 @@ export default function MessageBubble({ message, onRegenerate, isStreaming }: Me
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      /* fallback: no clipboard API */
     }
   }, [message.content]);
 
-  // Don't render if content is suspicious
   if (typeof message.content !== "string") {
     return null;
   }
@@ -45,34 +53,68 @@ export default function MessageBubble({ message, onRegenerate, isStreaming }: Me
       transition={{ duration: 0.3, ease: "easeOut" }}
       className={`flex gap-3 py-4 ${isUser ? "flex-row-reverse" : ""}`}
     >
-      {/* Avatar */}
-      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-0.5 ${
-        isUser
-          ? "bg-gradient-to-br from-primary/20 to-primary/10 ring-1 ring-primary/20"
-          : "bg-background"
-      }`}>
+      <div
+        className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-0.5 ${
+          isUser
+            ? "bg-gradient-to-br from-primary/20 to-primary/10 ring-1 ring-primary/20"
+            : "bg-background"
+        }`}
+      >
         {isUser ? (
           <User className="w-4 h-4 text-primary" />
         ) : (
           <div className="w-11 h-11 flex items-center justify-center">
-          <img src="/logo-dark.ico" alt="convert-IA" className="w-15 h-15 block dark:hidden" />
-          <img src="/favicon.ico" alt="convert-IA" className="w-15 h-15 hidden dark:block" />
-        </div>
+            <img
+              src="/logo-dark.ico"
+              alt="convert-IA"
+              className="w-15 h-15 block dark:hidden"
+            />
+            <img
+              src="/favicon.ico"
+              alt="convert-IA"
+              className="w-15 h-15 hidden dark:block"
+            />
+          </div>
         )}
       </div>
 
-      {/* Content */}
-      <div className={`flex-1 min-w-0 ${isUser ? "flex flex-col items-end" : ""}`}>
-        {/* Role label */}
-        <div className={`text-xs font-semibold mb-1.5 ${isUser ? "text-muted-foreground" : "text-foreground"}`}>
+      <div
+        className={`flex-1 min-w-0 ${isUser ? "flex flex-col items-end" : ""}`}
+      >
+        <div
+          className={`text-xs font-semibold mb-1.5 ${isUser ? "text-muted-foreground" : "text-foreground"}`}
+        >
           {isUser ? "Tú" : "convert-IA"}
         </div>
 
-        {/* Message body */}
         <div className={`max-w-[90%] ${isUser ? "text-right" : ""}`}>
           {isUser ? (
-            <div className="inline-block text-[15px] leading-relaxed text-foreground bg-secondary/70 rounded-2xl rounded-tr-md px-4 py-3">
-              {message.content}
+            <div className="inline-block max-w-full rounded-2xl rounded-tr-md bg-secondary/70 px-4 py-3 text-[15px] leading-relaxed text-foreground">
+              {message.attachment && (
+                <div className="mb-3 overflow-hidden rounded-2xl border border-border/70 bg-background/90 p-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 flex-none items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-foreground truncate">
+                        {message.attachment.filename}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
+                        <span className="rounded-full bg-secondary/80 px-2 py-0.5 text-[11px] font-medium uppercase text-foreground/80">
+                          {message.attachment.type || "archivo"}
+                        </span>
+                        <span>Adjunto cargado</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {message.content ? (
+                <div>{message.content}</div>
+              ) : (
+                !message.attachment && <div>{message.content}</div>
+              )}
             </div>
           ) : (
             <div className="prose-chat text-[15px] leading-[1.7] text-foreground">
@@ -89,7 +131,43 @@ export default function MessageBubble({ message, onRegenerate, isStreaming }: Me
                       </pre>
                       <button
                         onClick={() => {
-                          const text = (props as any)?.node?.children?.[0]?.children?.[0]?.value || "";
+                          const node = (props as { node?: unknown }).node;
+                          let text = "";
+
+                          if (
+                            node &&
+                            typeof node === "object" &&
+                            "children" in node &&
+                            Array.isArray(
+                              (node as { children?: unknown }).children,
+                            )
+                          ) {
+                            const firstChild = (node as { children?: unknown })
+                              .children?.[0];
+                            if (
+                              firstChild &&
+                              typeof firstChild === "object" &&
+                              "children" in firstChild &&
+                              Array.isArray(
+                                (firstChild as { children?: unknown }).children,
+                              )
+                            ) {
+                              const codeChild = (
+                                firstChild as { children?: unknown }
+                              ).children?.[0];
+                              if (
+                                codeChild &&
+                                typeof codeChild === "object" &&
+                                "value" in codeChild
+                              ) {
+                                text = String(
+                                  (codeChild as { value?: unknown }).value ||
+                                    "",
+                                );
+                              }
+                            }
+                          }
+
                           navigator.clipboard.writeText(text);
                         }}
                         className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/10 text-white/60 opacity-0 group-hover/code:opacity-100 hover:bg-white/20 transition-all text-xs"
@@ -102,13 +180,19 @@ export default function MessageBubble({ message, onRegenerate, isStreaming }: Me
                     const isInline = !className;
                     if (isInline) {
                       return (
-                        <code className="bg-secondary px-1.5 py-0.5 rounded text-[13px] font-mono text-foreground" {...props}>
+                        <code
+                          className="bg-secondary px-1.5 py-0.5 rounded text-[13px] font-mono text-foreground"
+                          {...props}
+                        >
                           {children}
                         </code>
                       );
                     }
                     return (
-                      <code className={`font-mono text-[13px] ${className || ""}`} {...props}>
+                      <code
+                        className={`font-mono text-[13px] ${className || ""}`}
+                        {...props}
+                      >
                         {children}
                       </code>
                     );
@@ -129,17 +213,46 @@ export default function MessageBubble({ message, onRegenerate, isStreaming }: Me
                     </td>
                   ),
                   a: ({ children, href }) => (
-                    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
                       {children}
                     </a>
                   ),
-                  ul: ({ children }) => <ul className="list-disc pl-5 my-2 space-y-1">{children}</ul>,
-                  ol: ({ children }) => <ol className="list-decimal pl-5 my-2 space-y-1">{children}</ol>,
-                  li: ({ children }) => <li className="text-foreground">{children}</li>,
-                  h1: ({ children }) => <h1 className="text-xl font-bold mt-5 mb-2 text-foreground">{children}</h1>,
-                  h2: ({ children }) => <h2 className="text-lg font-bold mt-4 mb-2 text-foreground">{children}</h2>,
-                  h3: ({ children }) => <h3 className="text-base font-semibold mt-3 mb-1.5 text-foreground">{children}</h3>,
-                  p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+                  ul: ({ children }) => (
+                    <ul className="list-disc pl-5 my-2 space-y-1">
+                      {children}
+                    </ul>
+                  ),
+                  ol: ({ children }) => (
+                    <ol className="list-decimal pl-5 my-2 space-y-1">
+                      {children}
+                    </ol>
+                  ),
+                  li: ({ children }) => (
+                    <li className="text-foreground">{children}</li>
+                  ),
+                  h1: ({ children }) => (
+                    <h1 className="text-xl font-bold mt-5 mb-2 text-foreground">
+                      {children}
+                    </h1>
+                  ),
+                  h2: ({ children }) => (
+                    <h2 className="text-lg font-bold mt-4 mb-2 text-foreground">
+                      {children}
+                    </h2>
+                  ),
+                  h3: ({ children }) => (
+                    <h3 className="text-base font-semibold mt-3 mb-1.5 text-foreground">
+                      {children}
+                    </h3>
+                  ),
+                  p: ({ children }) => (
+                    <p className="mb-3 last:mb-0">{children}</p>
+                  ),
                   blockquote: ({ children }) => (
                     <blockquote className="border-l-3 border-primary/50 pl-4 my-3 text-muted-foreground italic">
                       {children}
@@ -151,7 +264,6 @@ export default function MessageBubble({ message, onRegenerate, isStreaming }: Me
                 {message.content}
               </ReactMarkdown>
 
-              {/* Streaming indicator */}
               {isStreaming && (
                 <span className="inline-flex items-center gap-0.5 ml-1">
                   <span className="w-2 h-2 bg-primary rounded-full animate-bounce" />
@@ -168,7 +280,11 @@ export default function MessageBubble({ message, onRegenerate, isStreaming }: Me
                     className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors"
                     aria-label="Copiar"
                   >
-                    {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? (
+                      <Check className="w-3.5 h-3.5 text-success" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
                   </button>
                   <button
                     onClick={() => setFeedback(feedback === "up" ? null : "up")}
@@ -182,7 +298,9 @@ export default function MessageBubble({ message, onRegenerate, isStreaming }: Me
                     <ThumbsUp className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={() => setFeedback(feedback === "down" ? null : "down")}
+                    onClick={() =>
+                      setFeedback(feedback === "down" ? null : "down")
+                    }
                     className={`p-1.5 rounded-lg transition-colors ${
                       feedback === "down"
                         ? "text-destructive bg-destructive/10"

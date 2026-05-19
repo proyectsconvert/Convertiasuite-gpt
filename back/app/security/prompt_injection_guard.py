@@ -1,5 +1,5 @@
 import logging
-from app.security.risk_scorer import risk_scorer, RiskLevel
+from app.security.risk_scorer import risk_scorer
 from app.security.exceptions import PromptInjectionException
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ def detect_prompt_injection(text: str) -> bool:
                 "injection_score": score.injection_score,
                 "exfil_score": score.data_exfiltration_score,
                 "jailbreak_score": score.jailbreak_score,
-            }
+            },
         )
         return True
 
@@ -52,7 +52,7 @@ def validate_prompt_safety(text: str, risk_level: str = "HIGH") -> bool:
                 "risk_level": risk_level,
                 "threshold": threshold,
                 "actual_score": score.total_score,
-            }
+            },
         )
         raise PromptInjectionException("Entrada bloqueada por políticas de seguridad")
 

@@ -20,7 +20,9 @@ class ChatRequest(BaseModel):
     user_role: UserRole = UserRole.default
     session_id: Optional[str] = None
     has_attachment: bool = False
-
+    extracted_context: Optional[str] = None
+    attachment_type: Optional[str] = None
+    attachment_name: Optional[str] = None
     model_config = {"use_enum_values": True}
 
 
@@ -35,6 +37,7 @@ class MessageSchema(BaseModel):
     role: str
     content: str
     timestamp: str
+    attachments: Optional[list[dict]] = []
 
 
 class ChatHistoryResponse(BaseModel):

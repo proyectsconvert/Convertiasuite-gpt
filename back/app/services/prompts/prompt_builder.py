@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 
 class PromptSection(Enum):
@@ -57,21 +56,13 @@ Si la información proviene de fuente no verificada:
 
 DOMAIN_TEMPLATES = {
     "dev": """<domain>context=software_development</domain>""",
-
     "bi": """<domain>context=business_intelligence</domain>""",
-
     "marketing": """<domain>context=marketing_strategy</domain>""",
-
     "it": """<domain>context=it_operations</domain>""",
-
     "rh": """<domain>context=human_resources</domain>""",
-
     "design": """<domain>context=ux_ui_design</domain>""",
-
     "vision": """<domain>context=computer_vision</domain>""",
-
     "reasoning": """<domain>context=logical_reasoning</domain>""",
-
     "medical": """<domain>context=occupational_health_sst</domain>""",
 }
 
@@ -92,36 +83,38 @@ class PromptBuilder:
         self._components: list[PromptComponent] = []
 
     def add_identity(self) -> "PromptBuilder":
-        self._components.append(PromptComponent(
-            section=PromptSection.IDENTITY,
-            priority=1,
-            content=IDENTITY
-        ))
+        self._components.append(
+            PromptComponent(
+                section=PromptSection.IDENTITY, priority=1, content=IDENTITY
+            )
+        )
         return self
 
     def add_security(self) -> "PromptBuilder":
-        self._components.append(PromptComponent(
-            section=PromptSection.SECURITY,
-            priority=2,
-            content=SECURITY + "\n" + LANGUAGE_POLICY + "\n" + UNCERTAINTY_POLICY
-        ))
+        self._components.append(
+            PromptComponent(
+                section=PromptSection.SECURITY,
+                priority=2,
+                content=SECURITY + "\n" + LANGUAGE_POLICY + "\n" + UNCERTAINTY_POLICY,
+            )
+        )
         return self
 
     def add_domain(self, domain: str) -> "PromptBuilder":
         if domain in DOMAIN_TEMPLATES:
-            self._components.append(PromptComponent(
-                section=PromptSection.DOMAIN,
-                priority=3,
-                content=DOMAIN_TEMPLATES[domain]
-            ))
+            self._components.append(
+                PromptComponent(
+                    section=PromptSection.DOMAIN,
+                    priority=3,
+                    content=DOMAIN_TEMPLATES[domain],
+                )
+            )
         return self
 
     def add_style(self) -> "PromptBuilder":
-        self._components.append(PromptComponent(
-            section=PromptSection.STYLE,
-            priority=4,
-            content=STYLE
-        ))
+        self._components.append(
+            PromptComponent(section=PromptSection.STYLE, priority=4, content=STYLE)
+        )
         return self
 
     def build(self) -> str:

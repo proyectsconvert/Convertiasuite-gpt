@@ -1,9 +1,3 @@
-"""
-Intent classifier para detectar solicitudes potencialmente dañinas.
-Reemplazado por risk_scorer para análisis semántico.
-Este módulo se mantiene para compatibilidad con clasificación de dominio.
-"""
-
 from app.schemas.chat import UserRole, ChatRequest
 from app.core.keywords_config import (
     KEYWORDS_VISION, KEYWORDS_ANALYSIS, KEYWORDS_CODE,
@@ -13,13 +7,12 @@ from app.security.risk_scorer import risk_scorer
 
 
 async def classify_intent(request: ChatRequest) -> UserRole:
-    """
-    Clasifica el dominio/intención del mensaje para routing de modelo.
-    Ahora usa risk_scorer para detección de ataques.
-    """
     message = request.message.lower()
 
     if request.has_attachment:
+        if getattr(request, "extracted_context", None):
+            return UserRole.analysis  
+        
         return UserRole.vision
 
     if request.user_role != UserRole.default:

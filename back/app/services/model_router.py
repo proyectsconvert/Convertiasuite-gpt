@@ -1,13 +1,29 @@
+from typing import Optional
+
 from app.core.model_config import MODELS, DEFAULT_MODEL_KEY, ALLOWED_MODELS
 from app.core.keywords_config import (
-    KEYWORDS_VISION, KEYWORDS_ANALYSIS, KEYWORDS_CODE,
-    KEYWORDS_REASONING, KEYWORDS_OCR, KEYWORDS_MEDICAL
+    KEYWORDS_VISION,
+    KEYWORDS_ANALYSIS,
+    KEYWORDS_CODE,
+    KEYWORDS_REASONING,
+    KEYWORDS_OCR,
+    KEYWORDS_MEDICAL,
 )
 
 
-def route_model(message: str, user_role: str = None, has_attachment: bool = False) -> str:
-    if has_attachment:
-        return "vision"
+def route_model(
+    message: str,
+    user_role: str = None,
+    attachment_type: Optional[str] = None,
+) -> str:
+    if attachment_type:
+        normalized_type = attachment_type.lower()
+        if normalized_type in {"image", "vision"}:
+            return "vision"
+        if normalized_type == "ocr":
+            return "ocr"
+        if normalized_type in {"excel", "csv"}:
+            return "default"
 
     if user_role and user_role != "default":
         if user_role in ALLOWED_MODELS:

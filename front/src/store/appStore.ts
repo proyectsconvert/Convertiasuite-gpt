@@ -62,6 +62,8 @@ interface AppState {
 
   toggleSidebar: () => void;
   toggleChatSidebar: () => void;
+  toggleDarkMode: () => void;
+  setDarkMode: (darkMode: boolean) => void;
 
   setCurrentChatId: (
     id: string | null
@@ -155,6 +157,30 @@ export const useAppStore = create<AppState>()(
 
       setCommandOpen: (open) =>
         set({ commandOpen: open }),
+
+      setDarkMode: (darkMode) => {
+        if (typeof document !== "undefined") {
+          if (darkMode) {
+            document.documentElement.classList.add("dark");
+          } else {
+            document.documentElement.classList.remove("dark");
+          }
+        }
+        set({ darkMode });
+      },
+
+      toggleDarkMode: () =>
+        set((state) => {
+          const next = !state.darkMode;
+          if (typeof document !== "undefined") {
+            if (next) {
+              document.documentElement.classList.add("dark");
+            } else {
+              document.documentElement.classList.remove("dark");
+            }
+          }
+          return { darkMode: next };
+        }),
 
       setSelectedModel: (model) =>
         set({ selectedModel: model }),

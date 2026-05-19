@@ -1,10 +1,14 @@
+from io import BytesIO
+import logging
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
+import openpyxl
 import json
 import logging
-import asyncio
 from datetime import datetime
 import re
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, File, UploadFile
 from fastapi.responses import StreamingResponse
+
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.memory_repository import IMemoryRepository
 from app.security.exceptions import SecurityException
@@ -34,8 +38,6 @@ def get_llm_provider() -> ILlmProvider:
 def get_memory_repo(request: Request) -> IMemoryRepository:
     return request.app.state.memory
 
-
-# SSE helper
 
 async def sse_message(event_type: str, data: dict) -> str:
     return f"data: {json.dumps({'type': event_type, **data})}\n\n"
@@ -130,8 +132,8 @@ async def create_session(
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
     user_id = current_user["id"]
-    
-    uuid_regex = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+
+    uuid_regex = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     if title == user_id or re.match(uuid_regex, title.lower()):
         title = "Nueva Conversación"
 
@@ -175,3 +177,69 @@ async def get_chat_history(
         raise HTTPException(status_code=404, detail="Session not found")
 
     return ChatHistoryResponse(messages=messages, session_id=session_id)
+
+
+@router.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    session_id: str = Form(None),
+    current_user: dict = Depends(get_current_user),
+):
+    allowed_types = [
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/csv",
+    ]
+
+    if file.content_type not in allowed_types and not file.filename.endswith(
+        (".xlsx", ".csv")
+    ):
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    try:
+        contents = await file.read()
+
+        wb = openpyxl.load_workbook(BytesIO(contents), data_only=True, read_only=True)
+        sheet = wb.active
+
+        excel_data_text = ""
+        for row in sheet.iter_rows(values_only=True):
+            # Omitimos filas completamente vacías
+            if any(cell is not None and str(cell).strip() != "" for cell in row):
+                row_text = " | ".join(
+                    [str(cell).strip() if cell is not None else "" for cell in row]
+                )
+                excel_data_text += f"| {row_text} |\n"
+
+        max_characters = 12000
+        truncated_text = excel_data_text[:max_characters]
+
+        if len(excel_data_text) > max_characters:
+            truncated_text += "\n[... Archivo truncado por exceso de tamaño para optimizar el contexto ...]"
+
+        logger.info(
+            "Archivo Excel procesado en memoria exitosamente",
+            extra={
+                "user_id": current_user.get("id"),
+                "uploaded_filename": file.filename,
+                "session_id": session_id,
+                "length": len(truncated_text),
+            },
+        )
+
+        attachment_type = "excel"
+        if file.filename.lower().endswith(".csv"):
+            attachment_type = "csv"
+
+        return {
+            "filename": file.filename,
+            "has_attachment": True,
+            "extracted_context": truncated_text,
+            "attachment_type": attachment_type,
+        }
+
+    except Exception as e:
+        logger.error(f"Error procesando archivo {file.filename}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno al procesar la estructura del Excel: {str(e)}",
+        )
