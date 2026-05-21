@@ -44,7 +44,6 @@ DEFAULT_MODELS = [
 
 @app.get("/health")
 def health():
-    """Verifica conexión con Ollama."""
     try:
         r = requests.get(f"{OLLAMA_URL}/api/tags", timeout=10)
         models = [m["name"] for m in r.json().get("models", [])]
@@ -55,7 +54,6 @@ def health():
 
 @app.get("/models")
 def get_models():
-    """Lista modelos disponibles en Ollama."""
     try:
         r = requests.get(f"{OLLAMA_URL}/api/tags", timeout=10)
         return {"models": r.json().get("models", [])}

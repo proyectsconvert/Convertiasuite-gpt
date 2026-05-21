@@ -6,8 +6,24 @@ logger = logging.getLogger(__name__)
 class AuthService:
 
     def __init__(self):
-
         self.supabase = SupabaseClient().anon
+
+    async def authenticate(self, email: str, password: str) -> dict | None:
+        try:
+            logger.info(f"Login attempt: {email}")
+            response = self.supabase.auth.sign_in_with_password({
+                "email": email,
+                "password": password
+            })
+            if not response or not response.user or not response.session:
+                return None
+            return {
+                "session": response.session,
+                "user": response.user
+            }
+        except Exception as e:
+            logger.error(f"Supabase authentication error: {type(e).__name__}: {e}")
+            return None
 
     def decode_token(
         self,

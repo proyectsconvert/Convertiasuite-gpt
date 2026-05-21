@@ -1,11 +1,12 @@
 from fastapi import (APIRouter, HTTPException, Request, status,)
 from app.schemas.auth import (LoginRequest, TokenResponse,)
 from app.security.rate_limiting import limiter
-from app.infra.clients.supabase_client import SupabaseClient
+from app.services.auth_service import AuthService
 
 import logging
 
 logger = logging.getLogger(__name__)
+auth_service = AuthService()
 
 router = APIRouter(
     prefix="/auth",
@@ -22,57 +23,27 @@ async def login(
     request: Request,
     body: LoginRequest,
 ):
-
-    try:
-
-        supabase = SupabaseClient().anon
-
-        response = (
-            supabase.auth
-            .sign_in_with_password(
-                {
-                    "email": body.email,
-                    "password": body.password,
-                }
-            )
-        )
-
-    except Exception:
-
-        logger.exception(
-            "Supabase authentication failure"
-        )
-
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Authentication service unavailable",
-        )
-
-    if (
-        not response
-        or not response.user
-        or not response.session
-    ):
-
-        logger.warning(
-            "Invalid login attempt"
-        )
-
+    auth_data = await auth_service.authenticate(body.email, body.password)
+    if not auth_data:
+        logger.warning(f"Invalid login attempt: {body.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Correo o contraseña incorrectos",
         )
 
+    session = auth_data["session"]
+    user = auth_data["user"]
+
     user_metadata = (
-        response.user.user_metadata or {}
+        user.user_metadata or {}
     )
 
     app_metadata = (
-        response.user.app_metadata or {}
+        user.app_metadata or {}
     )
 
     user_data = {
-        "id": response.user.id,
+        "id": user.id,
 
         "name": (
             user_metadata.get("full_name")
@@ -80,7 +51,7 @@ async def login(
             or "Usuario"
         ),
 
-        "email": response.user.email,
+        "email": user.email,
 
         "role": (
             app_metadata.get(
@@ -92,13 +63,13 @@ async def login(
 
     logger.info(
         "User authenticated user_id=%s",
-        response.user.id,
+        user.id,
     )
 
     return TokenResponse(
-        access_token=response.session.access_token,
-        refresh_token=response.session.refresh_token,
+        access_token=session.access_token,
+        refresh_token=session.refresh_token,
         token_type="bearer",
-        expires_in=response.session.expires_in,
+        expires_in=session.expires_in,
         user=user_data,
     )

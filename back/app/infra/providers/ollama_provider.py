@@ -9,21 +9,30 @@ logger = logging.getLogger(__name__)
 class OllamaProvider(ILlmProvider):
     def __init__(self, ollama_client):
         self.client = ollama_client
-        self.models = get_model_config()
+        self.models = None
 
     async def generate(self, messages: list, model_key: str) -> str:
-        model_info = self.models.get(model_key, self.models["default"])
+        models = get_model_config()
+        model_info = models.get(model_key, models["default"])
 
-        # Usar build_messages en lugar de build_prompt
         msg_dict = build_messages(messages, model_key)
+        # Ensure language enforcement is explicit and at the top of the system prompt
+        if msg_dict and "system" in msg_dict:
+            enforced = "Responde SIEMPRE en español. Respuestas solo en español.\n\n"
+            msg_dict["system"] = enforced + msg_dict["system"]
 
-        # Convertir al formato que espera la API /api/chat
-        prompt = f"{msg_dict['system']}\n\n--- Conversation ---\n\n"
+        chat_messages = [{"role": "system", "content": msg_dict["system"]}]
         for msg in msg_dict["messages"]:
-            prompt += f"{msg['role']}: {msg['content']}\n\n"
+            chat_messages.append(msg)
 
-        return await self.client.generate(
-            prompt=prompt,
+        logger.info(
+            "OllamaProvider sending model=%s for model_key=%s (chat non-stream)",
+            model_info.get("model"),
+            model_key,
+        )
+
+        return await self.client.generate_chat(
+            messages=chat_messages,
             model=model_info["model"],
             temperature=model_info.get("temperature"),
             num_ctx=model_info.get("num_ctx"),
@@ -31,10 +40,14 @@ class OllamaProvider(ILlmProvider):
         )
 
     async def generate_stream(self, messages: list, model_key: str):
-        model_info = self.models.get(model_key, self.models["default"])
+        models = get_model_config()
+        model_info = models.get(model_key, models["default"])
 
-        # Construir los mensajes con el sistema incluido
         msg_dict = build_messages(messages, model_key)
+        # Ensure language enforcement is explicit and at the top of the system prompt
+        if msg_dict and "system" in msg_dict:
+            enforced = "Responde SIEMPRE en español. Respuestas solo en español.\n\n"
+            msg_dict["system"] = enforced + msg_dict["system"]
 
         logger.debug(
             f"model_key={model_key} model={model_info['model']} messages={len(msg_dict['messages'])}"
@@ -45,6 +58,12 @@ class OllamaProvider(ILlmProvider):
         for msg in msg_dict["messages"]:
             chat_messages.append(msg)
 
+        # Log the exact model sent to the client for easier debugging
+        logger.info(
+            "OllamaProvider sending model=%s for model_key=%s",
+            model_info.get("model"),
+            model_key,
+        )
         async for chunk in self.client.generate_chat_stream(
             messages=chat_messages,
             model=model_info["model"],

@@ -1,6 +1,8 @@
 from datetime import datetime, UTC
 import logging
-from app.core.model_config import MODELS
+import time
+import uuid
+from app.core.model_config import DEFAULT_MODEL_KEY, get_model_config
 from app.domain.entities.message import Message
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.memory_repository import IMemoryRepository
@@ -15,8 +17,8 @@ from app.security.output_guard import (
 from app.security.prompt_injection_guard import validate_prompt_safety
 from app.security.risk_scorer import risk_scorer
 from app.services.model_router import route_model
-import time
-import uuid
+
+MODEL_CONFIG = get_model_config()
 
 logger = logging.getLogger(__name__)
 
@@ -136,11 +138,16 @@ async def process_chat(
         messages = sanitized_history.copy()
 
         user_attachments = []
+        attachment_name = "archivo adjunto"
+        attachment_type = "archivo"
+
         if request.has_attachment and request.extracted_context:
+            attachment_name = request.attachment_name or attachment_name
+            attachment_type = request.attachment_type or attachment_type
             user_attachments.append(
                 {
-                    "type": request.attachment_type or "excel",
-                    "filename": request.attachment_name or "archivo adjunto",
+                    "type": attachment_type,
+                    "filename": attachment_name,
                     "content": request.extracted_context,
                 }
             )
@@ -166,10 +173,13 @@ async def process_chat(
                     id=str(uuid.uuid4()),
                     role="user",
                     content=(
-                        "Contexto del archivo adjunto en formato tabular:\n\n"
+                        f"El usuario adjuntó el archivo '{attachment_name}' ({attachment_type}).\n"
+                        "A continuación están los datos pre-procesados con métricas ya calculadas.\n"
+                        "Usa estos números exactos para responder. No inventes datos.\n\n"
                         "```\n"
                         f"{request.extracted_context}\n"
-                        "```\n"
+                        "```\n\n"
+                        f"Pregunta del usuario sobre este archivo: {clean_input}"
                     ),
                     timestamp=datetime.now(UTC),
                 )
@@ -180,7 +190,8 @@ async def process_chat(
             user_role=request.user_role,
             attachment_type=request.attachment_type,
         )
-        model_name = MODELS[model_key]["model"]
+        model_info = MODEL_CONFIG.get(model_key, MODEL_CONFIG[DEFAULT_MODEL_KEY])
+        model_name = model_info["model"]
 
         logger.info(
             "ROUTE model=%s session=%s",

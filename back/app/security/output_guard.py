@@ -25,6 +25,15 @@ class OutputValidator:
         r"api[_\s-]?key",
         r"secret[_\s-]?key",
         r"(?i)token\s*=\s*[a-zA-Z0-9_-]+",
+        # Anti-leak for system prompt identity phrases
+        r"eres\s+olivia",
+        r"asistente\s+interno\s+de\s+convertia",
+        r"tu\s+propósito\s+es\s+ayudar\s+a\s+diferentes",
+        r"responde\s+siempre\s+en\s+español",
+        r"nunca\s+mezcles\s+otros\s+idiomas",
+        r"no\s+uses\s+emojis",
+        r"tono\s+profesional\s+y\s+consistente",
+        r"restricción\s+absoluta",
     ]
 
     LANGUAGE_BLOCK_PATTERNS = [

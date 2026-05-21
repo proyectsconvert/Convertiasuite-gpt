@@ -1,21 +1,17 @@
-from io import BytesIO
-import logging
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
-import openpyxl
-import json
-import logging
-from datetime import datetime
-import re
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, File, UploadFile
 from fastapi.responses import StreamingResponse
+import logging
+import json
+from datetime import datetime
+import re
 
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.memory_repository import IMemoryRepository
 from app.security.exceptions import SecurityException
 from app.security.output_guard import get_safety_fallback
 from app.dependencies.auth import get_current_user
-
 from app.services.chat_service import process_chat
+from app.services.file_processor import FileProcessorService
 
 from app.schemas.chat import (
     ChatRequest,
@@ -185,50 +181,44 @@ async def upload_file(
     session_id: str = Form(None),
     current_user: dict = Depends(get_current_user),
 ):
-    allowed_types = [
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "text/csv",
-    ]
-
-    if file.content_type not in allowed_types and not file.filename.endswith(
-        (".xlsx", ".csv")
-    ):
-        raise HTTPException(status_code=400, detail="Unsupported file type")
+    filename_lower = file.filename.lower()
+    
+    # Determinar tipo por extensión o mimetype
+    if filename_lower.endswith(".pdf") or file.content_type == "application/pdf":
+        parser_fn = FileProcessorService.extract_text_from_pdf
+        attachment_type = "pdf"
+    elif filename_lower.endswith((".docx", ".doc")) or file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        parser_fn = FileProcessorService.extract_text_from_docx
+        attachment_type = "word"
+    elif filename_lower.endswith(".csv") or file.content_type == "text/csv":
+        parser_fn = FileProcessorService.extract_text_from_csv
+        attachment_type = "csv"
+    elif filename_lower.endswith((".xlsx", ".xls")) or file.content_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        parser_fn = FileProcessorService.extract_text_from_excel
+        attachment_type = "excel"
+    else:
+        raise HTTPException(status_code=400, detail="Formato de archivo no soportado (use PDF, Word, Excel o CSV)")
 
     try:
         contents = await file.read()
-
-        wb = openpyxl.load_workbook(BytesIO(contents), data_only=True, read_only=True)
-        sheet = wb.active
-
-        excel_data_text = ""
-        for row in sheet.iter_rows(values_only=True):
-            # Omitimos filas completamente vacías
-            if any(cell is not None and str(cell).strip() != "" for cell in row):
-                row_text = " | ".join(
-                    [str(cell).strip() if cell is not None else "" for cell in row]
-                )
-                excel_data_text += f"| {row_text} |\n"
+        extracted_text = parser_fn(contents)
 
         max_characters = 12000
-        truncated_text = excel_data_text[:max_characters]
+        truncated_text = extracted_text[:max_characters]
 
-        if len(excel_data_text) > max_characters:
+        if len(extracted_text) > max_characters:
             truncated_text += "\n[... Archivo truncado por exceso de tamaño para optimizar el contexto ...]"
 
         logger.info(
-            "Archivo Excel procesado en memoria exitosamente",
+            "Archivo procesado exitosamente",
             extra={
                 "user_id": current_user.get("id"),
                 "uploaded_filename": file.filename,
                 "session_id": session_id,
                 "length": len(truncated_text),
+                "attachment_type": attachment_type,
             },
         )
-
-        attachment_type = "excel"
-        if file.filename.lower().endswith(".csv"):
-            attachment_type = "csv"
 
         return {
             "filename": file.filename,
@@ -241,5 +231,5 @@ async def upload_file(
         logger.error(f"Error procesando archivo {file.filename}: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Error interno al procesar la estructura del Excel: {str(e)}",
+            detail=f"Error al procesar el archivo: {str(e)}",
         )

@@ -7,6 +7,15 @@ import {
   Loader2,
   X,
   FileText,
+  Code,
+  Cpu,
+  Brain,
+  Eye,
+  Activity,
+  HeartPulse,
+  Layers,
+  Cloud,
+  Sparkles,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { AnimatePresence, motion } from "framer-motion";
@@ -125,6 +134,32 @@ export default function ChatInput({
   const currentModel = models.find((m) => m.id === selectedModel) || models[0];
   const isWelcome = variant === "welcome";
 
+  const getModelIcon = (modelId: string) => {
+    if (modelId.includes("coder") || modelId.includes("code")) return Code;
+    if (modelId.includes("embed") || modelId.includes("nomic")) return Layers;
+    if (
+      modelId.includes("vision") ||
+      modelId.includes("ocr") ||
+      modelId.includes("image")
+    )
+      return Eye;
+    if (modelId.includes("medical") || modelId.includes("medgemma"))
+      return HeartPulse;
+    if (modelId.includes("reasoning") || modelId.includes("deepseek-r1"))
+      return Activity;
+    if (
+      modelId.includes("gemma4") ||
+      modelId.includes("qwen3.6") ||
+      modelId.includes("qwen2.5")
+    )
+      return Cpu;
+    if (modelId.includes("glm")) return Sparkles;
+    if (modelId.includes("nemotron")) return Cloud;
+    return Bot;
+  };
+
+  const CurrentModelIcon = getModelIcon(currentModel.id);
+
   return (
     <div
       className={`w-full ${isWelcome ? "max-w-[640px] mx-auto mt-6" : "max-w-4xl mx-auto"}`}
@@ -147,7 +182,7 @@ export default function ChatInput({
               className="mx-4 mt-3 overflow-hidden rounded-3xl border border-border/60 bg-secondary/80 shadow-sm"
             >
               <div className="flex items-center gap-3 px-4 py-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <div className="flex h-10 w-10 items-center justify-center text rounded-2xl bg-primary/10 text-primary">
                   <FileText className="w-5 h-5" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -183,11 +218,10 @@ export default function ChatInput({
           disabled={isUploadingFile}
           placeholder={
             isUploadingFile
-              ? "Procesando estructura del Excel..."
+              ? "Procesando estructura del archivo..."
               : "Envía un mensaje a convert-IA..."
           }
-          className="w-full resize-none bg-transparent px-4 pt-3.5 pb-1.5 text-[15px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/50 min-h-[48px] max-h-[200px] disabled:opacity-50"
-          aria-label="Mensaje"
+          className="w-full resize-none bg-transparent px-4 pt-3.5 pb-1.5 text-[15px] text-left leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/50 min-h-[48px] max-h-[200px] disabled:opacity-50"          aria-label="Mensaje"
         />
 
         <div className="flex items-center justify-between px-2.5 pb-2.5">
@@ -211,7 +245,7 @@ export default function ChatInput({
                 onClick={() => setShowModels(!showModels)}
                 className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
               >
-                <Bot className="w-3.5 h-3.5" />
+                <CurrentModelIcon className="w-3.5 h-3.5" />
                 <span className="font-medium hidden sm:inline">
                   {currentModel.name}
                 </span>
@@ -229,33 +263,39 @@ export default function ChatInput({
                     transition={{ duration: 0.1 }}
                     className="absolute bottom-full left-0 mb-1.5 w-52 rounded-xl border border-border bg-popover shadow-xl p-1 z-50 max-h-60 overflow-y-auto"
                   >
-                    {models.map((m) => (
-                      <button
-                        key={m.id}
-                        onClick={() => {
-                          setSelectedModel(m.id);
-                          setShowModels(false);
-                        }}
-                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] transition-colors ${
-                          m.id === selectedModel
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "text-foreground hover:bg-secondary"
-                        }`}
-                      >
-                        <span className="flex-1 text-left">{m.name}</span>
-                        {m.badge && (
-                          <span
-                            className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                              m.id === selectedModel
-                                ? "bg-primary/20 text-primary"
-                                : "bg-secondary text-muted-foreground"
-                            }`}
-                          >
-                            {m.badge}
-                          </span>
-                        )}
-                      </button>
-                    ))}
+                    {models.map((m) => {
+                      const OptionIcon = getModelIcon(m.id);
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => {
+                            setSelectedModel(m.id);
+                            setShowModels(false);
+                          }}
+                          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] transition-colors ${
+                            m.id === selectedModel
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "text-foreground hover:bg-secondary"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 flex-1 text-left">
+                            <OptionIcon className="w-4 h-4 text-primary" />
+                            <span>{m.name}</span>
+                          </div>
+                          {m.badge && (
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                m.id === selectedModel
+                                  ? "bg-primary/20 text-primary"
+                                  : "bg-secondary text-muted-foreground"
+                              }`}
+                            >
+                              {m.badge}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </motion.div>
                 )}
               </AnimatePresence>

@@ -1,5 +1,6 @@
 import logging
 import time
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +22,7 @@ from app.infra.repositories.supabase.memory_repository import (
 )
 from app.security.rate_limiting import limiter
 from app.api import chat, auth
+from app.infra.clients.ollama_client import OllamaClient
 
 
 logging.basicConfig(
@@ -28,6 +30,19 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(message)s",
 )
 logger = logging.getLogger("performance")
+
+
+# trigugger: "model_registry_v1"
+async def preload_ollama_models():
+    await asyncio.sleep(2)
+    logger.info("Starting background preloading of Ollama models...")
+    client = OllamaClient()
+    try:
+        await client.preload_model("qwen2.5:7b")
+    except Exception as e:
+        logger.error(f"Error in background model preloading task: {e}")
+    finally:
+        await client.close()
 
 
 @asynccontextmanager
@@ -44,6 +59,9 @@ async def lifespan(app: FastAPI):
     )
 
     logger.info("Application startup completed")
+
+    # iniciar la tarea de precarga de modelos en segundo plano
+    asyncio.create_task(preload_ollama_models())
 
     yield
 

@@ -21,7 +21,7 @@ class OllamaClient:
             ),
             limits=httpx.Limits(
                 max_connections=50,
-                max_keepalive_connections=10,
+                max_keepalive_connections=50,
             ),
             follow_redirects=True,
         )
@@ -67,6 +67,39 @@ class OllamaClient:
 
         response.raise_for_status()
         return response.json().get("response", "")
+
+    async def generate_chat(
+        self,
+        messages: list,
+        model: str,
+        temperature: float = None,
+        num_ctx: int = None,
+        max_tokens: int = None,
+    ) -> str:
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+        }
+
+        options = {}
+        if temperature is not None:
+            options["temperature"] = temperature
+        if num_ctx is not None:
+            options["num_ctx"] = num_ctx
+        if max_tokens is not None:
+            options["max_tokens"] = max_tokens
+
+        if options:
+            payload["options"] = options
+
+        response = await self.client.post(
+            f"{self.base_url}/api/chat",
+            json=payload,
+        )
+
+        response.raise_for_status()
+        return response.json().get("message", {}).get("content", "")
 
     async def generate_stream(
         self,
@@ -212,6 +245,29 @@ class OllamaClient:
                 if attempt == max_retries - 1:
                     raise
                 await asyncio.sleep(2**attempt)
+
+    async def preload_model(self, model: str) -> bool:
+        """
+        Envia una peticion a /api/chat con keep_alive=-1 para cargar el modelo en VRAM.
+        """
+        try:
+            payload = {
+                "model": model,
+                "messages": [],
+                "stream": False,
+                "keep_alive": -1,
+            }
+            response = await self.client.post(
+                f"{self.base_url}/api/chat",
+                json=payload,
+                timeout=60.0,
+            )
+            response.raise_for_status()
+            logger.info(f"Modelo {model} pre-cargado exitosamente en Ollama.")
+            return True
+        except Exception as e:
+            logger.error(f"Error al pre-cargar modelo {model}: {e}")
+            return False
 
     async def close(self):
         await self.client.aclose()

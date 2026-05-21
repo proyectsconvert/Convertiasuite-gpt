@@ -185,10 +185,10 @@ export default function ChatSidebar() {
                         />
                       </div>
                     ) : (
-                      <div className="flex items-center gap-0 group">
+                      <div className="flex items-center gap-0 group w-full min-w-0">
                         <button
                           onClick={() => handleChatClick(c.id)}
-                          className={`flex-1 text-left px-2.5 py-1.5 rounded-lg text-[13px] transition-all duration-100 flex items-center gap-1.5 ${
+                          className={`flex-1 min-w-0 text-left px-2.5 py-1.5 rounded-lg text-[13px] transition-all duration-100 flex items-center gap-1.5 ${
                             currentChatId === c.id && location.pathname === "/app/chat"
                               ? "bg-sidebar-accent text-foreground"
                               : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"

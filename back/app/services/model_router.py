@@ -1,6 +1,12 @@
 from typing import Optional
 
-from app.core.model_config import MODELS, DEFAULT_MODEL_KEY, ALLOWED_MODELS
+from app.core.model_config import (
+    ALLOWED_MODELS,
+    DEFAULT_MODEL_KEY,
+    MODEL_REGISTRY,
+    ROUTING_POLICY,
+    get_model_config,
+)
 from app.core.keywords_config import (
     KEYWORDS_VISION,
     KEYWORDS_ANALYSIS,
@@ -18,18 +24,15 @@ def route_model(
 ) -> str:
     if attachment_type:
         normalized_type = attachment_type.lower()
-        if normalized_type in {"image", "vision"}:
-            return "vision"
-        if normalized_type == "ocr":
-            return "ocr"
-        if normalized_type in {"excel", "csv"}:
-            return "default"
+        route = ROUTING_POLICY["attachment_type"].get(normalized_type)
+        if route and route in MODEL_REGISTRY:
+            return route
 
-    if user_role and user_role != "default":
+    if user_role and user_role != DEFAULT_MODEL_KEY:
         if user_role in ALLOWED_MODELS:
             return user_role
 
-    msg_lower = message.lower()
+    msg_lower = (message or "").lower()
 
     if any(k in msg_lower for k in KEYWORDS_VISION):
         return "vision"
@@ -48,4 +51,5 @@ def route_model(
 
 
 def get_model_info(model_key: str) -> dict:
-    return MODELS.get(model_key, MODELS[DEFAULT_MODEL_KEY])
+    models = get_model_config()
+    return models.get(model_key, models[DEFAULT_MODEL_KEY])

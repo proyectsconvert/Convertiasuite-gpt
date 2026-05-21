@@ -1,6 +1,20 @@
 import { useState, useRef, useEffect } from "react";
 import {
-  Bot, ChevronDown, Share2, PanelRightOpen, PanelRightClose, Check,
+  Bot,
+  ChevronDown,
+  Share2,
+  PanelRightOpen,
+  PanelRightClose,
+  Check,
+  Code,
+  Cpu,
+  Brain,
+  Eye,
+  Activity,
+  HeartPulse,
+  Layers,
+  Cloud,
+  Sparkles,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { AnimatePresence, motion } from "framer-motion";
@@ -21,8 +35,13 @@ const models = [
 
 export default function ChatHeader() {
   const {
-    sessions, currentChatId, renameSession, selectedModel,
-    setSelectedModel, artifactsPanelOpen, setArtifactsPanelOpen,
+    sessions,
+    currentChatId,
+    renameSession,
+    selectedModel,
+    setSelectedModel,
+    artifactsPanelOpen,
+    setArtifactsPanelOpen,
   } = useAppStore();
 
   const activeChat = sessions.find((c) => c.id === currentChatId);
@@ -39,7 +58,10 @@ export default function ChatHeader() {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setShowModels(false);
       }
     };
@@ -60,8 +82,39 @@ export default function ChatHeader() {
     setTimeout(() => setShareConfirm(false), 2000);
   };
 
-  const currentModelName = models.find((m) => m.id === selectedModel)?.name || selectedModel;
+  const currentModel = models.find((m) => m.id === selectedModel) || {
+    id: selectedModel,
+    name: selectedModel,
+    badge: [],
+  };
+  const currentModelName = currentModel.name;
   const title = activeChat?.title || "Nuevo chat";
+
+  const getModelIcon = (modelId: string) => {
+    if (modelId.includes("coder") || modelId.includes("code")) return Code;
+    if (modelId.includes("embed") || modelId.includes("nomic")) return Layers;
+    if (
+      modelId.includes("vision") ||
+      modelId.includes("ocr") ||
+      modelId.includes("image")
+    )
+      return Eye;
+    if (modelId.includes("medical") || modelId.includes("medgemma"))
+      return HeartPulse;
+    if (modelId.includes("reasoning") || modelId.includes("deepseek-r1"))
+      return Activity;
+    if (
+      modelId.includes("gemma4") ||
+      modelId.includes("qwen3.6") ||
+      modelId.includes("qwen2.5")
+    )
+      return Cpu;
+    if (modelId.includes("glm")) return Sparkles;
+    if (modelId.includes("nemotron")) return Cloud;
+    return Bot;
+  };
+
+  const CurrentModelIcon = getModelIcon(currentModel.id);
 
   return (
     <header className="h-12 border-b border-border/40 flex items-center justify-between px-4 flex-shrink-0 bg-background/80 backdrop-blur-sm">
@@ -81,7 +134,10 @@ export default function ChatHeader() {
           />
         ) : (
           <button
-            onClick={() => { setEditValue(title); setIsEditing(true); }}
+            onClick={() => {
+              setEditValue(title);
+              setIsEditing(true);
+            }}
             className="text-sm font-medium text-foreground hover:text-primary transition-colors truncate max-w-[300px]"
             title="Click para editar el nombre"
           >
@@ -98,9 +154,11 @@ export default function ChatHeader() {
             onClick={() => setShowModels(!showModels)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
           >
-            <Bot className="w-3.5 h-3.5 text-primary" />
+            <CurrentModelIcon className="w-3.5 h-3.5 text-primary" />
             <span className="hidden sm:inline">{currentModelName}</span>
-            <ChevronDown className={`w-3 h-3 transition-transform ${showModels ? "rotate-180" : ""}`} />
+            <ChevronDown
+              className={`w-3 h-3 transition-transform ${showModels ? "rotate-180" : ""}`}
+            />
           </button>
 
           <AnimatePresence>
@@ -112,19 +170,28 @@ export default function ChatHeader() {
                 transition={{ duration: 0.12 }}
                 className="absolute top-full right-0 mt-1 w-48 rounded-xl border border-border bg-popover shadow-xl p-1 z-50"
               >
-                {models.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => { setSelectedModel(m.id); setShowModels(false); }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                      m.id === selectedModel
-                        ? "bg-primary/10 text-primary font-medium"
-                        : "text-foreground hover:bg-secondary"
-                    }`}
-                  >
-                    {m.name}
-                  </button>
-                ))}
+                {models.map((m) => {
+                  const OptionIcon = getModelIcon(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => {
+                        setSelectedModel(m.id);
+                        setShowModels(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                        m.id === selectedModel
+                          ? "bg-primary/10 text-primary font-medium"
+                          : "text-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <OptionIcon className="w-4 h-4 text-primary" />
+                        <span>{m.name}</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </motion.div>
             )}
           </AnimatePresence>
@@ -136,7 +203,11 @@ export default function ChatHeader() {
           className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
           aria-label="Compartir"
         >
-          {shareConfirm ? <Check className="w-4 h-4 text-success" /> : <Share2 className="w-4 h-4" />}
+          {shareConfirm ? (
+            <Check className="w-4 h-4 text-success" />
+          ) : (
+            <Share2 className="w-4 h-4" />
+          )}
         </button>
 
         {/* Artifacts panel toggle */}
@@ -149,7 +220,11 @@ export default function ChatHeader() {
           }`}
           aria-label={artifactsPanelOpen ? "Cerrar panel" : "Abrir panel"}
         >
-          {artifactsPanelOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
+          {artifactsPanelOpen ? (
+            <PanelRightClose className="w-4 h-4" />
+          ) : (
+            <PanelRightOpen className="w-4 h-4" />
+          )}
         </button>
       </div>
     </header>

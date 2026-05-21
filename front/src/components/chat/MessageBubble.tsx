@@ -63,16 +63,16 @@ export default function MessageBubble({
         {isUser ? (
           <User className="w-4 h-4 text-primary" />
         ) : (
-          <div className="w-11 h-11 flex items-center justify-center">
+          <div className="w-full h-full flex items-center justify-center p-0.5">
             <img
               src="/logo-dark.ico"
               alt="convert-IA"
-              className="w-15 h-15 block dark:hidden"
+              className="w-full h-full object-contain block dark:hidden"
             />
             <img
               src="/favicon.ico"
               alt="convert-IA"
-              className="w-15 h-15 hidden dark:block"
+              className="w-full h-full object-contain hidden dark:block"
             />
           </div>
         )}
