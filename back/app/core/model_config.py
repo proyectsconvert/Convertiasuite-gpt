@@ -116,13 +116,14 @@ MODEL_REGISTRY = {
         "max_tokens": 512,
     },
     "analysis": {
-        "model": "gemma4-e4b:latest",
-        "preset": "semi-warm",
-        "tier": "semi-warm",
-        "capabilities": ["analysis", "tabular", "excel", "csv"],
-        "num_ctx": 8192,
-        "max_tokens": 2048,
-        "temperature": 0.2,
+    	"model": "gemma4-e4b:latest",
+  	"preset": "semi-warm",
+    	"tier": "semi-warm",
+    	"capabilities": ["analysis", "tabular", "excel", "csv"],
+    	"num_ctx": 4096,
+    	"max_tokens": 1024,
+    	"temperature": 0.2,
+
     },
 }
 

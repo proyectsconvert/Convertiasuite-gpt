@@ -203,7 +203,7 @@ async def upload_file(
         contents = await file.read()
         extracted_text = parser_fn(contents)
 
-        max_characters = 12000
+        max_characters = 8000
         truncated_text = extracted_text[:max_characters]
 
         if len(extracted_text) > max_characters:
