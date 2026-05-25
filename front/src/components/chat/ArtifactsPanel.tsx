@@ -31,7 +31,6 @@ export default function ArtifactsPanel() {
     URL.revokeObjectURL(url);
   };
 
-  /* If no active artifact, show placeholder */
   const demoArtifact: ChatArtifact = activeArtifact || {
     id: "demo",
     title: "Vista previa",

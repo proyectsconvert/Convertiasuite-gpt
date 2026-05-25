@@ -4,6 +4,7 @@ import logging
 import json
 from datetime import datetime
 import re
+import uuid
 
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.memory_repository import IMemoryRepository
@@ -172,7 +173,18 @@ async def get_chat_history(
     if messages is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    return ChatHistoryResponse(messages=messages, session_id=session_id)
+    formatted_messages = []
+    for msg in messages:
+        formatted_msg = {
+            "id": msg.get("id", str(uuid.uuid4())),
+            "role": msg.get("role", "user"),
+            "content": msg.get("content", ""),
+            "timestamp": msg.get("timestamp", datetime.now().isoformat()),
+            "attachments": msg.get("attachments", []),
+        }
+        formatted_messages.append(formatted_msg)
+
+    return ChatHistoryResponse(messages=formatted_messages, session_id=session_id)
 
 
 @router.post("/upload")
@@ -180,24 +192,36 @@ async def upload_file(
     file: UploadFile = File(...),
     session_id: str = Form(None),
     current_user: dict = Depends(get_current_user),
+    memory_repo: IMemoryRepository = Depends(get_memory_repo), # 1. Inyectamos tu repositorio compuesto
 ):
     filename_lower = file.filename.lower()
-    
+
     # Determinar tipo por extensión o mimetype
     if filename_lower.endswith(".pdf") or file.content_type == "application/pdf":
         parser_fn = FileProcessorService.extract_text_from_pdf
         attachment_type = "pdf"
-    elif filename_lower.endswith((".docx", ".doc")) or file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    elif (
+        filename_lower.endswith((".docx", ".doc"))
+        or file.content_type
+        == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ):
         parser_fn = FileProcessorService.extract_text_from_docx
         attachment_type = "word"
     elif filename_lower.endswith(".csv") or file.content_type == "text/csv":
         parser_fn = FileProcessorService.extract_text_from_csv
         attachment_type = "csv"
-    elif filename_lower.endswith((".xlsx", ".xls")) or file.content_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+    elif (
+        filename_lower.endswith((".xlsx", ".xls"))
+        or file.content_type
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ):
         parser_fn = FileProcessorService.extract_text_from_excel
         attachment_type = "excel"
     else:
-        raise HTTPException(status_code=400, detail="Formato de archivo no soportado (use PDF, Word, Excel o CSV)")
+        raise HTTPException(
+            status_code=400,
+            detail="Formato de archivo no soportado (use PDF, Word, Excel o CSV)",
+        )
 
     try:
         contents = await file.read()
@@ -209,8 +233,28 @@ async def upload_file(
         if len(extracted_text) > max_characters:
             truncated_text += "\n[... Archivo truncado por exceso de tamaño para optimizar el contexto ...]"
 
+        #PERSISTENCIA
+        if session_id:
+            current_messages = await memory_repo.get_messages(session_id)
+            if current_messages is None:
+                current_messages = []
+
+            file_message = {
+                "id": str(uuid.uuid4()),
+                "role": "system",
+                "content": f"SISTEMA: El usuario ha cargado el archivo '{file.filename}'. Contexto extraído:\n\n{truncated_text}",
+                "timestamp": datetime.now().isoformat(),
+                "attachments": [{
+                    "filename": file.filename,
+                    "type": attachment_type
+                }]
+            }
+
+            current_messages.append(file_message)
+            await memory_repo.save_messages(session_id, current_messages)
+
         logger.info(
-            "Archivo procesado exitosamente",
+            "Archivo procesado y persistido en memoria exitosamente",
             extra={
                 "user_id": current_user.get("id"),
                 "uploaded_filename": file.filename,

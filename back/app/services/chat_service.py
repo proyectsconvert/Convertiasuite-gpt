@@ -4,10 +4,13 @@ import time
 import uuid
 from app.core.model_config import DEFAULT_MODEL_KEY, get_model_config
 from app.domain.entities.message import Message
+from app.domain.contracts import PromptContract
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.memory_repository import IMemoryRepository
 from app.security.exceptions import PolicyViolationException, SecurityException
 from app.security.input_sanitizer import _truncate_history, sanitize_input
+from app.services.prompts.response_validator import ResponseValidator
+from app.services.prompts.prompt_builder import PromptBuilder
 from app.security.output_guard import (
     OutputValidationAction,
     get_safety_fallback,
@@ -33,12 +36,10 @@ async def _persist_messages(
 ):
     try:
         trimmed_messages = messages[-MAX_MESSAGES:]
-
         await memory_repo.save_messages(
             session_id,
             [m.to_dict() for m in trimmed_messages],
         )
-
     except Exception as e:
         logger.error(
             "Persistence error session=%s error=%s",
@@ -73,10 +74,7 @@ async def process_chat(
         else:
             existing_session = await memory_repo.get_session(session_id)
             if not existing_session:
-                logger.warning(
-                    "Session not found session_id=%s",
-                    session_id,
-                )
+                logger.warning("Session not found session_id=%s", session_id)
                 await memory_repo.create_session(
                     user_id=user_id,
                     title=request.message[:40],
@@ -104,7 +102,6 @@ async def process_chat(
             raise
 
         history = await memory_repo.get_messages(session_id) or []
-
         if len(history) > 10:
             history = _truncate_history(history, max_messages=10)
             logger.info("History truncated session=%s", session_id)
@@ -113,20 +110,15 @@ async def process_chat(
         for msg in history:
             try:
                 msg_obj = Message.from_dict(msg) if isinstance(msg, dict) else msg
-
                 if msg_obj.role == "user":
                     try:
-                        validate_prompt_safety(
-                            msg_obj.content,
-                            risk_level="LOW",
-                        )
+                        validate_prompt_safety(msg_obj.content, risk_level="LOW")
                     except Exception:
                         logger.warning(
                             "Skipping malicious history message session=%s",
                             session_id,
                         )
                         continue
-
                 sanitized_history.append(msg_obj)
             except Exception as e:
                 logger.warning(
@@ -135,13 +127,13 @@ async def process_chat(
                     str(e),
                 )
 
-        messages = sanitized_history.copy()
-
+        # --- Attachment ---
         user_attachments = []
         attachment_name = "archivo adjunto"
         attachment_type = "archivo"
+        has_attachment = request.has_attachment and request.extracted_context
 
-        if request.has_attachment and request.extracted_context:
+        if has_attachment:
             attachment_name = request.attachment_name or attachment_name
             attachment_type = request.attachment_type or attachment_type
             user_attachments.append(
@@ -157,6 +149,7 @@ async def process_chat(
                 len(request.extracted_context),
             )
 
+        # user_message se usa solo para persistencia, no para el stream
         user_message = Message(
             id=str(uuid.uuid4()),
             role="user",
@@ -164,10 +157,16 @@ async def process_chat(
             timestamp=datetime.now(UTC),
             attachments=user_attachments,
         )
+
+        # messages es la lista que se persiste en Supabase
+        messages = sanitized_history.copy()
         messages.append(user_message)
 
-        stream_messages = messages.copy()
-        if request.has_attachment and request.extracted_context:
+        # stream_messages es lo que recibe el modelo:
+        # - sin attachment: historial + user_message normal
+        # - con attachment: historial + un único mensaje con contexto inyectado
+        if has_attachment:
+            stream_messages = sanitized_history.copy()
             stream_messages.append(
                 Message(
                     id=str(uuid.uuid4()),
@@ -184,7 +183,10 @@ async def process_chat(
                     timestamp=datetime.now(UTC),
                 )
             )
+        else:
+            stream_messages = messages.copy()
 
+        # --- Routing ---
         model_key = route_model(
             message=clean_input,
             user_role=request.user_role,
@@ -193,11 +195,7 @@ async def process_chat(
         model_info = MODEL_CONFIG.get(model_key, MODEL_CONFIG[DEFAULT_MODEL_KEY])
         model_name = model_info["model"]
 
-        logger.info(
-            "ROUTE model=%s session=%s",
-            model_name,
-            session_id,
-        )
+        logger.info("ROUTE model=%s session=%s", model_name, session_id)
 
         stream = llm_provider.generate_stream(stream_messages, model_key)
 
@@ -257,6 +255,34 @@ async def process_chat(
                     elif action == OutputValidationAction.REGENERATE:
                         logger.warning("Output regenerate session=%s", session_id)
                         full_response = get_safety_fallback()
+                    else:
+                        contract = PromptContract.for_role(request.user_role)
+                        safety_response = ResponseValidator.validate_format(
+                            full_response,
+                            contract,
+                        )
+
+                        if not ResponseValidator.is_response_usable(safety_response):
+                            logger.warning(
+                                "Contract validation failed session=%s violations=%s",
+                                session_id,
+                                safety_response.violations,
+                            )
+                            safety_response = ResponseValidator.apply_fallback_template(
+                                full_response,
+                                contract,
+                                safety_response,
+                            )
+
+                        full_response = safety_response.response_to_use
+
+                        logger.info(
+                            "Contract validation completed session=%s valid=%s score=%.2f jailbreak=%s",
+                            session_id,
+                            safety_response.is_valid,
+                            safety_response.confidence_score,
+                            safety_response.jailbreak_detected,
+                        )
 
                 assistant_message = Message(
                     id=str(uuid.uuid4()),
@@ -265,7 +291,6 @@ async def process_chat(
                     timestamp=datetime.now(UTC),
                 )
                 messages.append(assistant_message)
-
                 await _persist_messages(memory_repo, session_id, messages)
 
                 total_elapsed = time.perf_counter() - stream_start

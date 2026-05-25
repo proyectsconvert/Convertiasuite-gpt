@@ -2,6 +2,8 @@ from io import BytesIO, StringIO
 import csv
 import logging
 import openpyxl
+import pandas as pd
+import json
 from pypdf import PdfReader
 from docx import Document
 
@@ -11,9 +13,6 @@ logger = logging.getLogger(__name__)
 class FileProcessorService:
     @staticmethod
     def extract_text_from_pdf(contents: bytes) -> str:
-        """
-        Extrae el contenido de un archivo PDF página por página con marcadores estructurales.
-        """
         try:
             reader = PdfReader(BytesIO(contents))
             pages_text = []
@@ -21,10 +20,10 @@ class FileProcessorService:
                 text = page.extract_text()
                 if text and text.strip():
                     pages_text.append(f"--- Página {i + 1} ---\n{text.strip()}")
-            
+
             if not pages_text:
                 return "El PDF parece estar vacío o no se pudo extraer texto. Verifique si contiene solo imágenes."
-            
+
             return "\n\n".join(pages_text)
         except Exception as e:
             logger.error(f"Error parseando PDF: {str(e)}")
@@ -32,40 +31,37 @@ class FileProcessorService:
 
     @staticmethod
     def extract_text_from_docx(contents: bytes) -> str:
-        """
-        Extrae texto y tablas de un archivo Word (.docx), preservando el formato de tablas en Markdown.
-        """
         try:
             doc = Document(BytesIO(contents))
             elements = []
 
-            # Recorrer todos los elementos del cuerpo del documento para mantener el orden
             for element in doc.element.body:
-                # Si es un párrafo
-                if element.tag.endswith('p'):
-                    # Buscar el párrafo correspondiente en la lista de párrafos de python-docx
+                if element.tag.endswith("p"):
                     for p in doc.paragraphs:
                         if p._element is element:
                             if p.text and p.text.strip():
                                 elements.append(p.text.strip())
                             break
-                # Si es una tabla
-                elif element.tag.endswith('tbl'):
+                elif element.tag.endswith("tbl"):
                     for table in doc.tables:
                         if table._element is element:
                             table_md = []
                             for row_idx, row in enumerate(table.rows):
-                                row_cells = [cell.text.strip().replace("\n", " ") for cell in row.cells]
-                                # Unir celdas con |
+                                row_cells = [
+                                    cell.text.strip().replace("\n", " ")
+                                    for cell in row.cells
+                                ]
                                 table_md.append("| " + " | ".join(row_cells) + " |")
                                 if row_idx == 0:
-                                    # Generar línea separadora para Markdown
-                                    table_md.append("| " + " | ".join(["---"] * len(row_cells)) + " |")
+                                    table_md.append(
+                                        "| "
+                                        + " | ".join(["---"] * len(row_cells))
+                                        + " |"
+                                    )
                             if table_md:
                                 elements.append("\n".join(table_md))
                             break
 
-            # Respaldo por si el parseo ordenado falla o se saltó elementos
             if not elements:
                 for p in doc.paragraphs:
                     if p.text and p.text.strip():
@@ -73,10 +69,14 @@ class FileProcessorService:
                 for table in doc.tables:
                     table_md = []
                     for row_idx, row in enumerate(table.rows):
-                        row_cells = [cell.text.strip().replace("\n", " ") for cell in row.cells]
+                        row_cells = [
+                            cell.text.strip().replace("\n", " ") for cell in row.cells
+                        ]
                         table_md.append("| " + " | ".join(row_cells) + " |")
                         if row_idx == 0:
-                            table_md.append("| " + " | ".join(["---"] * len(row_cells)) + " |")
+                            table_md.append(
+                                "| " + " | ".join(["---"] * len(row_cells)) + " |"
+                            )
                     if table_md:
                         elements.append("\n".join(table_md))
 
@@ -89,145 +89,242 @@ class FileProcessorService:
             raise ValueError(f"Error al procesar el archivo Word (.docx): {str(e)}")
 
     @staticmethod
-    def analyze_tabular_data(rows: list[list]) -> str:
-        """
-        Analiza un conjunto de datos tabular (CSV o Excel).
-        Genera un resumen estadístico detallado con métricas pre-calculadas y una vista previa
-        para optimizar el contexto del LLM.
-        """
-        if not rows:
+    def _analizar_reporte_convertia(
+        df: pd.DataFrame, cols_normalizadas: dict
+    ) -> str | None:
+        col_mkt = next(
+            (
+                cols_normalizadas[c]
+                for c in cols_normalizadas
+                if "CAMPAÑA_MKT" in c or "CAMPANA_MKT" in c
+            ),
+            None,
+        )
+        col_llave = next(
+            (
+                cols_normalizadas[c]
+                for c in cols_normalizadas
+                if "ID_LLAVE" in c or "IDLLAVE" in c
+            ),
+            None,
+        )
+
+        if not col_mkt or not col_llave:
+            return None
+
+        try:
+            total_leads = len(df)
+
+            def check_is_sale(val):
+                if pd.isna(val):
+                    return False
+                s_val = str(val).strip().lower()
+                return s_val not in ["", "nan", "null", "none"]
+
+            df["__ES_VENTA"] = df[col_llave].apply(check_is_sale)
+            total_ventas = int(df["__ES_VENTA"].sum())
+
+            leads_por_campana = df[col_mkt].value_counts().head(10).to_dict()
+            ventas_por_campana = (
+                df[df["__ES_VENTA"] == True][col_mkt].value_counts().head(10).to_dict()
+            )
+
+            conversion_por_campana = {}
+            for campana in leads_por_campana:
+                total_c_leads = len(df[df[col_mkt] == campana])
+                total_c_ventas = len(
+                    df[(df[col_mkt] == campana) & (df["__ES_VENTA"] == True)]
+                )
+                rate = (
+                    round((total_c_ventas / total_c_leads) * 100, 2)
+                    if total_c_leads > 0
+                    else 0
+                )
+                conversion_por_campana[campana] = (
+                    f"{rate}% ({total_c_ventas} ventas de {total_c_leads} leads)"
+                )
+
+            bi_payload = {
+                "REPORTE_EJECUTIVO_BI_CONVERTIA": {
+                    "metodologia_aplicada": "Filtrado estricto donde la columna ID_LLAVE posee un identificador de venta válido.",
+                    "resumen_global": {
+                        "total_leads_recibidos": total_leads,
+                        "total_ventas_exitosas": total_ventas,
+                        "tasa_conversion_global": f"{round((total_ventas / total_leads) * 100, 2) if total_leads > 0 else 0}%",
+                    },
+                    "top_campanas_por_volumen_leads": leads_por_campana,
+                    "top_campanas_por_ventas_efectivas": ventas_por_campana,
+                    "eficiencia_y_conversion_por_campana": conversion_por_campana,
+                }
+            }
+            return (
+                f"--- PROCESAMIENTO AUTOMÁTICO DE DATOS COMERCIALES ---\n"
+                f"Usa este resumen estructurado con las métricas reales del archivo completo para responder las preguntas de BI:\n"
+                f"{json.dumps(bi_payload, indent=2, ensure_ascii=False)}"
+            )
+        except Exception as e:
+            logger.error(f"Error en análisis especializado BI Convertia: {str(e)}")
+            return None
+
+    @staticmethod
+    def _analizar_reporte_financiero(
+        df: pd.DataFrame, cols_normalizadas: dict
+    ) -> str | None:
+        col_ingresos = next(
+            (
+                cols_normalizadas[c]
+                for c in cols_normalizadas
+                if "INGRESOS" in c or "REVENUE" in c
+            ),
+            None,
+        )
+        if not col_ingresos:
+            return None
+        return "--- ANALISIS DE EXPERTO FINANCIERO (Pendiente implementar) ---"
+
+    @classmethod
+    def analyze_tabular_data(cls, rows: list[list]) -> str:
+        if not rows or len(rows) < 2:
             return "El archivo está vacío o no contiene filas válidas."
 
-        # Filtrar celdas vacías de la cabecera
-        raw_headers = rows[0]
-        headers = []
-        for i, h in enumerate(raw_headers):
-            if h is not None and str(h).strip() != "":
-                headers.append(str(h).strip())
-            else:
-                headers.append(f"Columna_{i+1}")
+        try:
+            df_check = pd.DataFrame(rows[1:], columns=rows[0])
+            cols_normalizadas = {
+                str(col).strip().upper(): col for col in df_check.columns
+            }
 
+            analisis_mkt = cls._analizar_reporte_convertia(df_check, cols_normalizadas)
+            if analisis_mkt:
+                return analisis_mkt
+
+            analisis_fin = cls._analizar_reporte_financiero(df_check, cols_normalizadas)
+            if analisis_fin:
+                return analisis_fin
+
+            total_filas = len(df_check)
+            columnas_reales = [
+                str(c).strip() for c in df_check.columns if c is not None
+            ]
+
+            if total_filas <= 150:
+                df_limpio = df_check.fillna("")
+                datos_completos = df_limpio.to_dict(orient="records")
+
+                payload_generico = {
+                    "METADATA_DEL_ARCHIVO": {
+                        "tipo_dataset": "Documento Estructurado General (Completo)",
+                        "total_registros": total_filas,
+                        "columnas_disponibles": columnas_reales,
+                    },
+                    "CONTENIDO_REAL_FILA_POR_FILA": datos_completos,
+                }
+                return (
+                    f"--- ARCHIVO PROCESADO EXITOSAMENTE ---\n"
+                    f"Analiza la siguiente base de datos completa para responder con precisión matemática la solicitud del usuario:\n"
+                    f"{json.dumps(payload_generico, indent=2, ensure_ascii=False)}"
+                )
+
+            else:
+                df_limpio = df_check.fillna("")
+                muestra_filas = df_limpio.head(25).to_dict(orient="records")
+
+                payload_grande = {
+                    "METADATA_DEL_ARCHIVO": {
+                        "tipo_dataset": "Dataset de Gran Volumen (Muestra Acotada)",
+                        "total_registros": total_filas,
+                        "columnas_disponibles": columnas_reales,
+                        "valores_unicos_por_columna": {
+                            str(col): int(df_check[col].nunique())
+                            for col in df_check.columns
+                        },
+                    },
+                    "VISTA_PREVIA_REGISTROS_REALES": muestra_filas,
+                }
+                return (
+                    f"--- DATASET GRANDE PROCESADO ---\n"
+                    f"Usa los metadatos y esta muestra representativa para responder al usuario. "
+                    f"Si te pide un cruce masivo que requiera más datos, descríbele los campos disponibles en base a este payload:\n"
+                    f"{json.dumps(payload_grande, indent=2, ensure_ascii=False)}"
+                )
+
+        except Exception as e:
+            logger.warning(
+                f"No se pudo ejecutar el pre-analisis optimizado, cayendo en flujo clásico: {e}"
+            )
+
+        raw_headers = rows[0]
+        headers = [
+            str(h).strip()
+            if h is not None and str(h).strip() != ""
+            else f"Columna_{i + 1}"
+            for i, h in enumerate(raw_headers)
+        ]
         data_rows = rows[1:]
         total_rows = len(data_rows)
         num_cols = len(headers)
 
-        summary = []
-        summary.append("### Resumen General del Dataset")
-        summary.append(f"- **Total de filas de datos**: {total_rows}")
-        summary.append(f"- **Total de columnas**: {num_cols}")
-        summary.append(f"- **Nombres de columnas**: {', '.join([f'`{h}`' for h in headers])}")
-        summary.append("")
+        summary = [
+            "### Resumen General del Dataset (Fallback)",
+            f"- **Total de filas de datos**: {total_rows}",
+            f"- **Total de columnas**: {num_cols}",
+            f"- **Nombres de columnas**: {', '.join([f'`{h}`' for h in headers])}",
+            "",
+        ]
 
-        summary.append("### Análisis de Columnas")
-
-        for col_idx in range(num_cols):
-            col_name = headers[col_idx]
-            col_values = []
-            for r in data_rows:
-                if col_idx < len(r):
-                    val = r[col_idx]
-                    if val is not None and str(val).strip() != "":
-                        col_values.append(val)
-
-            non_null_count = len(col_values)
-            null_count = total_rows - non_null_count
-
-            if non_null_count == 0:
-                summary.append(f"#### Columna: `{col_name}`")
-                summary.append(f"- **Estado**: Todos los valores son nulos/vacíos (100% nulos)")
-                summary.append("")
-                continue
-
-            # Determinar si la columna es mayoritariamente numérica
-            numeric_values = []
-            for v in col_values:
-                try:
-                    clean_v = str(v).replace("$", "").replace(",", "").replace("%", "").strip()
-                    numeric_values.append(float(clean_v))
-                except ValueError:
-                    pass
-
-            is_numeric = len(numeric_values) >= 0.8 * non_null_count
-
-            summary.append(f"#### Columna: `{col_name}`")
-            summary.append(f"- **Valores no nulos (llenos)**: {non_null_count} / {total_rows} ({non_null_count/total_rows*100:.1f}%)")
-            summary.append(f"- **Valores nulos/vacíos**: {null_count} ({null_count/total_rows*100:.1f}%)")
-
-            if is_numeric:
-                col_min = min(numeric_values)
-                col_max = max(numeric_values)
-                col_sum = sum(numeric_values)
-                col_mean = col_sum / len(numeric_values)
-
-                def format_num(val):
-                    if val.is_integer():
-                        return f"{int(val)}"
-                    return f"{val:.2f}"
-
-                summary.append(f"- **Tipo**: Numérico")
-                summary.append(f"- **Estadísticas Calculadas**:")
-                summary.append(f"  - Mínimo: {format_num(col_min)}")
-                summary.append(f"  - Máximo: {format_num(col_max)}")
-                summary.append(f"  - Suma Total: {format_num(col_sum)}")
-                summary.append(f"  - Promedio: {format_num(col_mean)}")
-            else:
-                summary.append(f"- **Tipo**: Categórico / Texto")
-                frequencies = {}
-                for v in col_values:
-                    str_v = str(v).strip()
-                    frequencies[str_v] = frequencies.get(str_v, 0) + 1
-
-                unique_count = len(frequencies)
-                summary.append(f"- **Valores únicos**: {unique_count}")
-
-                sorted_freqs = sorted(frequencies.items(), key=lambda x: x[1], reverse=True)
-                top_n = sorted_freqs[:10]
-                summary.append("- **Distribución de frecuencias (Top 10)**:")
-                for val, count in top_n:
-                    summary.append(f"  - `{val}`: {count} ocurrencias ({count/total_rows*100:.1f}%)")
-
-            summary.append("")
-
-        # Vista previa de las primeras 5 filas
-        summary.append("### Vista Previa de los Datos (Primeras 5 filas)")
-        table_header = "| " + " | ".join(headers) + " |"
-        table_separator = "| " + " | ".join(["---"] * num_cols) + " |"
-        summary.append(table_header)
-        summary.append(table_separator)
-
-        for r in data_rows[:5]:
-            row_cells = []
-            for col_idx in range(num_cols):
-                val = r[col_idx] if col_idx < len(r) else ""
-                row_cells.append(str(val).strip() if val is not None else "")
+        summary.append("### Vista Previa de Filas Completas")
+        summary.append("| " + " | ".join(headers) + " |")
+        summary.append("| " + " | ".join(["---"] * num_cols) + " |")
+        for r in data_rows[:10]:
+            row_cells = [
+                str(r[col_idx]).strip()
+                if col_idx < len(r) and r[col_idx] is not None
+                else ""
+                for col_idx in range(num_cols)
+            ]
             summary.append("| " + " | ".join(row_cells) + " |")
 
         return "\n".join(summary)
 
     @classmethod
     def extract_text_from_csv(cls, contents: bytes) -> str:
-        """
-        Extrae datos tabulares de un archivo CSV y genera el análisis estadístico.
-        """
         try:
             text_data = contents.decode("utf-8", errors="replace")
-            reader = csv.reader(StringIO(text_data))
+
+            dialect = (
+                csv.Sniffer().sniff(text_data[:4000]) if len(text_data) > 10 else ","
+            )
+            delimiter = (
+                dialect.delimiter if dialect.delimiter in [",", ";", "\t"] else ","
+            )
+
+            reader = csv.reader(StringIO(text_data), delimiter=delimiter)
             rows = []
             for row in reader:
                 if any(cell is not None and str(cell).strip() != "" for cell in row):
                     rows.append(row)
             return cls.analyze_tabular_data(rows)
         except Exception as e:
-            logger.error(f"Error parseando CSV: {str(e)}")
-            raise ValueError(f"Error al procesar el archivo CSV: {str(e)}")
+            try:
+                reader = csv.reader(
+                    StringIO(text_data),
+                    delimiter=";" if ";" in text_data[:1000] else ",",
+                )
+                rows = [
+                    r
+                    for r in reader
+                    if any(c is not None and str(c).strip() != "" for c in r)
+                ]
+                return cls.analyze_tabular_data(rows)
+            except Exception:
+                logger.error(f"Error parseando CSV: {str(e)}")
+                raise ValueError(f"Error al procesar el archivo CSV: {str(e)}")
 
     @classmethod
     def extract_text_from_excel(cls, contents: bytes) -> str:
-        """
-        Extrae datos tabulares de un archivo Excel (.xlsx) y genera el análisis estadístico.
-        """
         try:
-            wb = openpyxl.load_workbook(BytesIO(contents), data_only=True, read_only=True)
+            wb = openpyxl.load_workbook(
+                BytesIO(contents), data_only=True, read_only=True
+            )
             sheet = wb.active
             rows = []
             for row in sheet.iter_rows(values_only=True):

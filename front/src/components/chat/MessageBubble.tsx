@@ -87,9 +87,9 @@ export default function MessageBubble({
           {isUser ? "Tú" : "convert-IA"}
         </div>
 
-        <div className={`max-w-[90%] ${isUser ? "text-right" : ""}`}>
+        <div className={`max-w-[90%] min-w-0 ${isUser ? "flex flex-col items-end" : ""}`}>
           {isUser ? (
-            <div className="inline-block max-w-full rounded-2xl rounded-tr-md bg-secondary/70 px-4 py-3 text-[15px] leading-relaxed text-foreground">
+            <div className="w-fit max-w-full rounded-2xl rounded-tr-md bg-secondary/70 px-4 py-3 text-[15px] leading-relaxed text-foreground">
               {message.attachment && (
                 <div className="mb-3 overflow-hidden rounded-2xl border border-border/70 bg-background/90 p-3">
                   <div className="flex items-start gap-3">

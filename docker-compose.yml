@@ -1,45 +1,58 @@
 version: '3.8'
-
+ 
 services:
+ 
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+ 
   backend:
     build:
       context: ./back
       dockerfile: Dockerfile
+ 
     container_name: backend
-    restart: unless-stopped
+ 
     ports:
-      - "8001:8000"
+      - "8000:8000"
+ 
     env_file:
       - ./back/.env
+ 
     environment:
       - PYTHONPATH=/app
       - REDIS_URL=redis://redis:6379
+ 
     extra_hosts:
       - "host.docker.internal:host-gateway"
+ 
+    depends_on:
+      - redis
+ 
     volumes:
       - ./back:/app
+ 
     working_dir: /app
-    networks:
-      - convertia-net
-
+ 
   frontend:
     build:
       context: ./front
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_URL=http://backend:8000
+      dockerfile: Dockerfile      
     container_name: frontend
-    restart: unless-stopped
+ 
     ports:
       - "8083:8080"
+ 
     depends_on:
       - backend
+ 
     volumes:
       - ./front:/app
       - /app/node_modules
-    networks:
-      - convertia-net
-
-networks:
-  convertia-net:
-    external: true
+ 
+volumes:
+  redis_data:

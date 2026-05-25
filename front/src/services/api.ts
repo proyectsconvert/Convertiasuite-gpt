@@ -1,4 +1,4 @@
-const API_URL = "";
+const API_URL = import.meta.env.VITE_API_URL || "";
 const API_BASE = `${API_URL}/chat`;
 const AUTH_BASE = `${API_URL}/auth`;
 
@@ -24,12 +24,6 @@ export interface SendMessageRequest {
   extracted_context?: string;
   attachment_type?: string;
   attachment_name?: string;
-}
-
-export interface SendMessageResponse {
-  response: string;
-  model_used: string;
-  session_id: string;
 }
 
 export interface StreamChunk {
@@ -158,17 +152,6 @@ export const authApi = {
 
 
 export const chatApi = {
-  async sendMessage(
-    req: SendMessageRequest
-  ): Promise<SendMessageResponse> {
-    const response = await apiFetch(API_BASE, {
-      method: "POST",
-      body: JSON.stringify(req),
-    });
-
-    return response.json();
-  },
-
   async *sendMessageStream(
     req: SendMessageRequest
   ): AsyncGenerator<StreamChunk, void, unknown> {

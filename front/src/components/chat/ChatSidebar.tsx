@@ -52,7 +52,7 @@ export default function ChatSidebar() {
 
   useEffect(() => {
     if (user?.id) {
-      chatApi.getSessions(user.id)
+      chatApi.getSessions()
         .then((data) => setSessions(data.sessions))
         .catch(() => {});
     }
@@ -89,7 +89,7 @@ export default function ChatSidebar() {
 
   const handleDelete = (id: string) => {
     if (user?.id) {
-      chatApi.deleteSession(user.id, id).catch(() => {});
+      chatApi.deleteSession(id).catch(() => {});
     }
     deleteSession(id);
     setMenuOpenId(null);

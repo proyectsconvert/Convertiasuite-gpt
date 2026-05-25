@@ -26,11 +26,6 @@ class ChatRequest(BaseModel):
     model_config = {"use_enum_values": True}
 
 
-class ChatResponse(BaseModel):
-    response: str
-    model_used: str
-    session_id: str
-
 
 class MessageSchema(BaseModel):
     id: str

@@ -24,37 +24,27 @@ export default function AuthPage() {
 
   const { login } = useAppStore();
 
-  const [showPassword, setShowPassword] =
-    useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const [email, setEmail] =
-    useState("");
+  const [email, setEmail] = useState("");
 
-  const [password, setPassword] =
-    useState("");
+  const [password, setPassword] = useState("");
 
-  const [isLoading, setIsLoading] =
-    useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [error, setError] =
-    useState("");
+  const [error, setError] = useState("");
 
-  async function handleSubmit(
-    e: React.FormEvent
-  ) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     setError("");
     setIsLoading(true);
 
     try {
-      const success =
-        await login(email, password);
+      const success = await login(email, password);
 
       if (!success) {
-        setError(
-          "Correo o contraseña incorrectos."
-        );
+        setError("Correo o contraseña incorrectos.");
 
         return;
       }
@@ -63,9 +53,7 @@ export default function AuthPage() {
     } catch (err) {
       console.error(err);
 
-      setError(
-        "No fue posible iniciar sesión."
-      );
+      setError("No fue posible iniciar sesión.");
     } finally {
       setIsLoading(false);
     }
@@ -112,15 +100,11 @@ export default function AuthPage() {
             />
           </div>
 
-          <h1 className="text-4xl font-bold text-white mb-4">
-            Convert-IA
-          </h1>
+          <h1 className="text-4xl font-bold text-white mb-4">Convert-IA</h1>
 
           <p className="text-white/60 leading-relaxed">
-            Plataforma unificada de IA
-            enfocada en automatización,
-            productividad y operaciones
-            empresariales.
+            Plataforma unificada de IA enfocada en automatización, productividad
+            y operaciones empresariales.
           </p>
 
           <div className="mt-10 space-y-4 text-left">
@@ -130,15 +114,10 @@ export default function AuthPage() {
               "Arquitectura escalable",
               "Seguridad empresarial",
             ].map((item) => (
-              <div
-                key={item}
-                className="flex items-center gap-3"
-              >
+              <div key={item} className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-cyan-400" />
 
-                <span className="text-white/70 text-sm">
-                  {item}
-                </span>
+                <span className="text-white/70 text-sm">{item}</span>
               </div>
             ))}
           </div>
@@ -146,14 +125,9 @@ export default function AuthPage() {
       </div>
 
       {/* RIGHT PANEL */}
-
       <div className="flex-1 flex flex-col">
         <div className="p-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/")}
-          >
+          <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Volver
           </Button>
@@ -161,47 +135,38 @@ export default function AuthPage() {
 
         <div className="flex-1 flex items-center justify-center p-6">
           <motion.div
-            initial={{
-              opacity: 0,
-              y: 10,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
-            transition={{
-              duration: 0.4,
-            }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
             className="w-full max-w-sm"
           >
+            {/* HEADER */}
             <div className="mb-8">
-              <div className="lg:hidden flex items-center gap-2 mb-6">
+              <div className="flex items-center gap-2 mb-4 lg:hidden">
+                <img
+                  src="/logo-dark.ico"
+                  alt="convert-IA"
+                  className="w-8 h-8 object-contain block dark:hidden"
+                />
                 <img
                   src="/favicon.ico"
                   alt="convert-IA"
-                  className="w-10 h-10 rounded-xl"
+                  className="w-8 h-8 object-contain hidden dark:block"
                 />
-
-                <span className="text-lg font-semibold">
-                  Convert-IA
-                </span>
+                <span className="text-lg font-semibold">Convert-IA</span>
               </div>
 
-              <h2 className="text-3xl font-bold mb-2">
-                Iniciar sesión
-              </h2>
+              <h2 className="text-3xl font-bold mt-4 mb-2">Iniciar sesión</h2>
 
               <p className="text-muted-foreground text-sm">
-                Ingresa tus credenciales
-                para acceder a la
-                plataforma.
+                Ingresa tus credenciales para acceder a la plataforma.
               </p>
             </div>
 
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-4"
-            >
+            {/* FORM */}
+            <form onSubmit={handleSubmit} className="space-y-4"></form>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
 
@@ -209,9 +174,7 @@ export default function AuthPage() {
                   type="email"
                   placeholder="correo@empresa.com"
                   value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
+                  onChange={(e) => setEmail(e.target.value)}
                   className="pl-10 h-11"
                   required
                   autoComplete="email"
@@ -222,18 +185,10 @@ export default function AuthPage() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
 
                 <Input
-                  type={
-                    showPassword
-                      ? "text"
-                      : "password"
-                  }
+                  type={showPassword ? "text" : "password"}
                   placeholder="Contraseña"
                   value={password}
-                  onChange={(e) =>
-                    setPassword(
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 pr-10 h-11"
                   required
                   minLength={8}
@@ -242,11 +197,7 @@ export default function AuthPage() {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowPassword(
-                      !showPassword
-                    )
-                  }
+                  onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {showPassword ? (

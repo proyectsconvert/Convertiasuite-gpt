@@ -73,9 +73,18 @@ export default function WelcomeScreen({ onPromptSelect }: WelcomeScreenProps) {
       className="flex-1 flex flex-col items-center justify-center px-6"
     >
       <motion.div variants={item} className="mb-5">
-        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary/15 to-accent/15 flex items-center justify-center">
-          <img src="/favicon.ico" alt="convert-IA" className="w-7 h-7" />
-        </div>
+        <div className="w-full h-full flex items-center justify-center p-0.5">
+            <img
+              src="/logo-dark.ico"
+              alt="convert-IA"
+              className="w-full h-full object-contain block dark:hidden"
+            />
+            <img
+              src="/favicon.ico"
+              alt="convert-IA"
+              className="w-full h-full object-contain hidden dark:block"
+            />
+          </div>
       </motion.div>
 
       <motion.h1 variants={item} className="text-3xl lg:text-4xl font-semibold text-foreground tracking-tight text-center">
