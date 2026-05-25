@@ -52,6 +52,7 @@ async def process_chat(
     llm_provider: ILlmProvider,
     memory_repo: IMemoryRepository,
     user_id: str,
+    document_manager: DocumentManager | None = None,
 ):
     model_name = None
     request_start = time.perf_counter()
@@ -184,6 +185,37 @@ async def process_chat(
             )
         else:
             stream_messages = messages.copy()
+
+        # --- Document Context ---
+        # Inyectar contexto de documentos si están disponibles
+        if document_manager and session_id:
+            try:
+                doc_context = await document_manager.get_context_for_session(
+                    session_id, limit=3
+                )
+                if doc_context:
+                    # Agregar contexto de documentos al último mensaje del usuario
+                    if stream_messages:
+                        last_msg = stream_messages[-1]
+                        if last_msg.role == "user":
+                            last_msg.content = (
+                                f"{last_msg.content}\n\n"
+                                "---\n"
+                                "DOCUMENTOS DISPONIBLES EN ESTA SESIÓN:\n"
+                                f"{doc_context}"
+                            )
+                            logger.info(
+                                "Document context injected session=%s context_length=%d",
+                                session_id,
+                                len(doc_context),
+                            )
+            except Exception as e:
+                logger.warning(
+                    "Document context extraction failed session=%s error=%s",
+                    session_id,
+                    str(e),
+                )
+                # Continue without document context - not critical
 
         # --- Routing ---
         model_key = route_model(

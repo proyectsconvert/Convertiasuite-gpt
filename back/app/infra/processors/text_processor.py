@@ -41,9 +41,9 @@ class TextProcessor(IDocumentProcessor):
         try:
             # Decode bytes to string
             try:
-                text_content = file_content.decode('utf-8')
+                text_content = file_content.decode("utf-8")
             except UnicodeDecodeError:
-                text_content = file_content.decode('latin-1')
+                text_content = file_content.decode("latin-1")
 
             text_content = text_content.strip()
 
@@ -55,11 +55,11 @@ class TextProcessor(IDocumentProcessor):
                 title="Content",
                 content=text_content,
                 level=1,
-                metadata={"type": "text", "lines": len(text_content.split('\n'))}
+                metadata={"type": "text", "lines": len(text_content.split("\n"))},
             )
 
             metadata = {
-                "lines": len(text_content.split('\n')),
+                "lines": len(text_content.split("\n")),
                 "words": len(text_content.split()),
                 "bytes": len(file_content),
             }
@@ -79,11 +79,11 @@ class TextProcessor(IDocumentProcessor):
     def get_metadata(self, file_content: bytes) -> dict:
         """Extract text file metadata."""
         try:
-            text_content = file_content.decode('utf-8', errors='ignore').strip()
-            
+            text_content = file_content.decode("utf-8", errors="ignore").strip()
+
             return {
                 "is_valid": bool(text_content),
-                "lines": len(text_content.split('\n')),
+                "lines": len(text_content.split("\n")),
                 "words": len(text_content.split()),
                 "bytes": len(file_content),
             }

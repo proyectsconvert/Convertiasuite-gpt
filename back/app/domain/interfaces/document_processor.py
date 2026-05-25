@@ -28,21 +28,17 @@ class IDocumentProcessor(ABC):
         pass
 
     @abstractmethod
-    async def parse(
-        self, 
-        file_content: bytes, 
-        filename: str
-    ) -> ParsedContent:
+    async def parse(self, file_content: bytes, filename: str) -> ParsedContent:
         """
         Parse file content into structured format.
-        
+
         Args:
             file_content: Raw file bytes
             filename: Original filename
-            
+
         Returns:
             ParsedContent with extracted text, sections, tables, etc
-            
+
         Raises:
             ValueError: If file format is invalid
             IOError: If processing fails
@@ -71,21 +67,23 @@ class DocumentProcessorFactory:
     def register(self, processor: IDocumentProcessor) -> None:
         """Register a processor for its supported type and extensions."""
         self._processors_by_type[processor.supported_type] = processor
-        
+
         for ext in processor.supported_extensions:
-            normalized_ext = ext.lower().lstrip('.')
+            normalized_ext = ext.lower().lstrip(".")
             self._processors_by_extension[normalized_ext] = processor
 
-    def get_processor(self, document_type: DocumentType) -> Optional[IDocumentProcessor]:
+    def get_processor(
+        self, document_type: DocumentType
+    ) -> Optional[IDocumentProcessor]:
         """Get processor by document type."""
         return self._processors_by_type.get(document_type)
 
     def get_processor_by_extension(self, filename: str) -> Optional[IDocumentProcessor]:
         """Get processor by file extension."""
-        if not filename or '.' not in filename:
+        if not filename or "." not in filename:
             return None
-        
-        ext = filename.rsplit('.', 1)[1].lower()
+
+        ext = filename.rsplit(".", 1)[1].lower()
         return self._processors_by_extension.get(ext)
 
     def is_supported(self, filename: str) -> bool:

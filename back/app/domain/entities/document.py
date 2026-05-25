@@ -12,6 +12,7 @@ from uuid import UUID
 
 class DocumentType(Enum):
     """Supported document types."""
+
     PDF = "pdf"
     EXCEL = "excel"
     DOCX = "docx"
@@ -23,6 +24,7 @@ class DocumentType(Enum):
 @dataclass
 class ImageMetadata:
     """Metadata for extracted images."""
+
     name: str
     page_number: Optional[int] = None
     width: Optional[int] = None
@@ -33,6 +35,7 @@ class ImageMetadata:
 @dataclass
 class Table:
     """Represents a table in the document."""
+
     headers: list[str]
     rows: list[list[str]]
     name: Optional[str] = None
@@ -50,6 +53,7 @@ class Table:
 @dataclass
 class Section:
     """Represents a hierarchical section of content."""
+
     title: str
     content: str
     level: int = 1  # Hierarchy level (1=main, 2=subsection, etc)
@@ -64,6 +68,7 @@ class Section:
 @dataclass
 class ParsedContent:
     """Complete parsed content from a document."""
+
     text: str
     sections: list[Section] = field(default_factory=list)
     tables: list[Table] = field(default_factory=list)
@@ -75,15 +80,15 @@ class ParsedContent:
         Combine all text content for full-text search.
         """
         parts = [self.text]
-        
+
         for section in self.sections:
             parts.append(f"### {section.title}\n{section.content}")
-        
+
         for table in self.tables:
             header_str = " | ".join(table.headers)
             rows_str = "\n".join([" | ".join(row) for row in table.rows])
             parts.append(f"Table: {table.name or 'Unnamed'}\n{header_str}\n{rows_str}")
-        
+
         return "\n\n".join(parts)
 
     @property
@@ -97,6 +102,7 @@ class Document:
     Core document entity.
     Represents a file processed and stored in the system.
     """
+
     id: UUID
     type: DocumentType
     filename: str
@@ -118,6 +124,7 @@ class Document:
 @dataclass
 class DocumentSearchResult:
     """Result from document search operation."""
+
     document: Document
     matching_sections: list[Section]
     relevance_score: float  # 0.0 to 1.0

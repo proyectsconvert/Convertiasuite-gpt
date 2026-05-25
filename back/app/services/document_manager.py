@@ -9,7 +9,9 @@ from datetime import datetime, UTC
 
 from app.domain.entities.document import Document, DocumentType
 from app.domain.interfaces.document_processor import DocumentProcessorFactory
-from app.infra.repositories.supabase.document_repository import SupabaseDocumentRepository
+from app.infra.repositories.supabase.document_repository import (
+    SupabaseDocumentRepository,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +41,13 @@ class DocumentManager:
     ) -> Document | None:
         """
         Process a file and persist it.
-        
+
         Steps:
         1. Determine document type
         2. Parse using appropriate processor
         3. Create Document entity
         4. Persist to repository
-        
+
         Args:
             file_content: File bytes
             filename: Original filename
@@ -53,7 +55,7 @@ class DocumentManager:
             user_id: Document owner
             tags: Optional tags
             metadata: Optional custom metadata
-            
+
         Returns:
             Persisted Document entity or None if processing failed
         """
@@ -101,11 +103,11 @@ class DocumentManager:
         """
         Get relevant document context for a session.
         Used to augment chat context with document information.
-        
+
         Args:
             session_id: Session to get context for
             limit: Max documents to include
-            
+
         Returns:
             Formatted context string
         """
@@ -120,7 +122,9 @@ class DocumentManager:
 
             for doc in documents:
                 context_parts.append(f"\n### {doc.filename}")
-                context_parts.append(doc.parsed_content.to_searchable_text()[:500] + "...")
+                context_parts.append(
+                    doc.parsed_content.to_searchable_text()[:500] + "..."
+                )
 
             return "\n".join(context_parts)
 
@@ -137,12 +141,12 @@ class DocumentManager:
         """
         Search documents in a session.
         Basic text search on parsed content.
-        
+
         Args:
             session_id: Session to search in
             query: Search query
             document_type: Optional type filter
-            
+
         Returns:
             Matching documents
         """
@@ -157,7 +161,7 @@ class DocumentManager:
             # Basic text search
             query_lower = query.lower()
             results = []
-            
+
             for doc in documents:
                 search_text = doc.parsed_content.to_searchable_text().lower()
                 if query_lower in search_text:

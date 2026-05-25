@@ -16,7 +16,7 @@ from app.infra.processors import (
 def initialize_processor_factory() -> DocumentProcessorFactory:
     """
     Create and initialize the processor factory with all available processors.
-    
+
     Returns:
         DocumentProcessorFactory ready for use
     """

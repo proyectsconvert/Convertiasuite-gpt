@@ -30,7 +30,9 @@ class ExcelProcessor(IDocumentProcessor):
 
     def __init__(self):
         if load_workbook is None:
-            raise ImportError("openpyxl is required for Excel processing. Install with: pip install openpyxl")
+            raise ImportError(
+                "openpyxl is required for Excel processing. Install with: pip install openpyxl"
+            )
 
     @property
     def supported_type(self) -> DocumentType:
@@ -61,7 +63,7 @@ class ExcelProcessor(IDocumentProcessor):
             for sheet_idx, sheet_name in enumerate(workbook.sheetnames):
                 worksheet = workbook[sheet_name]
                 section_content = f"Sheet: {sheet_name}\n"
-                
+
                 # Extract all data
                 rows_data = []
                 headers = None
@@ -87,7 +89,7 @@ class ExcelProcessor(IDocumentProcessor):
                         headers=headers,
                         rows=rows_data,
                         name=sheet_name,
-                        metadata={"sheet_index": sheet_idx, "sheet_name": sheet_name}
+                        metadata={"sheet_index": sheet_idx, "sheet_name": sheet_name},
                     )
                     tables.append(table)
 
@@ -97,7 +99,7 @@ class ExcelProcessor(IDocumentProcessor):
                         title=sheet_name,
                         content=section_content.strip(),
                         level=1,
-                        metadata={"type": "sheet", "sheet_index": sheet_idx}
+                        metadata={"type": "sheet", "sheet_index": sheet_idx},
                     )
                     sections.append(section)
                     full_text += f"## {sheet_name}\n{section_content}\n\n"

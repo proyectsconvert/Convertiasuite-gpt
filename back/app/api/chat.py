@@ -13,6 +13,7 @@ from app.security.output_guard import get_safety_fallback
 from app.dependencies.auth import get_current_user
 from app.services.chat_service import process_chat
 from app.services.file_processor import FileProcessorService
+from app.services.document_manager import DocumentManager
 
 from app.schemas.chat import (
     ChatRequest,
@@ -36,6 +37,10 @@ def get_memory_repo(request: Request) -> IMemoryRepository:
     return request.app.state.memory
 
 
+def get_document_manager(request: Request) -> DocumentManager:
+    return request.app.state.document_manager
+
+
 async def sse_message(event_type: str, data: dict) -> str:
     return f"data: {json.dumps({'type': event_type, **data})}\n\n"
 
@@ -47,6 +52,7 @@ async def send_message_stream(
     current_user: dict = Depends(get_current_user),
     llm_provider: ILlmProvider = Depends(get_llm_provider),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
+    document_manager: DocumentManager = Depends(get_document_manager),
 ):
 
     user_id = current_user["id"]
@@ -57,7 +63,7 @@ async def send_message_stream(
 
         try:
             stream, model, session_id = await process_chat(
-                request, llm_provider, memory_repo, user_id=user_id
+                request, llm_provider, memory_repo, user_id=user_id, document_manager=document_manager
             )
 
             yield await sse_message(

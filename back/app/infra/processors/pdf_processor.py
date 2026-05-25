@@ -32,7 +32,9 @@ class PdfProcessor(IDocumentProcessor):
 
     def __init__(self):
         if pdfplumber is None:
-            raise ImportError("pdfplumber is required for PDF processing. Install with: pip install pdfplumber")
+            raise ImportError(
+                "pdfplumber is required for PDF processing. Install with: pip install pdfplumber"
+            )
         self.max_pages: Optional[int] = None  # None = all pages
 
     @property
@@ -54,33 +56,37 @@ class PdfProcessor(IDocumentProcessor):
         """
         try:
             pdf_file = io.BytesIO(file_content)
-            
+
             with pdfplumber.open(pdf_file) as pdf:
                 # Determine page range
-                max_page = min(len(pdf.pages), self.max_pages) if self.max_pages else len(pdf.pages)
-                
+                max_page = (
+                    min(len(pdf.pages), self.max_pages)
+                    if self.max_pages
+                    else len(pdf.pages)
+                )
+
                 # Extract content
                 full_text = ""
                 sections: list[Section] = []
                 tables: list[Table] = []
                 images: list[ImageMetadata] = []
-                
+
                 # Process each page
                 for page_num, page in enumerate(pdf.pages[:max_page], 1):
                     # Extract text
                     page_text = page.extract_text() or ""
                     if page_text:
                         full_text += f"\n--- Page {page_num} ---\n{page_text}"
-                        
+
                         # Create section for page
                         section = Section(
                             title=f"Page {page_num}",
                             content=page_text,
                             level=1,
-                            metadata={"page": page_num, "type": "page"}
+                            metadata={"page": page_num, "type": "page"},
                         )
                         sections.append(section)
-                    
+
                     # Extract tables
                     page_tables = page.extract_tables()
                     if page_tables:
@@ -88,15 +94,15 @@ class PdfProcessor(IDocumentProcessor):
                             if table_data and len(table_data) > 0:
                                 headers = table_data[0] if len(table_data) > 0 else []
                                 rows = table_data[1:] if len(table_data) > 1 else []
-                                
+
                                 table = Table(
                                     headers=headers,
                                     rows=rows,
                                     name=f"Table_{page_num}_{table_idx}",
-                                    metadata={"page": page_num, "index": table_idx}
+                                    metadata={"page": page_num, "index": table_idx},
                                 )
                                 tables.append(table)
-                    
+
                     # Extract image metadata (count, approximate position)
                     page_images = page.images
                     if page_images:
@@ -106,7 +112,7 @@ class PdfProcessor(IDocumentProcessor):
                                 page_number=page_num,
                                 width=img.get("width"),
                                 height=img.get("height"),
-                                format="unknown"  # pdfplumber doesn't easily expose format
+                                format="unknown",  # pdfplumber doesn't easily expose format
                             )
                             images.append(image_meta)
 
@@ -134,7 +140,7 @@ class PdfProcessor(IDocumentProcessor):
         """Extract PDF metadata without full parsing."""
         try:
             pdf_file = io.BytesIO(file_content)
-            
+
             with pdfplumber.open(pdf_file) as pdf:
                 return {
                     "total_pages": len(pdf.pages),

@@ -13,7 +13,7 @@ class OutputValidationAction(Enum):
 
 
 class OutputValidator:
-    MAX_OUTPUT_LENGTH = 15000
+    MAX_OUTPUT_LENGTH = 100000  # Increased for document analysis
     MAX_LINE_LENGTH = 500
 
     FORBIDDEN_PATTERNS = [

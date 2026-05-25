@@ -31,7 +31,9 @@ class DocxProcessor(IDocumentProcessor):
 
     def __init__(self):
         if DocxDocument is None:
-            raise ImportError("python-docx is required for DOCX processing. Install with: pip install python-docx")
+            raise ImportError(
+                "python-docx is required for DOCX processing. Install with: pip install python-docx"
+            )
 
     @property
     def supported_type(self) -> DocumentType:
@@ -67,9 +69,12 @@ class DocxProcessor(IDocumentProcessor):
 
                 # Detect heading-like paragraphs
                 is_heading = (
-                    para.style.name.startswith("Heading") or
-                    len(para.text) < 100 and para_idx > 0 and
-                    all(c.isupper() or not c.isalpha() for c in para.text.split()[0])
+                    para.style.name.startswith("Heading")
+                    or len(para.text) < 100
+                    and para_idx > 0
+                    and all(
+                        c.isupper() or not c.isalpha() for c in para.text.split()[0]
+                    )
                 )
 
                 if is_heading and current_section_content.strip():
@@ -78,10 +83,12 @@ class DocxProcessor(IDocumentProcessor):
                         title=current_section_title,
                         content=current_section_content.strip(),
                         level=1,
-                        metadata={"type": "paragraph"}
+                        metadata={"type": "paragraph"},
                     )
                     sections.append(section)
-                    full_text += f"## {current_section_title}\n{current_section_content}\n\n"
+                    full_text += (
+                        f"## {current_section_title}\n{current_section_content}\n\n"
+                    )
                     current_section_content = ""
 
                 # Update section title if heading
@@ -96,10 +103,12 @@ class DocxProcessor(IDocumentProcessor):
                     title=current_section_title,
                     content=current_section_content.strip(),
                     level=1,
-                    metadata={"type": "paragraph"}
+                    metadata={"type": "paragraph"},
                 )
                 sections.append(section)
-                full_text += f"## {current_section_title}\n{current_section_content}\n\n"
+                full_text += (
+                    f"## {current_section_title}\n{current_section_content}\n\n"
+                )
 
             # Process tables
             for table_idx, docx_table in enumerate(doc.tables):
@@ -119,7 +128,7 @@ class DocxProcessor(IDocumentProcessor):
                         headers=headers,
                         rows=rows,
                         name=f"Table_{table_idx}",
-                        metadata={"index": table_idx, "type": "table"}
+                        metadata={"index": table_idx, "type": "table"},
                     )
                     tables.append(table)
                     full_text += f"\nTable {table_idx}: {' | '.join(headers)}\n"
@@ -135,11 +144,13 @@ class DocxProcessor(IDocumentProcessor):
 
             # Add core properties if available
             if doc.core_properties:
-                metadata.update({
-                    "title": doc.core_properties.title or "",
-                    "author": doc.core_properties.author or "",
-                    "subject": doc.core_properties.subject or "",
-                })
+                metadata.update(
+                    {
+                        "title": doc.core_properties.title or "",
+                        "author": doc.core_properties.author or "",
+                        "subject": doc.core_properties.subject or "",
+                    }
+                )
 
             return ParsedContent(
                 text=full_text.strip(),
@@ -166,10 +177,12 @@ class DocxProcessor(IDocumentProcessor):
             }
 
             if doc.core_properties:
-                metadata.update({
-                    "title": doc.core_properties.title or "",
-                    "author": doc.core_properties.author or "",
-                })
+                metadata.update(
+                    {
+                        "title": doc.core_properties.title or "",
+                        "author": doc.core_properties.author or "",
+                    }
+                )
 
             return metadata
 

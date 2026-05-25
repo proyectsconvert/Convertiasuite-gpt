@@ -28,7 +28,7 @@ class CsvProcessor(IDocumentProcessor):
     def __init__(self, delimiter: Optional[str] = None):
         """
         Initialize CSV processor.
-        
+
         Args:
             delimiter: CSV delimiter (default: auto-detect or comma)
         """
@@ -53,24 +53,24 @@ class CsvProcessor(IDocumentProcessor):
         try:
             # Decode bytes to string
             try:
-                text_content = file_content.decode('utf-8')
+                text_content = file_content.decode("utf-8")
             except UnicodeDecodeError:
-                text_content = file_content.decode('latin-1')
+                text_content = file_content.decode("latin-1")
 
             # Determine delimiter
             delimiter = self.delimiter
             if not delimiter:
                 # Auto-detect for TSV
-                if filename.endswith('.tsv'):
-                    delimiter = '\t'
+                if filename.endswith(".tsv"):
+                    delimiter = "\t"
                 else:
                     # Try comma as default
-                    delimiter = ','
+                    delimiter = ","
 
             # Parse CSV
             csv_file = io.StringIO(text_content)
             reader = csv.reader(csv_file, delimiter=delimiter)
-            
+
             rows = list(reader)
             if not rows:
                 raise ValueError("Empty CSV file")
@@ -84,7 +84,7 @@ class CsvProcessor(IDocumentProcessor):
                 headers=headers,
                 rows=data_rows,
                 name="CSV Data",
-                metadata={"delimiter": delimiter, "rows": len(data_rows)}
+                metadata={"delimiter": delimiter, "rows": len(data_rows)},
             )
 
             # Create content text
@@ -99,7 +99,11 @@ class CsvProcessor(IDocumentProcessor):
                 title="CSV Data",
                 content=full_text,
                 level=1,
-                metadata={"type": "csv", "rows": len(data_rows), "columns": len(headers)}
+                metadata={
+                    "type": "csv",
+                    "rows": len(data_rows),
+                    "columns": len(headers),
+                },
             )
 
             metadata = {
@@ -124,15 +128,15 @@ class CsvProcessor(IDocumentProcessor):
     def get_metadata(self, file_content: bytes) -> dict:
         """Extract CSV metadata without full parsing."""
         try:
-            text_content = file_content.decode('utf-8', errors='ignore')
-            lines = text_content.split('\n')[:2]  # First 2 lines
-            
+            text_content = file_content.decode("utf-8", errors="ignore")
+            lines = text_content.split("\n")[:2]  # First 2 lines
+
             if not lines or not lines[0]:
                 return {"is_valid": False}
 
             # Count columns
-            first_line = lines[0].split(',')
-            
+            first_line = lines[0].split(",")
+
             return {
                 "is_valid": True,
                 "columns": len(first_line),

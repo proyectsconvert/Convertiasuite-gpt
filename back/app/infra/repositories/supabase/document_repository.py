@@ -27,13 +27,15 @@ class SupabaseDocumentRepository:
     async def save(self, document: Document) -> UUID:
         """
         Persist document to Supabase.
-        
+
         Returns:
             Document ID
         """
         try:
             # Serialize ParsedContent
-            parsed_content_json = self._serialize_parsed_content(document.parsed_content)
+            parsed_content_json = self._serialize_parsed_content(
+                document.parsed_content
+            )
 
             data = {
                 "id": str(document.id),
@@ -49,7 +51,9 @@ class SupabaseDocumentRepository:
                 "updated_at": document.updated_at.isoformat(),
             }
 
-            response = self.client.supabase.table(self.table_name).insert(data).execute()
+            response = (
+                self.client.supabase.table(self.table_name).insert(data).execute()
+            )
             logger.info(f"Document saved: {document.id}")
             return document.id
 
@@ -60,9 +64,12 @@ class SupabaseDocumentRepository:
     async def get_by_id(self, document_id: UUID) -> Optional[Document]:
         """Retrieve document by ID."""
         try:
-            response = self.client.supabase.table(self.table_name).select(
-                "*"
-            ).eq("id", str(document_id)).execute()
+            response = (
+                self.client.supabase.table(self.table_name)
+                .select("*")
+                .eq("id", str(document_id))
+                .execute()
+            )
 
             if response.data:
                 return self._row_to_document(response.data[0])
@@ -75,9 +82,12 @@ class SupabaseDocumentRepository:
     async def get_by_session(self, session_id: UUID) -> list[Document]:
         """Get all documents in a session."""
         try:
-            response = self.client.supabase.table(self.table_name).select(
-                "*"
-            ).eq("session_id", str(session_id)).execute()
+            response = (
+                self.client.supabase.table(self.table_name)
+                .select("*")
+                .eq("session_id", str(session_id))
+                .execute()
+            )
 
             return [self._row_to_document(row) for row in response.data]
 
@@ -88,11 +98,14 @@ class SupabaseDocumentRepository:
     async def get_by_user(self, user_id: UUID, limit: int = 50) -> list[Document]:
         """Get user's recent documents."""
         try:
-            response = self.client.supabase.table(self.table_name).select(
-                "*"
-            ).eq("user_id", str(user_id)).order(
-                "created_at", desc=True
-            ).limit(limit).execute()
+            response = (
+                self.client.supabase.table(self.table_name)
+                .select("*")
+                .eq("user_id", str(user_id))
+                .order("created_at", desc=True)
+                .limit(limit)
+                .execute()
+            )
 
             return [self._row_to_document(row) for row in response.data]
 
@@ -107,11 +120,13 @@ class SupabaseDocumentRepository:
     ) -> list[Document]:
         """Search documents by type in a session."""
         try:
-            response = self.client.supabase.table(self.table_name).select(
-                "*"
-            ).eq("session_id", str(session_id)).eq(
-                "type", document_type.value
-            ).execute()
+            response = (
+                self.client.supabase.table(self.table_name)
+                .select("*")
+                .eq("session_id", str(session_id))
+                .eq("type", document_type.value)
+                .execute()
+            )
 
             return [self._row_to_document(row) for row in response.data]
 
@@ -131,7 +146,7 @@ class SupabaseDocumentRepository:
             self.client.supabase.table(self.table_name).delete().eq(
                 "id", str(document_id)
             ).execute()
-            
+
             logger.info(f"Document deleted: {document_id}")
             return True
 
@@ -142,9 +157,9 @@ class SupabaseDocumentRepository:
     async def update_embeddings(self, document_id: UUID, embeddings: dict) -> bool:
         """Update document embeddings."""
         try:
-            self.client.supabase.table(self.table_name).update({
-                "embeddings": json.dumps(embeddings)
-            }).eq("id", str(document_id)).execute()
+            self.client.supabase.table(self.table_name).update(
+                {"embeddings": json.dumps(embeddings)}
+            ).eq("id", str(document_id)).execute()
 
             logger.info(f"Embeddings updated: {document_id}")
             return True
@@ -201,7 +216,7 @@ class SupabaseDocumentRepository:
         )
 
         data = json.loads(json_str)
-        
+
         sections = [
             Section(
                 title=s["title"],
@@ -212,7 +227,7 @@ class SupabaseDocumentRepository:
             )
             for s in data.get("sections", [])
         ]
-        
+
         tables = [
             Table(
                 headers=t["headers"],
@@ -222,7 +237,7 @@ class SupabaseDocumentRepository:
             )
             for t in data.get("tables", [])
         ]
-        
+
         images = [
             ImageMetadata(
                 name=img["name"],

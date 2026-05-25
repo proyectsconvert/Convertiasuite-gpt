@@ -29,14 +29,14 @@ async def upload_document(
 ):
     """
     Upload and process a document.
-    
+
     Supported formats: PDF, DOCX, XLSX, CSV, TXT
-    
+
     Args:
         file: Document file
         session_id: Associated chat session (required for context)
         tags: Optional tags
-        
+
     Returns:
         Document metadata
     """
@@ -59,7 +59,7 @@ async def upload_document(
             supported = document_manager.get_supported_extensions()
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported file type. Supported: {', '.join(supported)}"
+                detail=f"Unsupported file type. Supported: {', '.join(supported)}",
             )
 
         # Process document
@@ -100,8 +100,10 @@ async def get_session_documents(
 ):
     """Get all documents in a session."""
     try:
-        documents = await document_manager.document_repository.get_by_session(UUID(session_id))
-        
+        documents = await document_manager.document_repository.get_by_session(
+            UUID(session_id)
+        )
+
         return {
             "count": len(documents),
             "documents": [
@@ -113,7 +115,7 @@ async def get_session_documents(
                     "created_at": doc.created_at.isoformat(),
                 }
                 for doc in documents
-            ]
+            ],
         }
     except Exception as e:
         logger.error(f"Error retrieving documents: {str(e)}")
@@ -129,13 +131,14 @@ async def delete_document(
     """Delete a document."""
     try:
         success = await document_manager.delete_document(
-            UUID(document_id),
-            UUID(current_user["id"])
+            UUID(document_id), UUID(current_user["id"])
         )
-        
+
         if not success:
-            raise HTTPException(status_code=404, detail="Document not found or unauthorized")
-        
+            raise HTTPException(
+                status_code=404, detail="Document not found or unauthorized"
+            )
+
         return {"message": "Document deleted"}
     except Exception as e:
         logger.error(f"Error deleting document: {str(e)}")

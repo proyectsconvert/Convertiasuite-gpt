@@ -72,7 +72,9 @@ async def lifespan(app: FastAPI):
         processor_factory=processor_factory,
         document_repository=document_repository,
     )
-    logger.info(f"Document processing initialized. Supported types: {processor_factory.supported_types}")
+    logger.info(
+        f"Document processing initialized. Supported types: {processor_factory.supported_types}"
+    )
 
     logger.info("Application startup completed")
 
