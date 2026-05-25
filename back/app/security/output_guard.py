@@ -43,7 +43,7 @@ class OutputValidator:
     ]
 
     FORMAT_BREAK_PATTERNS = [
-        r"[\x00-\x08\x0b\x0c\x0e-\x1f]", 
+        r"[\x00-\x08\x0b\x0c\x0e-\x1f]",
     ]
 
     def __init__(self):
@@ -51,7 +51,9 @@ class OutputValidator:
         self._language_re = [re.compile(p) for p in self.LANGUAGE_BLOCK_PATTERNS]
         self._format_re = [re.compile(p) for p in self.FORMAT_BREAK_PATTERNS]
 
-    def validate_output(self, text: str) -> tuple[bool, OutputValidationAction, str | None]:
+    def validate_output(
+        self, text: str
+    ) -> tuple[bool, OutputValidationAction, str | None]:
         if not text or not text.strip():
             return True, OutputValidationAction.ALLOW, None
 
@@ -136,12 +138,24 @@ def sanitize_output(text: str) -> str | None:
     return normalized
 
 
-def get_safety_fallback() -> str:
-    return (
-        "Lo siento, no puedo procesar esa solicitud "
-        "por razones de seguridad y políticas de Convertia. "
-        "Si creés que esto es un error, contactá a soporte."
+def get_safety_fallback(role: str = "default") -> str:
+    """
+    Obtiene mensaje de fallback seguro y contextualizado por rol.
+
+    CONSOLIDADO: Usa FallbackResponseProvider para respuestas consistentes.
+
+    Args:
+        role: User role (default, code, analysis, etc)
+
+    Returns:
+        Mensaje fallback apropiado
+    """
+    from app.services.prompts.fallback_templates import (
+        FallbackResponseProvider,
+        FallbackTemplate,
     )
+
+    return FallbackResponseProvider.get_fallback(role, FallbackTemplate.SAFETY_BLOCK)
 
 
 output_validator = OutputValidator()

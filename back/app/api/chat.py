@@ -75,7 +75,7 @@ async def send_message_stream(
             yield await sse_message("done", {"session_id": session_id})
 
         except SecurityException:
-            fallback = get_safety_fallback()
+            fallback = get_safety_fallback(request.user_role)
 
             yield await sse_message(
                 "start", {"session_id": session_id or "unknown", "model": "security"}
@@ -88,7 +88,7 @@ async def send_message_stream(
         except Exception as e:
             logger.error(f"Unexpected error: {str(e)}")
 
-            fallback = get_safety_fallback()
+            fallback = get_safety_fallback(request.user_role)
 
             yield await sse_message(
                 "start", {"session_id": session_id or "unknown", "model": "error"}
@@ -192,7 +192,9 @@ async def upload_file(
     file: UploadFile = File(...),
     session_id: str = Form(None),
     current_user: dict = Depends(get_current_user),
-    memory_repo: IMemoryRepository = Depends(get_memory_repo), # 1. Inyectamos tu repositorio compuesto
+    memory_repo: IMemoryRepository = Depends(
+        get_memory_repo
+    ),  # 1. Inyectamos tu repositorio compuesto
 ):
     filename_lower = file.filename.lower()
 
@@ -233,7 +235,7 @@ async def upload_file(
         if len(extracted_text) > max_characters:
             truncated_text += "\n[... Archivo truncado por exceso de tamaño para optimizar el contexto ...]"
 
-        #PERSISTENCIA
+        # PERSISTENCIA
         if session_id:
             current_messages = await memory_repo.get_messages(session_id)
             if current_messages is None:
@@ -244,10 +246,7 @@ async def upload_file(
                 "role": "system",
                 "content": f"SISTEMA: El usuario ha cargado el archivo '{file.filename}'. Contexto extraído:\n\n{truncated_text}",
                 "timestamp": datetime.now().isoformat(),
-                "attachments": [{
-                    "filename": file.filename,
-                    "type": attachment_type
-                }]
+                "attachments": [{"filename": file.filename, "type": attachment_type}],
             }
 
             current_messages.append(file_message)

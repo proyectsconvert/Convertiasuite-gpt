@@ -7,10 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from app.core.config import get_settings
+from app.core.document_processor_config import initialize_processor_factory
 from app.infra.clients.redis_client import (
     get_redis_client,
     close_redis_client,
 )
+from app.infra.clients.supabase_client import SupabaseClient
 from app.infra.repositories.composite_memory_repository import (
     CompositeMemoryRepository,
 )
@@ -20,8 +22,12 @@ from app.infra.repositories.redis.cache_repository import (
 from app.infra.repositories.supabase.memory_repository import (
     SupabaseMemoryRepository,
 )
+from app.infra.repositories.supabase.document_repository import (
+    SupabaseDocumentRepository,
+)
+from app.services.document_manager import DocumentManager
 from app.security.rate_limiting import limiter
-from app.api import chat, auth
+from app.api import chat, auth, documents
 from app.infra.clients.ollama_client import OllamaClient
 
 
@@ -57,6 +63,16 @@ async def lifespan(app: FastAPI):
         cache=app.state.cache,
         db=app.state.supabase,
     )
+
+    # Initialize document processing
+    processor_factory = initialize_processor_factory()
+    supabase_client = SupabaseClient()
+    document_repository = SupabaseDocumentRepository(supabase_client)
+    app.state.document_manager = DocumentManager(
+        processor_factory=processor_factory,
+        document_repository=document_repository,
+    )
+    logger.info(f"Document processing initialized. Supported types: {processor_factory.supported_types}")
 
     logger.info("Application startup completed")
 
@@ -117,3 +133,4 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(chat.router)
+app.include_router(documents.router)

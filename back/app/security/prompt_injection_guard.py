@@ -5,29 +5,6 @@ from app.security.exceptions import PromptInjectionException
 logger = logging.getLogger(__name__)
 
 
-def detect_prompt_injection(text: str) -> bool:
-
-    if not text or not isinstance(text, str):
-        return False
-
-    score = risk_scorer.score(text)
-
-    if score.should_block:
-        logger.warning(
-            "Prompt injection detected",
-            extra={
-                "risk_level": score.level.value,
-                "total_score": score.total_score,
-                "injection_score": score.injection_score,
-                "exfil_score": score.data_exfiltration_score,
-                "jailbreak_score": score.jailbreak_score,
-            },
-        )
-        return True
-
-    return False
-
-
 def validate_prompt_safety(text: str, risk_level: str = "HIGH") -> bool:
 
     if not text:

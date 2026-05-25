@@ -16,22 +16,6 @@ ZERO_WIDTH_CHARS = [
 ]
 
 
-def normalize_text(text: str) -> str:
-    """Normaliza texto sin cambiar semántica."""
-    if not text:
-        return ""
-
-    text = unicodedata.normalize("NFKC", text)
-
-    for zw in ZERO_WIDTH_CHARS:
-        text = text.replace(zw, "")
-
-    text = text.lower()
-    text = re.sub(r"\s+", " ", text)
-
-    return text
-
-
 def _contains_control_chars(text: str) -> bool:
     for c in text:
         if ord(c) < 32 and c not in "\t\n\r":

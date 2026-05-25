@@ -10,7 +10,6 @@ from app.domain.interfaces.memory_repository import IMemoryRepository
 from app.security.exceptions import PolicyViolationException, SecurityException
 from app.security.input_sanitizer import _truncate_history, sanitize_input
 from app.services.prompts.response_validator import ResponseValidator
-from app.services.prompts.prompt_builder import PromptBuilder
 from app.security.output_guard import (
     OutputValidationAction,
     get_safety_fallback,
@@ -242,7 +241,7 @@ async def process_chat(
                         yield chunk
 
                 if stream_stopped and not fallback_emitted:
-                    fallback = get_safety_fallback()
+                    fallback = get_safety_fallback(request.user_role)
                     yield fallback
                     fallback_emitted = True
                     full_response = fallback
@@ -251,10 +250,10 @@ async def process_chat(
                     is_safe, action, _ = output_validator.validate_output(full_response)
                     if action == OutputValidationAction.BLOCK:
                         logger.warning("Output blocked session=%s", session_id)
-                        full_response = get_safety_fallback()
+                        full_response = get_safety_fallback(request.user_role)
                     elif action == OutputValidationAction.REGENERATE:
                         logger.warning("Output regenerate session=%s", session_id)
-                        full_response = get_safety_fallback()
+                        full_response = get_safety_fallback(request.user_role)
                     else:
                         contract = PromptContract.for_role(request.user_role)
                         safety_response = ResponseValidator.validate_format(
@@ -303,7 +302,7 @@ async def process_chat(
 
             except TimeoutError:
                 logger.error("Stream timeout session=%s", session_id)
-                fallback = get_safety_fallback()
+                fallback = get_safety_fallback(request.user_role)
                 assistant_message = Message(
                     id=str(uuid.uuid4()),
                     role="assistant",
@@ -321,7 +320,7 @@ async def process_chat(
                     type(e).__name__,
                     str(e),
                 )
-                fallback = get_safety_fallback()
+                fallback = get_safety_fallback(request.user_role)
                 assistant_message = Message(
                     id=str(uuid.uuid4()),
                     role="assistant",

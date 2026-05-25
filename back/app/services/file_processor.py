@@ -1,7 +1,5 @@
-from io import BytesIO, StringIO
-import csv
+from io import BytesIO
 import logging
-import openpyxl
 import pandas as pd
 import json
 from pypdf import PdfReader
@@ -207,8 +205,7 @@ class FileProcessorService:
             ]
 
             if total_filas <= 150:
-                df_limpio = df_check.fillna("")
-                datos_completos = df_limpio.to_dict(orient="records")
+                datos_completos = df_check.to_dict(orient="records")
 
                 payload_generico = {
                     "METADATA_DEL_ARCHIVO": {
@@ -225,8 +222,7 @@ class FileProcessorService:
                 )
 
             else:
-                df_limpio = df_check.fillna("")
-                muestra_filas = df_limpio.head(25).to_dict(orient="records")
+                muestra_filas = df_check.head(25).to_dict(orient="records")
 
                 payload_grande = {
                     "METADATA_DEL_ARCHIVO": {
@@ -288,49 +284,32 @@ class FileProcessorService:
     @classmethod
     def extract_text_from_csv(cls, contents: bytes) -> str:
         try:
-            text_data = contents.decode("utf-8", errors="replace")
+            try:
+                df = pd.read_csv(BytesIO(contents), sep=None, engine='python', encoding='utf-8')
+            except Exception:
+                df = pd.read_csv(BytesIO(contents), sep=None, engine='python', encoding='latin-1')
 
-            dialect = (
-                csv.Sniffer().sniff(text_data[:4000]) if len(text_data) > 10 else ","
-            )
-            delimiter = (
-                dialect.delimiter if dialect.delimiter in [",", ";", "\t"] else ","
-            )
-
-            reader = csv.reader(StringIO(text_data), delimiter=delimiter)
-            rows = []
-            for row in reader:
-                if any(cell is not None and str(cell).strip() != "" for cell in row):
-                    rows.append(row)
+            df = df.fillna("")
+            headers = list(df.columns)
+            data_rows = df.values.tolist()
+            rows = [headers] + data_rows
+            
             return cls.analyze_tabular_data(rows)
         except Exception as e:
-            try:
-                reader = csv.reader(
-                    StringIO(text_data),
-                    delimiter=";" if ";" in text_data[:1000] else ",",
-                )
-                rows = [
-                    r
-                    for r in reader
-                    if any(c is not None and str(c).strip() != "" for c in r)
-                ]
-                return cls.analyze_tabular_data(rows)
-            except Exception:
-                logger.error(f"Error parseando CSV: {str(e)}")
-                raise ValueError(f"Error al procesar el archivo CSV: {str(e)}")
+            logger.error(f"Error parseando CSV con Pandas: {str(e)}")
+            raise ValueError(f"Error al procesar el archivo CSV: {str(e)}")
 
     @classmethod
     def extract_text_from_excel(cls, contents: bytes) -> str:
         try:
-            wb = openpyxl.load_workbook(
-                BytesIO(contents), data_only=True, read_only=True
-            )
-            sheet = wb.active
-            rows = []
-            for row in sheet.iter_rows(values_only=True):
-                if any(cell is not None and str(cell).strip() != "" for cell in row):
-                    rows.append(list(row))
+            df = pd.read_excel(BytesIO(contents))
+            
+            df = df.fillna("")
+            headers = list(df.columns)
+            data_rows = df.values.tolist()
+            rows = [headers] + data_rows
+            
             return cls.analyze_tabular_data(rows)
         except Exception as e:
-            logger.error(f"Error parseando Excel: {str(e)}")
+            logger.error(f"Error parseando Excel con Pandas: {str(e)}")
             raise ValueError(f"Error al procesar el archivo Excel: {str(e)}")
