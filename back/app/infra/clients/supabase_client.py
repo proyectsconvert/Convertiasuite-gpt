@@ -23,3 +23,7 @@ class SupabaseClient:
     @property
     def admin(self) -> Client:
         return self._admin
+
+    @property
+    def db(self) -> Client:
+        return self._admin

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 
 class IMemoryRepository(ABC):
+
     @abstractmethod
     async def get_messages(
         self,
@@ -62,5 +63,24 @@ class IMemoryRepository(ABC):
         self,
         session_id: str,
         window_size: int,
+    ) -> list:
+        pass
+
+    @abstractmethod
+    async def save_attachment(
+        self,
+        session_id: str,
+        storage_path: str,
+        file_name: str,
+        mime_type: str | None,
+        file_size: int | None,
+        extracted_text: str | None = None,
+    ) -> str:
+        pass
+
+    @abstractmethod
+    async def get_attachments(
+        self,
+        session_id: str,
     ) -> list:
         pass

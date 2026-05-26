@@ -51,17 +51,10 @@ export default function ChatView() {
             setMessages(
               data.messages.map((msg) => ({
                 id: msg.id,
-                role: msg.role as "user" | "assistant",
+                role: msg.role,
                 content: msg.content,
                 timestamp: msg.timestamp,
-                attachment:
-                  Array.isArray(msg.attachments) && msg.attachments[0]
-                    ? {
-                        filename:
-                          msg.attachments[0].filename || "archivo adjunto",
-                        type: msg.attachments[0].type || "archivo",
-                      }
-                    : undefined,
+                attachments: msg.attachments || [],
               })),
             );
           }
@@ -83,7 +76,7 @@ export default function ChatView() {
     const messageText =
       input.trim() || `Analiza el archivo adjunto: ${filename}`;
 
-    const attachment = filename
+    const attachment = filename && attachmentType
       ? { filename, type: attachmentType }
       : undefined;
 
@@ -92,7 +85,7 @@ export default function ChatView() {
       role: "user",
       content: input.trim() || "",
       timestamp: new Date().toISOString(),
-      attachment,
+      attachments: attachment ? [attachment] : [],
     };
 
     const isInitialMessage = !currentChatId && messages.length === 0;
@@ -123,22 +116,21 @@ export default function ChatView() {
       }
     }
 
-    try {
-      let fullResponse = "";
+     try {
+       let fullResponse = "";
 
-      for await (const chunk of chatApi.sendMessageStream({
-        message: messageText,
-        session_id: sid || undefined,
-        has_attachment: !!extractedContext,
-        extracted_context: extractedContext,
-        attachment_type: attachmentType,
-        attachment_name: filename,
-      })) {
-        if (chunk.type === "chunk" && chunk.content) {
-          fullResponse += chunk.content;
-          setStreamingContent(fullResponse);
-        }
-      }
+       for await (const chunk of chatApi.sendMessageStream({
+         message: messageText,
+         session_id: sid || undefined,
+         extracted_context: extractedContext,
+         attachment_type: attachmentType,
+         attachment_name: filename,
+       })) {
+         if (chunk.type === "chunk" && chunk.content) {
+           fullResponse += chunk.content;
+           setStreamingContent(fullResponse);
+         }
+       }
 
       setMessages((prev) => [
         ...prev,

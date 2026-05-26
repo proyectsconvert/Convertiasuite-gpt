@@ -313,3 +313,24 @@ class FileProcessorService:
         except Exception as e:
             logger.error(f"Error parseando Excel con Pandas: {str(e)}")
             raise ValueError(f"Error al procesar el archivo Excel: {str(e)}")
+
+
+class FileProcessorFactory:
+    @staticmethod
+    def get_parser(filename: str, content_type: str = None) -> tuple:
+        filename_lower = filename.lower()
+        if filename_lower.endswith(".pdf") or content_type == "application/pdf":
+            return FileProcessorService.extract_text_from_pdf, "pdf"
+        elif (
+            filename_lower.endswith((".docx", ".doc"))
+            or content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ):
+            return FileProcessorService.extract_text_from_docx, "word"
+        elif filename_lower.endswith(".csv") or content_type == "text/csv":
+            return FileProcessorService.extract_text_from_csv, "csv"
+        elif (
+            filename_lower.endswith((".xlsx", ".xls"))
+            or content_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ):
+            return FileProcessorService.extract_text_from_excel, "excel"
+        return None, None

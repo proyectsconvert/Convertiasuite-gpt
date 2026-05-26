@@ -132,6 +132,55 @@ class DocumentManager:
             logger.error(f"Context extraction failed: {str(e)}")
             return ""
 
+    async def get_relevant_context(
+        self,
+        session_id: UUID,
+        query: str,
+        limit_chunks: int = 3,
+    ) -> str:
+        """
+        Get relevant document chunks for a session based on similarity to query.
+        """
+        try:
+            documents = await self.document_repository.get_by_session(session_id)
+            if not documents:
+                return ""
+
+            chunks = []
+            for doc in documents:
+                text = doc.parsed_content.to_searchable_text()
+                paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+                for p in paragraphs:
+                    chunks.append((doc.filename, p))
+
+            if not chunks:
+                return ""
+
+            query_words = set(query.lower().split())
+            scored_chunks = []
+            for filename, chunk in chunks:
+                chunk_words = set(chunk.lower().split())
+                overlap = len(query_words.intersection(chunk_words))
+                score = overlap / len(query_words) if query_words else 0
+                scored_chunks.append((score, filename, chunk))
+
+            scored_chunks.sort(key=lambda x: x[0], reverse=True)
+
+            relevant_chunks = []
+            for score, filename, chunk in scored_chunks[:limit_chunks]:
+                if score > 0 or not relevant_chunks:
+                    trimmed_chunk = chunk if len(chunk) <= 1500 else chunk[:1500] + "..."
+                    relevant_chunks.append(f"### Archivo: {filename}\n{trimmed_chunk}")
+
+            if not relevant_chunks:
+                return ""
+
+            return "## DOCUMENTOS RELACIONADOS (RETRIEVED CONTEXT):\n\n" + "\n\n".join(relevant_chunks)
+
+        except Exception as e:
+            logger.error(f"Contextual retrieval failed: {str(e)}")
+            return ""
+
     async def search_documents(
         self,
         session_id: UUID,

@@ -9,12 +9,13 @@ from typing import Optional
 from uuid import UUID
 
 from app.domain.entities.document import Document, DocumentType, ParsedContent
+from app.domain.interfaces.document_repository import IDocumentRepository
 from app.infra.clients.supabase_client import SupabaseClient
 
 logger = logging.getLogger(__name__)
 
 
-class SupabaseDocumentRepository:
+class SupabaseDocumentRepository(IDocumentRepository):
     """
     Repository for persisting documents in Supabase.
     Handles serialization/deserialization of complex entities.
@@ -52,7 +53,7 @@ class SupabaseDocumentRepository:
             }
 
             response = (
-                self.client.supabase.table(self.table_name).insert(data).execute()
+                self.client.db.table(self.table_name).insert(data).execute()
             )
             logger.info(f"Document saved: {document.id}")
             return document.id
@@ -65,7 +66,7 @@ class SupabaseDocumentRepository:
         """Retrieve document by ID."""
         try:
             response = (
-                self.client.supabase.table(self.table_name)
+                self.client.db.table(self.table_name)
                 .select("*")
                 .eq("id", str(document_id))
                 .execute()
@@ -83,7 +84,7 @@ class SupabaseDocumentRepository:
         """Get all documents in a session."""
         try:
             response = (
-                self.client.supabase.table(self.table_name)
+                self.client.db.table(self.table_name)
                 .select("*")
                 .eq("session_id", str(session_id))
                 .execute()
@@ -99,7 +100,7 @@ class SupabaseDocumentRepository:
         """Get user's recent documents."""
         try:
             response = (
-                self.client.supabase.table(self.table_name)
+                self.client.db.table(self.table_name)
                 .select("*")
                 .eq("user_id", str(user_id))
                 .order("created_at", desc=True)
@@ -121,7 +122,7 @@ class SupabaseDocumentRepository:
         """Search documents by type in a session."""
         try:
             response = (
-                self.client.supabase.table(self.table_name)
+                self.client.db.table(self.table_name)
                 .select("*")
                 .eq("session_id", str(session_id))
                 .eq("type", document_type.value)
@@ -143,7 +144,7 @@ class SupabaseDocumentRepository:
                 logger.warning(f"Unauthorized delete attempt: {document_id}")
                 return False
 
-            self.client.supabase.table(self.table_name).delete().eq(
+            self.client.db.table(self.table_name).delete().eq(
                 "id", str(document_id)
             ).execute()
 
@@ -157,7 +158,7 @@ class SupabaseDocumentRepository:
     async def update_embeddings(self, document_id: UUID, embeddings: dict) -> bool:
         """Update document embeddings."""
         try:
-            self.client.supabase.table(self.table_name).update(
+            self.client.db.table(self.table_name).update(
                 {"embeddings": json.dumps(embeddings)}
             ).eq("id", str(document_id)).execute()
 

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { useAppStore } from "@/store/appStore";
+import { useToast } from "@/hooks/use-toast";
 import { AnimatePresence, motion } from "framer-motion";
 import { chatApi } from "@/services/api";
 
@@ -26,6 +27,14 @@ interface ChatInputProps {
   variant?: "welcome" | "conversation";
 }
 
+type UploadState = "idle" | "uploading" | "recording";
+
+interface AttachedFileData {
+  name: string;
+  context: string;
+  type?: string;
+}
+
 export default function ChatInput({
   value,
   onChange,
@@ -34,25 +43,19 @@ export default function ChatInput({
   variant = "conversation",
 }: ChatInputProps) {
   const { selectedModel } = useAppStore();
+  const { toast } = useToast();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // FILE STATE
-  const [isUploadingFile, setIsUploadingFile] = useState(false);
-
-  const [attachedFile, setAttachedFile] = useState<{
-    name: string;
-    context: string;
-    type?: string;
-  } | null>(null);
-
-  // AUDIO STATE
-  const [isRecording, setIsRecording] = useState(false);
-
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-
   const audioChunksRef = useRef<Blob[]>([]);
+
+  // UNIFIED UPLOAD STATE (uploading file or recording audio)
+  const [uploadState, setUploadState] = useState<UploadState>("idle");
+
+  const [attachedFile, setAttachedFile] = useState<AttachedFileData | null>(
+    null,
+  );
 
   // AUTO RESIZE TEXTAREA
   useEffect(() => {
@@ -68,22 +71,12 @@ export default function ChatInput({
   const handleSubmit = useCallback(() => {
     const canSend = value.trim() || attachedFile;
 
-    if (canSend && !isLoading && !isUploadingFile) {
-      onSend(
-        attachedFile?.context,
-        attachedFile?.name,
-        attachedFile?.type,
-      );
+    if (canSend && !isLoading && uploadState === "idle") {
+      onSend(attachedFile?.context, attachedFile?.name, attachedFile?.type);
 
       setAttachedFile(null);
     }
-  }, [
-    value,
-    attachedFile,
-    isLoading,
-    isUploadingFile,
-    onSend,
-  ]);
+  }, [value, attachedFile, isLoading, uploadState, onSend]);
 
   // ENTER SEND
   const handleKeyDown = useCallback(
@@ -97,27 +90,30 @@ export default function ChatInput({
   );
 
   // FILE UPLOAD
-  const handleFileChange = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
 
     if (!file) return;
 
     if (
       !file.name.endsWith(".xlsx") &&
-      !file.name.endsWith(".csv")
+      !file.name.endsWith(".csv") &&
+      !file.name.endsWith(".pdf") &&
+      !file.name.endsWith(".docx")
     ) {
-      alert(
-        "Solo se admiten archivos Excel (.xlsx) o CSV.",
-      );
+      toast({
+        title: "Formato no permitido",
+        description:
+          "Solo se admiten Excel (.xlsx), CSV, PDF (.pdf) o Word (.docx)",
+        variant: "destructive",
+      });
 
       e.target.value = "";
 
       return;
     }
 
-    setIsUploadingFile(true);
+    setUploadState("uploading");
 
     try {
       const response = await chatApi.uploadFile(file);
@@ -130,9 +126,14 @@ export default function ChatInput({
     } catch (error) {
       console.error(error);
 
-      alert("No se pudo procesar el archivo.");
+      toast({
+        title: "Error al procesar archivo",
+        description:
+          "No se pudo procesar el archivo. Verifica que esté en formato válido.",
+        variant: "destructive",
+      });
     } finally {
-      setIsUploadingFile(false);
+      setUploadState("idle");
       e.target.value = "";
     }
   };
@@ -140,10 +141,9 @@ export default function ChatInput({
   // AUDIO RECORDING
   const startRecording = async () => {
     try {
-      const stream =
-        await navigator.mediaDevices.getUserMedia({
-          audio: true,
-        });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
 
       const mediaRecorder = new MediaRecorder(stream);
 
@@ -158,27 +158,38 @@ export default function ChatInput({
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(
-          audioChunksRef.current,
-          {
-            type: "audio/webm",
-          },
-        );
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: "audio/webm",
+        });
 
         await uploadAudio(audioBlob);
 
-        stream.getTracks().forEach((track) =>
-          track.stop(),
-        );
+        stream.getTracks().forEach((track) => track.stop());
       };
 
       mediaRecorder.start();
 
-      setIsRecording(true);
+      setUploadState("recording");
     } catch (error) {
-      console.error(error);
+      let errorMessage = "No se pudo acceder al micrófono";
 
-      alert("No se pudo acceder al micrófono.");
+      if (error instanceof DOMException) {
+        if (error.name === "NotAllowedError") {
+          errorMessage =
+            "Permiso denegado. Habilita el micrófono en tu navegador";
+        } else if (error.name === "NotFoundError") {
+          errorMessage = "No se encontró dispositivo de micrófono";
+        } else if (error.name === "NotReadableError") {
+          errorMessage = "El micrófono está siendo usado por otra aplicación";
+        }
+      }
+
+      console.error("Error grabando audio:", error);
+      toast({
+        title: "Error de audio",
+        description: errorMessage,
+        variant: "destructive",
+      });
     }
   };
 
@@ -186,14 +197,12 @@ export default function ChatInput({
   const stopRecording = () => {
     mediaRecorderRef.current?.stop();
 
-    setIsRecording(false);
+    setUploadState("idle");
   };
 
   // AUDIO UPLOAD
   const uploadAudio = async (blob: Blob) => {
     try {
-      setIsUploadingFile(true);
-
       const formData = new FormData();
 
       formData.append(
@@ -203,21 +212,28 @@ export default function ChatInput({
         }),
       );
 
-      const response = await chatApi.uploadAudio(
-        formData,
-      );
+      const response = await chatApi.uploadAudio(formData);
 
       setAttachedFile({
         name: "Audio grabado",
         context: response.transcript,
         type: "audio",
       });
-    } catch (error) {
-      console.error(error);
 
-      alert("No se pudo procesar el audio.");
+      toast({
+        title: "Éxito",
+        description: "Audio procesado correctamente",
+      });
+    } catch (error) {
+      console.error("Error al procesar audio:", error);
+      toast({
+        title: "Error al procesar audio",
+        description:
+          "No se pudo procesar el archivo de audio. Intenta de nuevo.",
+        variant: "destructive",
+      });
     } finally {
-      setIsUploadingFile(false);
+      setUploadState("idle");
     }
   };
 
@@ -226,9 +242,7 @@ export default function ChatInput({
   return (
     <div
       className={`w-full ${
-        isWelcome
-          ? "max-w-[640px] mx-auto mt-6"
-          : "max-w-4xl mx-auto"
+        isWelcome ? "max-w-[640px] mx-auto mt-6" : "max-w-4xl mx-auto"
       }`}
     >
       <div className="relative rounded-2xl border bg-card shadow-md transition-shadow focus-within:shadow-lg focus-within:border-primary/20 border-border/40">
@@ -237,7 +251,7 @@ export default function ChatInput({
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept=".xlsx,.csv"
+          accept=".xlsx,.csv,.pdf,.docx"
           className="hidden"
         />
 
@@ -265,9 +279,7 @@ export default function ChatInput({
                       {attachedFile.type || "archivo"}
                     </span>
 
-                    <span>
-                      Archivo listo para enviar
-                    </span>
+                    <span>Archivo listo para enviar</span>
                   </div>
                 </div>
 
@@ -284,13 +296,11 @@ export default function ChatInput({
         </AnimatePresence>
 
         {/* TEXTAREA */}
-        {isRecording ? (
+        {uploadState === "recording" ? (
           <div className="px-4 py-5 flex items-center gap-3 text-red-500">
             <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
 
-            <span className="text-sm font-medium">
-              Grabando audio...
-            </span>
+            <span className="text-sm font-medium">Grabando audio...</span>
           </div>
         ) : (
           <textarea
@@ -299,9 +309,9 @@ export default function ChatInput({
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             rows={1}
-            disabled={isUploadingFile}
+            disabled={uploadState !== "idle"}
             placeholder={
-              isUploadingFile
+              uploadState === "uploading"
                 ? "Procesando..."
                 : "Envía un mensaje..."
             }
@@ -315,17 +325,11 @@ export default function ChatInput({
             {/* FILE BUTTON */}
             <button
               type="button"
-              disabled={
-                isUploadingFile ||
-                isLoading ||
-                isRecording
-              }
-              onClick={() =>
-                fileInputRef.current?.click()
-              }
+              disabled={uploadState !== "idle" || isLoading}
+              onClick={() => fileInputRef.current?.click()}
               className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-40"
             >
-              {isUploadingFile ? (
+              {uploadState === "uploading" ? (
                 <Loader2 className="w-4 h-4 animate-spin text-primary" />
               ) : (
                 <Paperclip className="w-4 h-4" />
@@ -335,19 +339,17 @@ export default function ChatInput({
             {/* AUDIO BUTTON */}
             <button
               type="button"
-              disabled={isLoading || isUploadingFile}
+              disabled={isLoading || uploadState !== "idle"}
               onClick={
-                isRecording
-                  ? stopRecording
-                  : startRecording
+                uploadState === "recording" ? stopRecording : startRecording
               }
               className={`p-1.5 rounded-lg transition-colors ${
-                isRecording
+                uploadState === "recording"
                   ? "bg-red-500 text-white"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               }`}
             >
-              {isRecording ? (
+              {uploadState === "recording" ? (
                 <Square className="w-4 h-4" />
               ) : (
                 <Mic className="w-4 h-4" />
@@ -361,12 +363,12 @@ export default function ChatInput({
             disabled={
               (!value.trim() && !attachedFile) ||
               isLoading ||
-              isUploadingFile
+              uploadState !== "idle"
             }
             className={`p-2 rounded-xl transition-all duration-100 ${
               (value.trim() || attachedFile) &&
               !isLoading &&
-              !isUploadingFile
+              uploadState === "idle"
                 ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"
                 : "bg-secondary text-muted-foreground cursor-not-allowed"
             }`}

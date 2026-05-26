@@ -63,7 +63,11 @@ async def send_message_stream(
 
         try:
             stream, model, session_id = await process_chat(
-                request, llm_provider, memory_repo, user_id=user_id, document_manager=document_manager
+                request,
+                llm_provider,
+                memory_repo,
+                user_id=user_id,
+                document_manager=document_manager,
             )
 
             yield await sse_message(
@@ -169,11 +173,8 @@ async def delete_session(
 async def get_chat_history(
     session_id: str,
     current_user: dict = Depends(get_current_user),
-    memory_repo: IMemoryRepository = Depends(get_memory_repo),
+    memory_repo = Depends(get_memory_repo),
 ):
-
-    user_id = current_user["id"]
-
     messages = await memory_repo.get_messages(session_id)
 
     if messages is None:
@@ -181,14 +182,37 @@ async def get_chat_history(
 
     formatted_messages = []
     for msg in messages:
-        formatted_msg = {
-            "id": msg.get("id", str(uuid.uuid4())),
-            "role": msg.get("role", "user"),
-            "content": msg.get("content", ""),
-            "timestamp": msg.get("timestamp", datetime.now().isoformat()),
-            "attachments": msg.get("attachments", []),
-        }
-        formatted_messages.append(formatted_msg)
+        is_dict = isinstance(msg, dict)
+        
+        msg_id = msg.get("id", str(uuid.uuid4())) if is_dict else getattr(msg, "id", str(uuid.uuid4()))
+        role = msg.get("role", "user") if is_dict else getattr(msg, "role", "user")
+        content = msg.get("content", "") if is_dict else getattr(msg, "content", "")
+        
+        timestamp = msg.get("timestamp") if is_dict else getattr(msg, "timestamp", None)
+        if isinstance(timestamp, datetime):
+            timestamp = timestamp.isoformat()
+        elif not timestamp:
+            timestamp = datetime.now().isoformat()
+            
+        raw_attachments = msg.get("attachments", []) if is_dict else getattr(msg, "attachments", [])
+        
+        formatted_attachments = []
+        for att in (raw_attachments or []):
+            filename = att.get("filename") or att.get("file_name") or att.get("name") or "archivo"
+            att_type = att.get("type") or att.get("mime_type") or "archivo"
+            formatted_attachments.append({
+                "id": att.get("id") or att.get("attachment_id"),
+                "filename": filename,
+                "type": att_type
+            })
+            
+        formatted_messages.append({
+            "id": msg_id,
+            "role": role,
+            "content": content,
+            "timestamp": timestamp,
+            "attachments": formatted_attachments
+        })
 
     return ChatHistoryResponse(messages=formatted_messages, session_id=session_id)
 
@@ -198,87 +222,14 @@ async def upload_file(
     file: UploadFile = File(...),
     session_id: str = Form(None),
     current_user: dict = Depends(get_current_user),
-    memory_repo: IMemoryRepository = Depends(
-        get_memory_repo
-    ),  # 1. Inyectamos tu repositorio compuesto
+    memory_repo: IMemoryRepository = Depends(get_memory_repo),
+    document_manager: DocumentManager = Depends(get_document_manager),
 ):
-    filename_lower = file.filename.lower()
-
-    # Determinar tipo por extensión o mimetype
-    if filename_lower.endswith(".pdf") or file.content_type == "application/pdf":
-        parser_fn = FileProcessorService.extract_text_from_pdf
-        attachment_type = "pdf"
-    elif (
-        filename_lower.endswith((".docx", ".doc"))
-        or file.content_type
-        == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ):
-        parser_fn = FileProcessorService.extract_text_from_docx
-        attachment_type = "word"
-    elif filename_lower.endswith(".csv") or file.content_type == "text/csv":
-        parser_fn = FileProcessorService.extract_text_from_csv
-        attachment_type = "csv"
-    elif (
-        filename_lower.endswith((".xlsx", ".xls"))
-        or file.content_type
-        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    ):
-        parser_fn = FileProcessorService.extract_text_from_excel
-        attachment_type = "excel"
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail="Formato de archivo no soportado (use PDF, Word, Excel o CSV)",
-        )
-
-    try:
-        contents = await file.read()
-        extracted_text = parser_fn(contents)
-
-        max_characters = 8000
-        truncated_text = extracted_text[:max_characters]
-
-        if len(extracted_text) > max_characters:
-            truncated_text += "\n[... Archivo truncado por exceso de tamaño para optimizar el contexto ...]"
-
-        # PERSISTENCIA
-        if session_id:
-            current_messages = await memory_repo.get_messages(session_id)
-            if current_messages is None:
-                current_messages = []
-
-            file_message = {
-                "id": str(uuid.uuid4()),
-                "role": "system",
-                "content": f"SISTEMA: El usuario ha cargado el archivo '{file.filename}'. Contexto extraído:\n\n{truncated_text}",
-                "timestamp": datetime.now().isoformat(),
-                "attachments": [{"filename": file.filename, "type": attachment_type}],
-            }
-
-            current_messages.append(file_message)
-            await memory_repo.save_messages(session_id, current_messages)
-
-        logger.info(
-            "Archivo procesado y persistido en memoria exitosamente",
-            extra={
-                "user_id": current_user.get("id"),
-                "uploaded_filename": file.filename,
-                "session_id": session_id,
-                "length": len(truncated_text),
-                "attachment_type": attachment_type,
-            },
-        )
-
-        return {
-            "filename": file.filename,
-            "has_attachment": True,
-            "extracted_context": truncated_text,
-            "attachment_type": attachment_type,
-        }
-
-    except Exception as e:
-        logger.error(f"Error procesando archivo {file.filename}: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al procesar el archivo: {str(e)}",
-        )
+    from app.services.upload_service import UploadService
+    
+    upload_service = UploadService(document_manager, memory_repo)
+    return await upload_service.process_upload(
+        file=file,
+        session_id=session_id,
+        user_id=current_user["id"]
+    )

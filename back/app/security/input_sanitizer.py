@@ -1,6 +1,7 @@
 import unicodedata
 import re
 from app.security.exceptions import PolicyViolationException
+from app.security.unicode_utils import normalize_unicode, ZERO_WIDTH_CHARS
 
 MAX_INPUT_LENGTH = 12000
 MAX_HISTORY_MESSAGES = 10
@@ -8,12 +9,7 @@ MAX_CONTEXT_CHARS = 12000
 
 REFUSAL_FALLBACK = "Lo siento, no puedo procesar esa solicitud"
 
-ZERO_WIDTH_CHARS = [
-    "\u200b",  # Zero Width Space
-    "\u200c",  # Zero Width Non-Joiner
-    "\u200d",  # Zero Width Joiner
-    "\ufeff",  # Zero Width No-Break Space
-]
+# NOTA: ZERO_WIDTH_CHARS importado desde unicode_utils para evitar duplicación
 
 
 def _contains_control_chars(text: str) -> bool:
@@ -24,20 +20,13 @@ def _contains_control_chars(text: str) -> bool:
 
 
 def sanitize_input(text: str) -> str:
-    """
-    Sanitiza y valida input del usuario.
-    No revela qué patrón fue detectado.
-    """
     if not text:
         raise PolicyViolationException("Input no puede estar vacío")
 
     if not isinstance(text, str):
         raise PolicyViolationException("Formato de entrada no válido")
 
-    normalized = unicodedata.normalize("NFKC", text)
-
-    for zw in ZERO_WIDTH_CHARS:
-        normalized = normalized.replace(zw, "")
+    normalized = normalize_unicode(text)
 
     normalized = normalized.strip()
 
@@ -93,3 +82,27 @@ def validate_history_length(history: list) -> bool:
     if total_chars > MAX_CONTEXT_CHARS:
         raise PolicyViolationException(f"Contexto excede límite permitido")
     return True
+
+
+def truncate_history_by_tokens(history: list, max_tokens: int = 4000) -> list:
+    """
+    Truncates message history based on an approximate token budget (estimated by character count).
+    Keeps the most recent messages.
+    """
+    if not history:
+        return []
+    # 1 token is roughly 4 characters
+    max_chars = max_tokens * 4
+    total_chars = 0
+    kept_messages = []
+
+    for msg in reversed(history):
+        content = msg.content if hasattr(msg, "content") else msg.get("content", "")
+        msg_len = len(content) if content else 0
+        if total_chars + msg_len > max_chars:
+            if len(kept_messages) >= 1:
+                break
+        total_chars += msg_len
+        kept_messages.append(msg)
+
+    return list(reversed(kept_messages))

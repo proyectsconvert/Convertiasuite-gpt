@@ -3,16 +3,21 @@ import logging
 from datetime import datetime, UTC
 from typing import Optional
 
-from app.domain.interfaces.memory_repository import IMemoryRepository
+from app.domain.interfaces.session_repository import ISessionRepository
+from app.domain.interfaces.message_repository import IMessageRepository
+from app.domain.interfaces.attachment_repository import IAttachmentRepository
 from app.infra.clients.supabase_client import SupabaseClient
 
 logger = logging.getLogger(__name__)
 
 
-class SupabaseMemoryRepository(IMemoryRepository):
+class SupabaseMemoryRepository(ISessionRepository, IMessageRepository, IAttachmentRepository):
     def __init__(self, supabase_client: Optional[SupabaseClient] = None):
         self.client = supabase_client or SupabaseClient()
-        self.supabase = self.client.admin
+
+    @property
+    def supabase(self):
+        return self.client.db
 
     @staticmethod
     def _now() -> str:
@@ -249,3 +254,65 @@ class SupabaseMemoryRepository(IMemoryRepository):
             limit=window_size,
         )
         return messages or []
+
+    async def save_attachment(
+        self,
+        session_id: str,
+        storage_path: str,
+        file_name: str,
+        mime_type: str | None,
+        file_size: int | None,
+        extracted_text: str | None = None,
+    ) -> str:
+        try:
+            attachment_id = str(uuid.uuid4())
+
+            (
+                self.supabase.table("chat_attachments")
+                .insert(
+                    {
+                        "attachment_id": attachment_id,
+                        "session_id": session_id,
+                        "storage_path": storage_path,
+                        "file_name": file_name,
+                        "mime_type": mime_type,
+                        "file_size": file_size,
+                        "extracted_text": extracted_text,
+                    }
+                )
+                .execute()
+            )
+
+            return attachment_id
+
+        except Exception as e:
+            logger.error(
+                "Error saving attachment session=%s error=%s",
+                session_id,
+                str(e),
+            )
+            raise
+
+    async def get_attachments(
+        self,
+        session_id: str,
+    ) -> list:
+        try:
+            response = (
+                self.supabase.table("chat_attachments")
+                .select("*")
+                .eq("session_id", session_id)
+                .is_("deleted_at", "null")
+                .order("created_at", desc=False)
+                .execute()
+            )
+
+            return response.data or []
+
+        except Exception as e:
+            logger.error(
+                "Error fetching attachments session=%s error=%s",
+                session_id,
+                str(e),
+            )
+            return []

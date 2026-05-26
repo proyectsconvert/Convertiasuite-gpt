@@ -1,11 +1,15 @@
-from app.domain.interfaces.memory_repository import IMemoryRepository
+from app.domain.interfaces.session_repository import ISessionRepository
+from app.domain.interfaces.message_repository import IMessageRepository
+from app.domain.interfaces.attachment_repository import IAttachmentRepository
+from app.infra.repositories.redis.cache_repository import RedisCacheRepository
+from app.infra.repositories.supabase.memory_repository import SupabaseMemoryRepository
 
 
-class CompositeMemoryRepository(IMemoryRepository):
+class CompositeMemoryRepository(ISessionRepository, IMessageRepository, IAttachmentRepository):
     def __init__(
         self,
-        cache: IMemoryRepository,
-        db: IMemoryRepository,
+        cache: RedisCacheRepository,
+        db: SupabaseMemoryRepository,
     ):
         self._cache = cache
         self._db = db
@@ -16,7 +20,6 @@ class CompositeMemoryRepository(IMemoryRepository):
         title: str,
         session_id: str | None = None,
     ) -> str:
-
         session_id = await self._db.create_session(
             user_id=user_id,
             title=title,
@@ -34,14 +37,14 @@ class CompositeMemoryRepository(IMemoryRepository):
     async def get_messages(
         self,
         session_id: str,
+        limit: int = 50,
     ) -> list:
-
-        cached = await self._cache.get_messages(session_id)
+        cached = await self._cache.get_messages(session_id, limit)
 
         if cached is not None:
             return cached
 
-        messages = await self._db.get_messages(session_id)
+        messages = await self._db.get_messages(session_id, limit)
 
         if messages:
             await self._cache.save_messages(
@@ -56,7 +59,6 @@ class CompositeMemoryRepository(IMemoryRepository):
         session_id: str,
         messages: list,
     ) -> None:
-
         await self._cache.save_messages(
             session_id=session_id,
             messages=messages,
@@ -72,7 +74,6 @@ class CompositeMemoryRepository(IMemoryRepository):
         user_id: str,
         session_id: str,
     ) -> None:
-
         await self._cache.delete_session(
             user_id=user_id,
             session_id=session_id,
@@ -87,14 +88,12 @@ class CompositeMemoryRepository(IMemoryRepository):
         self,
         user_id: str,
     ) -> list:
-
         return await self._db.get_session_list(user_id)
 
     async def get_session(
         self,
         session_id: str,
     ) -> dict | None:
-
         return await self._db.get_session(session_id)
 
     async def update_session(
@@ -102,7 +101,6 @@ class CompositeMemoryRepository(IMemoryRepository):
         session_id: str,
         title: str,
     ) -> None:
-
         await self._cache.update_session(
             session_id=session_id,
             title=title,
@@ -118,7 +116,6 @@ class CompositeMemoryRepository(IMemoryRepository):
         session_id: str,
         window_size: int,
     ) -> list:
-
         cached = await self._cache.get_context_window(
             session_id=session_id,
             window_size=window_size,
@@ -139,3 +136,50 @@ class CompositeMemoryRepository(IMemoryRepository):
             )
 
         return messages or []
+    
+    async def save_attachment(
+        self,
+        session_id: str,
+        storage_path: str,
+        file_name: str,
+        mime_type: str | None,
+        file_size: int | None,
+        extracted_text: str | None = None,
+    ) -> str:
+        # Save in Redis cache
+        await self._cache.save_attachment(
+            session_id=session_id,
+            storage_path=storage_path,
+            file_name=file_name,
+            mime_type=mime_type,
+            file_size=file_size,
+            extracted_text=extracted_text,
+        )
+        # Save in Supabase database (source of truth)
+        return await self._db.save_attachment(
+            session_id=session_id,
+            storage_path=storage_path,
+            file_name=file_name,
+            mime_type=mime_type,
+            file_size=file_size,
+            extracted_text=extracted_text,
+        )
+
+    async def get_attachments(
+        self,
+        session_id: str,
+    ) -> list:
+        return await self._db.get_attachments(session_id)
+
+    # Stream Status Management (Cached in Redis)
+    async def start_stream(self, session_id: str) -> None:
+        await self._cache.start_stream(session_id)
+
+    async def stop_stream(self, session_id: str) -> bool:
+        return await self._cache.stop_stream(session_id)
+
+    async def should_stop_stream(self, session_id: str) -> bool:
+        return await self._cache.should_stop_stream(session_id)
+
+    async def cleanup_stream(self, session_id: str) -> None:
+        await self._cache.cleanup_stream(session_id)

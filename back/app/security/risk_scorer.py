@@ -22,23 +22,18 @@ class RiskScore:
 
     @property
     def should_block(self) -> bool:
-        return self.total_score >= 0.70
+        return self.total_score >= 0.85
 
     @property
     def should_restrict(self) -> bool:
-        return self.total_score >= 0.50 and self.total_score < 0.70
+        return self.total_score >= 0.65 and self.total_score < 0.85
 
     @property
     def should_allow(self) -> bool:
-        return self.total_score < 0.50
+        return self.total_score < 0.65
 
 
 class RiskScorer:
-    """
-    Motor de scoring de riesgo semántico.
-    Usa múltiples señales para calcular probabilidad de ataque.
-    """
-
     INJECTION_INDICATORS = [
         (r"(?i)(ignore|disregard|forget)\s*(all\s*)?(previous|instructions)", 0.4),
         (r"(?i)(reveal|show|expose|tell\s*me)\s*(your\s*)?(system\s*)?prompt", 0.5),

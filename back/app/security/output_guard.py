@@ -1,7 +1,7 @@
 import re
 import logging
-import unicodedata
 from enum import Enum
+from app.security.unicode_utils import normalize_unicode
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,6 @@ class OutputValidator:
         r"api[_\s-]?key",
         r"secret[_\s-]?key",
         r"(?i)token\s*=\s*[a-zA-Z0-9_-]+",
-        # Anti-leak for system prompt identity phrases
         r"eres\s+olivia",
         r"asistente\s+interno\s+de\s+convertia",
         r"tu\s+propósito\s+es\s+ayudar\s+a\s+diferentes",
@@ -57,7 +56,7 @@ class OutputValidator:
         if not text or not text.strip():
             return True, OutputValidationAction.ALLOW, None
 
-        normalized = unicodedata.normalize("NFKC", text)
+        normalized = normalize_unicode(text)
 
         if self._check_forbidden(normalized):
             return False, OutputValidationAction.BLOCK, "security_policy_violation"
@@ -103,18 +102,13 @@ class OutputValidator:
         if not chunk:
             return True, None
 
-        normalized = unicodedata.normalize("NFKC", chunk)
+        normalized = normalize_unicode(chunk)
         text_lower = normalized.lower()
 
         for pattern in self._forbidden_re:
             if pattern.search(text_lower):
                 logger.warning("Forbidden pattern detected in chunk")
                 return False, "security_policy_violation"
-
-        for pattern in self._language_re:
-            if pattern.search(normalized):
-                logger.warning("Non-Spanish language in chunk")
-                return False, "language_not_allowed"
 
         return True, None
 
@@ -134,7 +128,7 @@ def sanitize_output(text: str) -> str | None:
         logger.warning("Output flagged for regeneration")
         return None
 
-    normalized = unicodedata.normalize("NFKC", text)
+    normalized = normalize_unicode(text)
     return normalized
 
 

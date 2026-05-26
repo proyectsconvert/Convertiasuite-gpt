@@ -27,6 +27,11 @@ export default function MessageBubble({
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
 
   const isUser = message.role === "user";
+  const attachment = message.attachments?.[0];
+
+  console.log("MESSAGE", message);
+  console.log("ATTACHMENT", attachment);
+
 
   const timestamp =
     message.timestamp instanceof Date
@@ -42,7 +47,10 @@ export default function MessageBubble({
     }
   }, [message.content]);
 
-  if (typeof message.content !== "string") {
+  if (
+    typeof message.content !== "string" &&
+    !message.attachments?.length
+  ) {
     return null;
   }
 
@@ -90,7 +98,7 @@ export default function MessageBubble({
         <div className={`max-w-[90%] min-w-0 ${isUser ? "flex flex-col items-end" : ""}`}>
           {isUser ? (
             <div className="w-fit max-w-full rounded-2xl rounded-tr-md bg-secondary/70 px-4 py-3 text-[15px] leading-relaxed text-foreground">
-              {message.attachment && (
+              {attachment && (
                 <div className="mb-3 overflow-hidden rounded-2xl border border-border/70 bg-background/90 p-3">
                   <div className="flex items-start gap-3">
                     <div className="flex h-10 w-10 flex-none items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -98,11 +106,11 @@ export default function MessageBubble({
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-semibold text-foreground truncate">
-                        {message.attachment.filename}
+                        {attachment.filename}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
                         <span className="rounded-full bg-secondary/80 px-2 py-0.5 text-[11px] font-medium uppercase text-foreground/80">
-                          {message.attachment.type || "archivo"}
+                          {attachment.type || "archivo"}
                         </span>
                         <span>Adjunto cargado</span>
                       </div>
@@ -113,7 +121,7 @@ export default function MessageBubble({
               {message.content ? (
                 <div>{message.content}</div>
               ) : (
-                !message.attachment && <div>{message.content}</div>
+                !attachment && <div>{message.content}</div>
               )}
             </div>
           ) : (

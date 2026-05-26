@@ -2,28 +2,28 @@ const API_URL = import.meta.env.VITE_API_URL || "";
 const API_BASE = `${API_URL}/chat`;
 const AUTH_BASE = `${API_URL}/auth`;
 
-export interface ChatMessageAttachment {
+export interface Attachment {
+  id?: string;
   filename: string;
-  type?: string;
+  type: string;
 }
 
 export interface ChatMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: string;
-  attachment?: ChatMessageAttachment;
+  attachments?: Attachment[];
 }
 
 export interface SendMessageRequest {
-  message: string;
-  session_id?: string;
-  model?: string;
-  user_role?: string;
-  has_attachment?: boolean;
-  extracted_context?: string;
-  attachment_type?: string;
-  attachment_name?: string;
+    message: string;
+    session_id?: string;
+    model?: string;
+    user_role?: string;
+    extracted_context?: string;
+    attachment_type?: string;
+    attachment_name?: string;
 }
 
 export interface StreamChunk {
@@ -34,15 +34,25 @@ export interface StreamChunk {
   error?: string;
 }
 
+// Type guard para validar StreamChunk
+function isValidStreamChunk(data: unknown): data is StreamChunk {
+  if (typeof data !== "object" || data === null) {
+    return false;
+  }
+  const obj = data as Record<string, unknown>;
+  const validTypes = ["start", "chunk", "done", "error"];
+  return (
+    typeof obj.type === "string" &&
+    validTypes.includes(obj.type) &&
+    (obj.content === undefined || typeof obj.content === "string") &&
+    (obj.session_id === undefined || typeof obj.session_id === "string") &&
+    (obj.model === undefined || typeof obj.model === "string") &&
+    (obj.error === undefined || typeof obj.error === "string")
+  );
+}
+
 export interface ChatHistoryResponse {
-  messages: Array<
-    ChatMessage & {
-      attachments?: Array<{
-        filename?: string;
-        type?: string;
-      }>;
-    }
-  >;
+  messages: ChatMessage[];
   session_id: string;
 }
 
@@ -71,7 +81,9 @@ export interface UserInfo {
 
 export interface TokenResponse {
   access_token: string;
+  refresh_token?: string;
   token_type: string;
+  expires_in?: number;
   user: UserInfo;
 }
 
@@ -80,9 +92,71 @@ function getAccessToken(): string | null {
   return localStorage.getItem("accessToken");
 }
 
+function getRefreshToken(): string | null {
+  return localStorage.getItem("refreshToken");
+}
+
+function setTokens(accessToken: string, refreshToken?: string): void {
+  localStorage.setItem("accessToken", accessToken);
+  if (refreshToken) {
+    localStorage.setItem("refreshToken", refreshToken);
+  }
+}
+
 function clearSession(): void {
   localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
   localStorage.removeItem("user");
+}
+
+// Flag para evitar múltiples intentos de refresh simultáneamente
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  // Si ya estamos refrescando, espera a que termine
+  if (isRefreshing) {
+    return refreshPromise || Promise.resolve(false);
+  }
+
+  isRefreshing = true;
+
+  refreshPromise = (async () => {
+    try {
+      const refreshToken = getRefreshToken();
+      if (!refreshToken) {
+        return false;
+      }
+
+      // Intentar refrescar el token (asume que el backend tiene endpoint /auth/refresh)
+      const response = await fetch(`${AUTH_BASE}/refresh`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${refreshToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setTokens(data.access_token, data.refresh_token || refreshToken);
+        isRefreshing = false;
+        return true;
+      }
+
+      // Si el refresh falla, limpiar sesión
+      clearSession();
+      isRefreshing = false;
+      return false;
+    } catch (error) {
+      console.error("Error refrescando token:", error);
+      clearSession();
+      isRefreshing = false;
+      return false;
+    }
+  })();
+
+  return refreshPromise;
 }
 
 function buildHeaders(customHeaders: HeadersInit = {}, isFormData = false): HeadersInit {
@@ -111,10 +185,26 @@ async function apiFetch(
     headers: buildHeaders(options.headers, isFormData),
   });
 
+  // Intentar refrescar si recibe 401
   if (response.status === 401) {
+    const refreshed = await tryRefreshToken();
+
+    if (refreshed) {
+      // Reintentar solicitud con token nuevo
+      return fetch(url, {
+        ...options,
+        headers: buildHeaders(options.headers, isFormData),
+      }).catch((error) => {
+        clearSession();
+        window.location.href = "/login";
+        throw error;
+      });
+    }
+
+    // Si el refresh falla, redirigir a login
     clearSession();
     window.location.href = "/login";
-    return new Promise(() => { });
+    return new Promise(() => { }); // Nunca resuelve
   }
 
   if (!response.ok) {
@@ -146,7 +236,15 @@ export const authApi = {
       );
     }
 
-    return response.json();
+    const data: TokenResponse = await response.json();
+
+    // Guardar tokens después de login exitoso
+    localStorage.setItem("accessToken", data.access_token);
+    if (data.refresh_token) {
+      localStorage.setItem("refreshToken", data.refresh_token);
+    }
+
+    return data;
   },
 };
 
@@ -197,7 +295,14 @@ export const chatApi = {
           }
 
           try {
-            const chunk: StreamChunk = JSON.parse(data);
+            const parsed = JSON.parse(data);
+
+            if (!isValidStreamChunk(parsed)) {
+              console.error("Invalid StreamChunk structure:", parsed);
+              throw new Error("Invalid stream chunk format");
+            }
+
+            const chunk: StreamChunk = parsed;
 
             yield chunk;
 
@@ -263,22 +368,22 @@ export const chatApi = {
     );
   },
 
-  async uploadFile(
-    file: File,
-    sessionId?: string
-  ): Promise<{ filename: string; has_attachment: boolean; extracted_context: string; attachment_type?: string }> {
-    const formData = new FormData();
-    formData.append("file", file);
+   async uploadFile(
+     file: File,
+     sessionId?: string
+   ): Promise<{ filename: string; extracted_context: string; attachment_type?: string }> {
+     const formData = new FormData();
+     formData.append("file", file);
 
-    if (sessionId) {
-      formData.append("session_id", sessionId);
-    }
+     if (sessionId) {
+       formData.append("session_id", sessionId);
+     }
 
-    const response = await apiFetch(`${API_BASE}/upload`, {
-      method: "POST",
-      body: formData,
-    });
+     const response = await apiFetch(`${API_BASE}/upload`, {
+       method: "POST",
+       body: formData,
+     });
 
-    return response.json();
-  }
+     return response.json();
+   }
 };
