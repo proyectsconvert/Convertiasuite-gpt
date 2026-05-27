@@ -1,8 +1,3 @@
-"""
-CSV document processor.
-Extracts tables from CSV files with configurable delimiters.
-"""
-
 import csv
 import io
 import logging
@@ -20,18 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 class CsvProcessor(IDocumentProcessor):
-    """
-    Processes CSV files using Python's csv module.
-    Supports various delimiters and formats.
-    """
 
     def __init__(self, delimiter: Optional[str] = None):
-        """
-        Initialize CSV processor.
-
-        Args:
-            delimiter: CSV delimiter (default: auto-detect or comma)
-        """
         self.delimiter = delimiter
 
     @property
@@ -47,27 +32,19 @@ class CsvProcessor(IDocumentProcessor):
         file_content: bytes,
         filename: str,
     ) -> ParsedContent:
-        """
-        Parse CSV file and extract table data.
-        """
         try:
-            # Decode bytes to string
             try:
                 text_content = file_content.decode("utf-8")
             except UnicodeDecodeError:
                 text_content = file_content.decode("latin-1")
 
-            # Determine delimiter
             delimiter = self.delimiter
             if not delimiter:
-                # Auto-detect for TSV
                 if filename.endswith(".tsv"):
                     delimiter = "\t"
                 else:
-                    # Try comma as default
                     delimiter = ","
 
-            # Parse CSV
             csv_file = io.StringIO(text_content)
             reader = csv.reader(csv_file, delimiter=delimiter)
 
@@ -75,11 +52,9 @@ class CsvProcessor(IDocumentProcessor):
             if not rows:
                 raise ValueError("Empty CSV file")
 
-            # Extract headers and data
             headers = rows[0] if rows else []
             data_rows = rows[1:] if len(rows) > 1 else []
 
-            # Create table
             table = Table(
                 headers=headers,
                 rows=data_rows,
@@ -87,14 +62,12 @@ class CsvProcessor(IDocumentProcessor):
                 metadata={"delimiter": delimiter, "rows": len(data_rows)},
             )
 
-            # Create content text
             full_text = f"CSV File: {filename}\n"
             full_text += " | ".join(headers) + "\n"
             full_text += "-" * 50 + "\n"
             for row in data_rows:
                 full_text += " | ".join(row) + "\n"
 
-            # Create section
             section = Section(
                 title="CSV Data",
                 content=full_text,
@@ -126,7 +99,6 @@ class CsvProcessor(IDocumentProcessor):
             raise ValueError(f"Failed to parse CSV: {str(e)}")
 
     def get_metadata(self, file_content: bytes) -> dict:
-        """Extract CSV metadata without full parsing."""
         try:
             text_content = file_content.decode("utf-8", errors="ignore")
             lines = text_content.split("\n")[:2]  # First 2 lines

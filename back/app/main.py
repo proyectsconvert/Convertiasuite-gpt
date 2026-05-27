@@ -25,7 +25,7 @@ from app.infra.repositories.supabase.memory_repository import (
 from app.infra.repositories.supabase.document_repository import (
     SupabaseDocumentRepository,
 )
-from app.services.document_manager import DocumentManager
+from app.services.Files_Processor.document_manager import DocumentManager
 from app.security.rate_limiting import limiter
 from app.api import chat, auth, documents
 from app.infra.clients.ollama_client import OllamaClient

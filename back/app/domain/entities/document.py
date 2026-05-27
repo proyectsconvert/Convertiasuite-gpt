@@ -1,8 +1,3 @@
-"""
-Domain entities for document processing.
-Core document representation following hexagonal architecture.
-"""
-
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -11,19 +6,17 @@ from uuid import UUID
 
 
 class DocumentType(Enum):
-    """Supported document types."""
-
     PDF = "pdf"
     EXCEL = "excel"
     DOCX = "docx"
     TXT = "txt"
     CSV = "csv"
+    MD = "md"
     JSON = "json"
 
 
 @dataclass
 class ImageMetadata:
-    """Metadata for extracted images."""
 
     name: str
     page_number: Optional[int] = None
@@ -34,7 +27,6 @@ class ImageMetadata:
 
 @dataclass
 class Table:
-    """Represents a table in the document."""
 
     headers: list[str]
     rows: list[list[str]]
@@ -52,11 +44,10 @@ class Table:
 
 @dataclass
 class Section:
-    """Represents a hierarchical section of content."""
 
     title: str
     content: str
-    level: int = 1  # Hierarchy level (1=main, 2=subsection, etc)
+    level: int = 1  
     metadata: dict = field(default_factory=dict)
     embeddings: Optional[dict] = None
 
@@ -67,7 +58,6 @@ class Section:
 
 @dataclass
 class ParsedContent:
-    """Complete parsed content from a document."""
 
     text: str
     sections: list[Section] = field(default_factory=list)
@@ -76,9 +66,6 @@ class ParsedContent:
     metadata: dict = field(default_factory=dict)
 
     def to_searchable_text(self) -> str:
-        """
-        Combine all text content for full-text search.
-        """
         parts = [self.text]
 
         for section in self.sections:
@@ -98,11 +85,6 @@ class ParsedContent:
 
 @dataclass
 class Document:
-    """
-    Core document entity.
-    Represents a file processed and stored in the system.
-    """
-
     id: UUID
     type: DocumentType
     filename: str
@@ -117,14 +99,11 @@ class Document:
 
     @property
     def file_size_bytes(self) -> int:
-        """Estimate file size from content."""
         return len(self.parsed_content.to_searchable_text().encode())
 
 
 @dataclass
 class DocumentSearchResult:
-    """Result from document search operation."""
-
     document: Document
     matching_sections: list[Section]
     relevance_score: float  # 0.0 to 1.0

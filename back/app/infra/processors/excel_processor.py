@@ -1,8 +1,3 @@
-"""
-Excel document processor using openpyxl.
-Extracts text, tables, and metadata from XLSX/XLS files.
-"""
-
 import io
 import logging
 
@@ -23,10 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 class ExcelProcessor(IDocumentProcessor):
-    """
-    Processes Excel files using openpyxl.
-    Extracts tables from each sheet and preserves structure.
-    """
 
     def __init__(self):
         if load_workbook is None:
@@ -47,10 +38,7 @@ class ExcelProcessor(IDocumentProcessor):
         file_content: bytes,
         filename: str,
     ) -> ParsedContent:
-        """
-        Parse Excel file and extract all sheet data.
-        Each sheet becomes a section with embedded tables.
-        """
+  
         try:
             excel_file = io.BytesIO(file_content)
             workbook = load_workbook(excel_file, data_only=True)

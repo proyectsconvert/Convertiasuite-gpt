@@ -14,18 +14,14 @@ logger = logging.getLogger(__name__)
 
 class ResponseValidator:
 
-    # Patrones comunes de intento de jailbreak
+    # Patrones comunes de intento de jailbreak - SOLO para comandos directos
     JAILBREAK_PATTERNS = [
-        r"ignore.*above|previous|instruction",
-        r"forget.*everything|all",
-        r"new\s+instruction",
-        r"my\s+(system\s+)?prompt",
-        r"my\s+instruction",
-        r"my\s+contract",
-        r"override.*rule",
-        r"disable.*filter",
-        r"system\s+message",
-        r"act\s+as|roleplay",
+        r"^ignore\s+(all\s+)?(above|previous|instruction)",
+        r"^forget\s+(everything|all)(?!\s+about)",
+        r"^(new|override)\s+(instruction|rule|system)",
+        r"^(my\s+)?(system\s+)?(prompt|instruction|contract):\s*",
+        r"^(disable|bypass)\s+(safety|filter|restriction)",
+        r"^(act\s+as|roleplay\s+as)\s+(developer|admin|root|hacker)",
     ]
 
     # Patrones para extraer campos estructurados

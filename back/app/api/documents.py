@@ -1,13 +1,9 @@
-"""
-Document upload and management API endpoints.
-"""
-
 import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request
 from app.dependencies.auth import get_current_user
-from app.services.document_manager import DocumentManager
+from app.services.Files_Processor.document_manager import DocumentManager
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +11,6 @@ router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 
 def get_document_manager(request: Request) -> DocumentManager:
-    """Dependency: Get document manager from app state."""
     return request.app.state.document_manager
 
 
@@ -27,34 +22,18 @@ async def upload_document(
     current_user: dict = Depends(get_current_user),
     document_manager: DocumentManager = Depends(get_document_manager),
 ):
-    """
-    Upload and process a document.
-
-    Supported formats: PDF, DOCX, XLSX, CSV, TXT
-
-    Args:
-        file: Document file
-        session_id: Associated chat session (required for context)
-        tags: Optional tags
-
-    Returns:
-        Document metadata
-    """
     try:
         if not session_id:
             raise HTTPException(status_code=400, detail="session_id is required")
 
-        # Read file
         content = await file.read()
         if not content:
             raise HTTPException(status_code=400, detail="File is empty")
 
-        # Check file size (max 50MB)
         max_size = 50 * 1024 * 1024
         if len(content) > max_size:
             raise HTTPException(status_code=413, detail="File too large")
 
-        # Check if file type is supported
         if not document_manager.processor_factory.is_supported(file.filename):
             supported = document_manager.get_supported_extensions()
             raise HTTPException(
@@ -62,7 +41,6 @@ async def upload_document(
                 detail=f"Unsupported file type. Supported: {', '.join(supported)}",
             )
 
-        # Process document
         document = await document_manager.process_document(
             file_content=content,
             filename=file.filename,
@@ -98,7 +76,6 @@ async def get_session_documents(
     current_user: dict = Depends(get_current_user),
     document_manager: DocumentManager = Depends(get_document_manager),
 ):
-    """Get all documents in a session."""
     try:
         documents = await document_manager.document_repository.get_by_session(
             UUID(session_id)

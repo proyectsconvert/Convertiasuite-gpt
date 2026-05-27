@@ -10,38 +10,31 @@ from app.domain.interfaces.document_processor import IDocumentProcessor
 logger = logging.getLogger(__name__)
 
 
-class TextProcessor(IDocumentProcessor):
-
+class MdProcessor(IDocumentProcessor):
     @property
     def supported_type(self) -> DocumentType:
-        return DocumentType.TXT
+        return DocumentType.MD
 
     @property
     def supported_extensions(self) -> list[str]:
-        return [".txt", ".text"]
+        return [".md", ".markdown"]
 
     async def parse(
         self,
         file_content: bytes,
         filename: str,
     ) -> ParsedContent:
-
         try:
-            try:
-                text_content = file_content.decode("utf-8")
-            except UnicodeDecodeError:
-                text_content = file_content.decode("latin-1")
-
-            text_content = text_content.strip()
+            text_content = file_content.decode("utf-8", errors="ignore").strip()
 
             if not text_content:
-                raise ValueError("Empty text file")
+                raise ValueError("Empty markdown file")
 
             section = Section(
-                title="Content",
+                title="Markdown Content",
                 content=text_content,
                 level=1,
-                metadata={"type": "text", "lines": len(text_content.split("\n"))},
+                metadata={"type": "markdown", "lines": len(text_content.split("\n"))},
             )
 
             metadata = {
@@ -59,8 +52,8 @@ class TextProcessor(IDocumentProcessor):
             )
 
         except Exception as e:
-            logger.error(f"Text parsing error for {filename}: {str(e)}")
-            raise ValueError(f"Failed to parse text file: {str(e)}")
+            logger.error(f"Error parsing markdown file: {str(e)}")
+            raise ValueError(f"Failed to parse markdown: {str(e)}")
 
     def get_metadata(self, file_content: bytes) -> dict:
         try:
@@ -72,7 +65,6 @@ class TextProcessor(IDocumentProcessor):
                 "words": len(text_content.split()),
                 "bytes": len(file_content),
             }
-
         except Exception as e:
-            logger.error(f"Text metadata extraction error: {str(e)}")
+            logger.error(f"Markdown metadata extraction error: {str(e)}")
             return {"is_valid": False, "error": str(e)}

@@ -285,15 +285,19 @@ class FileProcessorService:
     def extract_text_from_csv(cls, contents: bytes) -> str:
         try:
             try:
-                df = pd.read_csv(BytesIO(contents), sep=None, engine='python', encoding='utf-8')
+                df = pd.read_csv(
+                    BytesIO(contents), sep=None, engine="python", encoding="utf-8"
+                )
             except Exception:
-                df = pd.read_csv(BytesIO(contents), sep=None, engine='python', encoding='latin-1')
+                df = pd.read_csv(
+                    BytesIO(contents), sep=None, engine="python", encoding="latin-1"
+                )
 
             df = df.fillna("")
             headers = list(df.columns)
             data_rows = df.values.tolist()
             rows = [headers] + data_rows
-            
+
             return cls.analyze_tabular_data(rows)
         except Exception as e:
             logger.error(f"Error parseando CSV con Pandas: {str(e)}")
@@ -303,16 +307,63 @@ class FileProcessorService:
     def extract_text_from_excel(cls, contents: bytes) -> str:
         try:
             df = pd.read_excel(BytesIO(contents))
-            
+
             df = df.fillna("")
             headers = list(df.columns)
             data_rows = df.values.tolist()
             rows = [headers] + data_rows
-            
+
             return cls.analyze_tabular_data(rows)
         except Exception as e:
             logger.error(f"Error parseando Excel con Pandas: {str(e)}")
             raise ValueError(f"Error al procesar el archivo Excel: {str(e)}")
+
+    @staticmethod
+    def extract_text_from_txt(contents: bytes) -> str:
+        try:
+            try:
+                text = contents.decode("utf-8")
+            except UnicodeDecodeError:
+                text = contents.decode("latin-1")
+                if not text or not text.strip():
+                    return "El archivo de texto parece estar vacío."
+            return text.strip()
+        except Exception as e:
+            logger.error(f"Error parseando archivo de texto: {str(e)}")
+            raise ValueError(f"Error al procesar el archivo de texto: {str(e)}")
+
+    @staticmethod
+    def extract_text_from_json(contents: bytes) -> str:
+        try:
+            text_contend = contents.decode("utf-8")
+            if not text_contend.strip():
+                return "El archivo JSON parece estar vacío."
+            parsed_json = json.loads(text_contend)
+            return json.dumps(parsed_json, indent=2, ensure_ascii=False)
+        except UnicodeDecodeError:
+            logger.error("Error decodificando JSON")
+            raise ValueError(
+                "Error al decodificar el archivo JSON. Verifique la codificación del archivo."
+            )
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parseando JSON: {str(e)}")
+            raise ValueError(f"Error al procesar el archivo JSON: {str(e)}")
+
+    @staticmethod
+    def extract_text_from_md(contents: bytes) -> str:
+        try:
+            try:
+                text = contents.decode("utf-8")
+            except UnicodeDecodeError:
+                text = contents.decode("latin-1")
+
+            if not text or not text.strip():
+                return "El archivo Markdown (.md) está vacío."
+
+            return text.strip()
+        except Exception as e:
+            logger.error(f"Error parseando archivo MD: {str(e)}")
+            raise ValueError(f"Error al procesar el archivo Markdown (.md): {str(e)}")
 
 
 class FileProcessorFactory:
@@ -323,14 +374,25 @@ class FileProcessorFactory:
             return FileProcessorService.extract_text_from_pdf, "pdf"
         elif (
             filename_lower.endswith((".docx", ".doc"))
-            or content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            or content_type
+            == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         ):
             return FileProcessorService.extract_text_from_docx, "word"
         elif filename_lower.endswith(".csv") or content_type == "text/csv":
             return FileProcessorService.extract_text_from_csv, "csv"
         elif (
             filename_lower.endswith((".xlsx", ".xls"))
-            or content_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            or content_type
+            == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         ):
             return FileProcessorService.extract_text_from_excel, "excel"
+        elif filename_lower.endswith((".txt", ".text")) or content_type == "text/plain":
+            return FileProcessorService.extract_text_from_txt, "txt"
+        elif filename_lower.endswith(".json") or content_type == "application/json":
+            return FileProcessorService.extract_text_from_json, "json"
+        elif (
+            filename_lower.endswith((".md", ".markdown"))
+            or content_type == "text/markdown"
+        ):
+            return FileProcessorService.extract_text_from_md, "md"
         return None, None

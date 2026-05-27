@@ -35,7 +35,7 @@ from app.security.prompt_injection_guard import (
 
 from app.security.risk_scorer import risk_scorer
 from app.services.model_router import route_model
-from app.services.document_manager import DocumentManager
+from app.services.Files_Processor.document_manager import DocumentManager
 
 MODEL_CONFIG = get_model_config()
 logger = logging.getLogger(__name__)
@@ -49,7 +49,6 @@ async def _persist_messages(
     messages: list,
 ):
     try:
-        # Truncate history based on token limit (4000 tokens ≈ 16000 chars)
         trimmed_messages = truncate_history_by_tokens(messages, max_tokens=4000)
 
         await memory_repo.save_messages(
@@ -146,7 +145,6 @@ async def process_chat(
 
         history = await memory_repo.get_messages(session_id) or []
 
-        # Token-based history truncation (approx 2000 tokens ≈ 8000 chars)
         history = truncate_history_by_tokens(history, max_tokens=2000)
 
         sanitized_history = []
@@ -159,7 +157,7 @@ async def process_chat(
                     try:
                         validate_prompt_safety(
                             msg_obj.content,
-                            risk_level="LOW",
+                            risk_level="MEDIUM",  # Less restrictive for history
                         )
 
                     except Exception:
@@ -198,7 +196,6 @@ async def process_chat(
                 }
             )
 
-            # Persist document to DB document store & relational attachments if session just created/updated
             if document_manager and session_id:
                 try:
                     await document_manager.process_document(
@@ -233,7 +230,6 @@ async def process_chat(
                 trace_id,
             )
 
-        # Contextual top-k chunk retrieval
         doc_context = ""
         if document_manager and session_id:
             try:
@@ -249,7 +245,6 @@ async def process_chat(
                     str(e),
                 )
 
-        # Fallback to local chunking if doc store returned empty but we have extracted_context
         if not doc_context and request.extracted_context:
             paragraphs = [p.strip() for p in request.extracted_context.split("\n\n") if p.strip()]
             query_words = set(clean_input.lower().split())
@@ -280,7 +275,6 @@ async def process_chat(
         messages = sanitized_history.copy()
         messages.append(user_message)
 
-        # IMMUTABLE CONTEXT INJECTION: Construct model_messages separate from persisted_messages
         model_messages = []
         for msg in messages:
             model_messages.append(

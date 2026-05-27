@@ -95,26 +95,22 @@ export default function ChatInput({
 
     if (!file) return;
 
-    if (
-      !file.name.endsWith(".xlsx") &&
-      !file.name.endsWith(".csv") &&
-      !file.name.endsWith(".pdf") &&
-      !file.name.endsWith(".docx")
-    ) {
+    const fileExtension = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+    const allowedExtensions = [".xlsx", ".csv", ".pdf", ".docx", ".txt", ".json", ".md"];
+
+    if (!allowedExtensions.includes(fileExtension)) {
       toast({
         title: "Formato no permitido",
         description:
-          "Solo se admiten Excel (.xlsx), CSV, PDF (.pdf) o Word (.docx)",
+          "Solo se admiten Excel (.xlsx), CSV, PDF (.pdf), Word (.docx), Texto (.txt), Markdown (.md) o JSON (.json)",
         variant: "destructive",
       });
 
       e.target.value = "";
-
       return;
     }
 
     setUploadState("uploading");
-
     try {
       const response = await chatApi.uploadFile(file);
 
@@ -251,7 +247,7 @@ export default function ChatInput({
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept=".xlsx,.csv,.pdf,.docx"
+          accept=".xlsx,.csv,.pdf,.docx, .txt, .md, .json"
           className="hidden"
         />
 

@@ -22,21 +22,25 @@ class RiskScore:
 
     @property
     def should_block(self) -> bool:
-        return self.total_score >= 0.85
+        return self.total_score >= 0.90  # Increased threshold for blocking
 
     @property
     def should_restrict(self) -> bool:
-        return self.total_score >= 0.65 and self.total_score < 0.85
+        return self.total_score >= 0.75 and self.total_score < 0.90
 
     @property
     def should_allow(self) -> bool:
-        return self.total_score < 0.65
+        return self.total_score < 0.75
 
 
 class RiskScorer:
     INJECTION_INDICATORS = [
         (r"(?i)(ignore|disregard|forget)\s*(all\s*)?(previous|instructions)", 0.4),
-        (r"(?i)(reveal|show|expose|tell\s*me)\s*(your\s*)?(system\s*)?prompt", 0.5),
+        (
+            r"(?i)(reveal|show|expose)\s*(the\s*)?(system\s*)?prompt",
+            0.5,
+        ),  # Fixed: only flagged with "prompt"
+        (r"(?i)(tell\s*me|show\s*me).*?(system\s*)?(prompt|instructions|config)", 0.5),
         (
             r"(?i)(what|which)\s*(are|is)\s*(your\s*)?(system\s*)?(instructions|config)",
             0.5,

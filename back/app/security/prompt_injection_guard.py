@@ -25,10 +25,10 @@ def validate_prompt_safety(text: str, risk_level: str = "HIGH") -> bool:
         )
 
     risk_thresholds = {
-        "CRITICAL": 0.75,
-        "HIGH": 0.75,
-        "MEDIUM": 0.80,
-        "LOW": 0.85,
+        "CRITICAL": 0.85,
+        "HIGH": 0.80,
+        "MEDIUM": 0.85,
+        "LOW": 0.90,
     }
 
     threshold = risk_thresholds.get(risk_level.upper(), 0.60)

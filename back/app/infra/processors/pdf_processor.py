@@ -1,10 +1,5 @@
-"""
-PDF document processor using pdfplumber.
-Extracts text, tables, and images from PDF files.
-"""
-
-import io
 import logging
+import io
 from typing import Optional
 
 try:
@@ -25,11 +20,6 @@ logger = logging.getLogger(__name__)
 
 
 class PdfProcessor(IDocumentProcessor):
-    """
-    Processes PDF files using pdfplumber.
-    Extracts text, tables, and image metadata.
-    """
-
     def __init__(self):
         if pdfplumber is None:
             raise ImportError(
@@ -50,35 +40,27 @@ class PdfProcessor(IDocumentProcessor):
         file_content: bytes,
         filename: str,
     ) -> ParsedContent:
-        """
-        Parse PDF and extract content.
-        Handles text, tables, images, and structure.
-        """
+
         try:
             pdf_file = io.BytesIO(file_content)
 
             with pdfplumber.open(pdf_file) as pdf:
-                # Determine page range
                 max_page = (
                     min(len(pdf.pages), self.max_pages)
                     if self.max_pages
                     else len(pdf.pages)
                 )
 
-                # Extract content
                 full_text = ""
                 sections: list[Section] = []
                 tables: list[Table] = []
                 images: list[ImageMetadata] = []
 
-                # Process each page
                 for page_num, page in enumerate(pdf.pages[:max_page], 1):
-                    # Extract text
                     page_text = page.extract_text() or ""
                     if page_text:
                         full_text += f"\n--- Page {page_num} ---\n{page_text}"
 
-                        # Create section for page
                         section = Section(
                             title=f"Page {page_num}",
                             content=page_text,
@@ -87,7 +69,6 @@ class PdfProcessor(IDocumentProcessor):
                         )
                         sections.append(section)
 
-                    # Extract tables
                     page_tables = page.extract_tables()
                     if page_tables:
                         for table_idx, table_data in enumerate(page_tables):
@@ -103,7 +84,6 @@ class PdfProcessor(IDocumentProcessor):
                                 )
                                 tables.append(table)
 
-                    # Extract image metadata (count, approximate position)
                     page_images = page.images
                     if page_images:
                         for img_idx, img in enumerate(page_images):
@@ -137,7 +117,6 @@ class PdfProcessor(IDocumentProcessor):
             raise ValueError(f"Failed to parse PDF: {str(e)}")
 
     def get_metadata(self, file_content: bytes) -> dict:
-        """Extract PDF metadata without full parsing."""
         try:
             pdf_file = io.BytesIO(file_content)
 

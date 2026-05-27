@@ -1,12 +1,6 @@
-"""
-Document management service.
-Orchestrates document processing, persistence, and context extraction.
-"""
-
 import logging
 from uuid import UUID, uuid4
 from datetime import datetime, UTC
-
 from app.domain.entities.document import Document, DocumentType
 from app.domain.interfaces.document_processor import DocumentProcessorFactory
 from app.infra.repositories.supabase.document_repository import (
@@ -17,10 +11,6 @@ logger = logging.getLogger(__name__)
 
 
 class DocumentManager:
-    """
-    Service for managing document lifecycle.
-    Handles upload, parsing, persistence, and context extraction.
-    """
 
     def __init__(
         self,
@@ -39,26 +29,6 @@ class DocumentManager:
         tags: list[str] | None = None,
         metadata: dict | None = None,
     ) -> Document | None:
-        """
-        Process a file and persist it.
-
-        Steps:
-        1. Determine document type
-        2. Parse using appropriate processor
-        3. Create Document entity
-        4. Persist to repository
-
-        Args:
-            file_content: File bytes
-            filename: Original filename
-            session_id: Associated session
-            user_id: Document owner
-            tags: Optional tags
-            metadata: Optional custom metadata
-
-        Returns:
-            Persisted Document entity or None if processing failed
-        """
         try:
             # Get processor
             processor = self.processor_factory.get_processor_by_extension(filename)
@@ -100,17 +70,7 @@ class DocumentManager:
         session_id: UUID,
         limit: int = 5,
     ) -> str:
-        """
-        Get relevant document context for a session.
-        Used to augment chat context with document information.
 
-        Args:
-            session_id: Session to get context for
-            limit: Max documents to include
-
-        Returns:
-            Formatted context string
-        """
         try:
             documents = await self.document_repository.get_by_session(session_id)
             documents = documents[:limit]
@@ -187,18 +147,7 @@ class DocumentManager:
         query: str,
         document_type: DocumentType | None = None,
     ) -> list[Document]:
-        """
-        Search documents in a session.
-        Basic text search on parsed content.
 
-        Args:
-            session_id: Session to search in
-            query: Search query
-            document_type: Optional type filter
-
-        Returns:
-            Matching documents
-        """
         try:
             if document_type:
                 documents = await self.document_repository.search_by_type(
@@ -207,7 +156,6 @@ class DocumentManager:
             else:
                 documents = await self.document_repository.get_by_session(session_id)
 
-            # Basic text search
             query_lower = query.lower()
             results = []
 
@@ -227,7 +175,6 @@ class DocumentManager:
         document_id: UUID,
         user_id: UUID,
     ) -> bool:
-        """Delete document if user owns it."""
         try:
             return await self.document_repository.delete(document_id, user_id)
         except Exception as e:
@@ -235,9 +182,7 @@ class DocumentManager:
             return False
 
     def get_supported_types(self) -> list[DocumentType]:
-        """Get list of supported document types."""
         return self.processor_factory.supported_types
 
     def get_supported_extensions(self) -> list[str]:
-        """Get list of supported file extensions."""
         return self.processor_factory.supported_extensions

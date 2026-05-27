@@ -13,32 +13,27 @@ class OutputValidationAction(Enum):
 
 
 class OutputValidator:
-    MAX_OUTPUT_LENGTH = 100000  # Increased for document analysis
+    MAX_OUTPUT_LENGTH = 100000  
     MAX_LINE_LENGTH = 500
 
     FORBIDDEN_PATTERNS = [
-        r"system\s*prompt",
-        r"prompt\s*de\s*origen",
-        r"instrucciones\s*ocultas",
-        r"reveal.*system",
-        r"show.*instructions",
-        r"api[_\s-]?key",
-        r"secret[_\s-]?key",
-        r"(?i)token\s*=\s*[a-zA-Z0-9_-]+",
-        r"eres\s+olivia",
-        r"asistente\s+interno\s+de\s+convertia",
-        r"tu\s+propósito\s+es\s+ayudar\s+a\s+diferentes",
-        r"responde\s+siempre\s+en\s+español",
-        r"nunca\s+mezcles\s+otros\s+idiomas",
-        r"no\s+uses\s+emojis",
-        r"tono\s+profesional\s+y\s+consistente",
-        r"restricción\s+absoluta",
+        r"system\s+prompt\s*=",
+        r"prompt\s+de\s+origen\s*=",
+        r"instrucciones\s+ocultas\s*:",
+        r"reveal\s+the\s+system\s+prompt",
+        r"show\s+me\s+the\s+instructions",
+        r"api[_\s-]?key\s*=\s*['\"]",
+        r"secret[_\s-]?key\s*=\s*['\"]",
+        r"(?i)token\s*=\s*['\"][a-zA-Z0-9_-]+['\"]",
+        r"eres\s+olivia\s*$",  # Only at end of response
+        r"asistente\s+interno\s+de\s+convertia\s*$",
+        r"tu\s+propósito\s+es\s+ayudar\s+a\s+diferentes\s*$",
     ]
 
     LANGUAGE_BLOCK_PATTERNS = [
-        r"[\u4e00-\u9fff]",  # Chinese
-        r"[\uac00-\ud7af]",  # Korean
-        r"[\u3040-\u309f\u30a0-\u30ff]",  # Japanese hiragana/katakana
+        r"[\u4e00-\u9fff]",  
+        r"[\uac00-\ud7af]", 
+        r"[\u3040-\u309f\u30a0-\u30ff]",  #
     ]
 
     FORMAT_BREAK_PATTERNS = [
@@ -133,17 +128,6 @@ def sanitize_output(text: str) -> str | None:
 
 
 def get_safety_fallback(role: str = "default") -> str:
-    """
-    Obtiene mensaje de fallback seguro y contextualizado por rol.
-
-    CONSOLIDADO: Usa FallbackResponseProvider para respuestas consistentes.
-
-    Args:
-        role: User role (default, code, analysis, etc)
-
-    Returns:
-        Mensaje fallback apropiado
-    """
     from app.services.prompts.fallback_templates import (
         FallbackResponseProvider,
         FallbackTemplate,

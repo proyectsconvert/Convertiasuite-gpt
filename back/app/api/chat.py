@@ -12,8 +12,8 @@ from app.security.exceptions import SecurityException
 from app.security.output_guard import get_safety_fallback
 from app.dependencies.auth import get_current_user
 from app.services.chat_service import process_chat
-from app.services.file_processor import FileProcessorService
-from app.services.document_manager import DocumentManager
+from app.services.Files_Processor.file_processor import FileProcessorService
+from app.services.Files_Processor.document_manager import DocumentManager
 
 from app.schemas.chat import (
     ChatRequest,

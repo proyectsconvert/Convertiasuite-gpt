@@ -1,8 +1,3 @@
-"""
-DOCX document processor using python-docx.
-Extracts text, tables, and structure from DOCX files.
-"""
-
 import io
 import logging
 
@@ -24,11 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class DocxProcessor(IDocumentProcessor):
-    """
-    Processes DOCX files using python-docx.
-    Extracts text, tables, and document structure.
-    """
-
     def __init__(self):
         if DocxDocument is None:
             raise ImportError(
@@ -48,10 +38,6 @@ class DocxProcessor(IDocumentProcessor):
         file_content: bytes,
         filename: str,
     ) -> ParsedContent:
-        """
-        Parse DOCX and extract content.
-        Preserves document structure through sections.
-        """
         try:
             docx_file = io.BytesIO(file_content)
             doc = DocxDocument(docx_file)
@@ -62,7 +48,6 @@ class DocxProcessor(IDocumentProcessor):
             current_section_title = "Introduction"
             current_section_content = ""
 
-            # Process document content
             for para_idx, para in enumerate(doc.paragraphs):
                 if not para.text.strip():
                     continue
@@ -91,7 +76,6 @@ class DocxProcessor(IDocumentProcessor):
                     )
                     current_section_content = ""
 
-                # Update section title if heading
                 if is_heading:
                     current_section_title = para.text.strip()
                 else:
@@ -110,7 +94,6 @@ class DocxProcessor(IDocumentProcessor):
                     f"## {current_section_title}\n{current_section_content}\n\n"
                 )
 
-            # Process tables
             for table_idx, docx_table in enumerate(doc.tables):
                 headers = []
                 rows = []
@@ -142,7 +125,7 @@ class DocxProcessor(IDocumentProcessor):
                 "has_core_properties": doc.core_properties is not None,
             }
 
-            # Add core properties if available
+
             if doc.core_properties:
                 metadata.update(
                     {
@@ -165,7 +148,6 @@ class DocxProcessor(IDocumentProcessor):
             raise ValueError(f"Failed to parse DOCX: {str(e)}")
 
     def get_metadata(self, file_content: bytes) -> dict:
-        """Extract DOCX metadata without full parsing."""
         try:
             docx_file = io.BytesIO(file_content)
             doc = DocxDocument(docx_file)

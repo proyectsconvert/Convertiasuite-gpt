@@ -10,44 +10,37 @@ from app.domain.interfaces.document_processor import IDocumentProcessor
 logger = logging.getLogger(__name__)
 
 
-class TextProcessor(IDocumentProcessor):
-
+class JsonProcessor(IDocumentProcessor):
     @property
     def supported_type(self) -> DocumentType:
-        return DocumentType.TXT
+        return DocumentType.JSON
 
     @property
     def supported_extensions(self) -> list[str]:
-        return [".txt", ".text"]
+        return [".json"]
 
     async def parse(
         self,
         file_content: bytes,
         filename: str,
     ) -> ParsedContent:
-
         try:
-            try:
-                text_content = file_content.decode("utf-8")
-            except UnicodeDecodeError:
-                text_content = file_content.decode("latin-1")
+            import json
 
-            text_content = text_content.strip()
+            json_content = json.loads(file_content.decode("utf-8"))
 
-            if not text_content:
-                raise ValueError("Empty text file")
+            text_content = json.dumps(json_content, indent=2)
 
             section = Section(
-                title="Content",
+                title="JSON Content",
                 content=text_content,
                 level=1,
-                metadata={"type": "text", "lines": len(text_content.split("\n"))},
+                metadata={"type": "json"},
             )
 
             metadata = {
-                "lines": len(text_content.split("\n")),
-                "words": len(text_content.split()),
                 "bytes": len(file_content),
+                "keys": len(json_content) if isinstance(json_content, dict) else 0,
             }
 
             return ParsedContent(
@@ -57,22 +50,25 @@ class TextProcessor(IDocumentProcessor):
                 images=[],
                 metadata=metadata,
             )
-
         except Exception as e:
-            logger.error(f"Text parsing error for {filename}: {str(e)}")
-            raise ValueError(f"Failed to parse text file: {str(e)}")
+            raise ValueError(f"Failed to parse JSON file: {str(e)}")
 
     def get_metadata(self, file_content: bytes) -> dict:
         try:
-            text_content = file_content.decode("utf-8", errors="ignore").strip()
+            import json
+
+            json_content = json.loads(file_content.decode("utf-8"))
 
             return {
-                "is_valid": bool(text_content),
-                "lines": len(text_content.split("\n")),
-                "words": len(text_content.split()),
+                "is_valid": True,
                 "bytes": len(file_content),
+                "keys": len(json_content) if isinstance(json_content, dict) else 0,
+                "type": "dict"
+                if isinstance(json_content, dict)
+                else "array"
+                if isinstance(json_content, list)
+                else "other",
             }
-
         except Exception as e:
-            logger.error(f"Text metadata extraction error: {str(e)}")
+            logger.error(f"JSON metadata extraction error: {str(e)}")
             return {"is_valid": False, "error": str(e)}

@@ -2,9 +2,8 @@ import logging
 from typing import Optional
 from uuid import UUID
 from fastapi import UploadFile, HTTPException
-
-from app.services.file_processor import FileProcessorFactory
-from app.services.document_manager import DocumentManager
+from app.services.Files_Processor.file_processor import FileProcessorFactory
+from app.services.Files_Processor.document_manager import DocumentManager
 from app.domain.interfaces.attachment_repository import IAttachmentRepository
 
 logger = logging.getLogger(__name__)
@@ -25,7 +24,7 @@ class UploadService:
         if not parser_fn:
             raise HTTPException(
                 status_code=400,
-                detail="Formato de archivo no soportado (use PDF, Word, Excel o CSV)"
+                detail="Formato de archivo no soportado (use PDF, Word, Excel, CSV, TXT, MD, JSON)",
             )
 
         try:
