@@ -1,12 +1,3 @@
-"""
-Fallback Response Templates (Sprint 1b)
-
-Define respuestas seguras y profesionales cuando la validación falla o el modelo
-no responde en el formato esperado.
-
-Evita "algo salió mal" genérico. Cada rol tiene respuestas fallback apropiadas.
-"""
-
 from enum import Enum
 from typing import Optional
 
@@ -25,14 +16,6 @@ class FallbackTemplate(Enum):
 
 
 class FallbackResponseProvider:
-    """
-    Proveedor centralizado de respuestas fallback.
-
-    Evita duplicación: todas las respuestas fallback vienen de aquí.
-    Fácil de mantener: cambiar mensajes en un solo lugar.
-    """
-
-    # Fallbacks por rol - cada uno tiene contexto específico
     FALLBACKS_BY_ROLE = {
         UserRole.default.value: {
             FallbackTemplate.SAFETY_BLOCK: (

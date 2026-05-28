@@ -7,15 +7,75 @@ import {
   Check,
   User,
   FileText,
+  FileSpreadsheet,
+  FileDown,
+  Download,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion } from "framer-motion";
-import type { ChatMessage } from "@/services/api";
-
+import { ChatMessage, documentsApi } from "@/services/api";
+import remarkGfm from "remark-gfm";
 interface MessageBubbleProps {
   message: ChatMessage;
   onRegenerate?: () => void;
   isStreaming?: boolean;
+}
+
+const getCodeText = (node: any): string => {
+  try {
+    const firstChild = node?.children?.[0];
+    const codeChild = firstChild?.children?.[0];
+    return codeChild?.value || "";
+  } catch {
+    return "";
+  }
+};
+
+function extractTableData(children: any): string[][] {
+  const rows: string[][] = [];
+
+  const getText = (node: any): string => {
+    if (!node) return "";
+    if (typeof node === "string") return node;
+    if (typeof node === "number") return String(node);
+    if (Array.isArray(node)) return node.map(getText).join("");
+    if (node.props && node.props.children) return getText(node.props.children);
+    return "";
+  };
+  const findRows = (node: any) => {
+    if (!node) return;
+    if (node.type === "tr") {
+      const cells: string[] = [];
+      const childrenArray = Array.isArray(node.props.children)
+        ? node.props.children
+        : [node.props.children];
+
+      childrenArray.forEach((cell: any) => {
+        if (cell && typeof cell === "object") {
+          const text = getText(cell).trim();
+          if (text || text === "") {
+            cells.push(text);
+          }
+        }
+      });
+      if (cells.length > 0) {
+        rows.push(cells);
+      }
+    } else if (node.props && node.props.children) {
+      const childrenArray = Array.isArray(node.props.children)
+        ? node.props.children
+        : [node.props.children];
+      childrenArray.forEach(findRows);
+    }
+  };
+
+  if (Array.isArray(children)) {
+    children.forEach(findRows);
+  } else {
+    findRows(children);
+  }
+
+  return rows;
 }
 
 export default function MessageBubble({
@@ -32,7 +92,6 @@ export default function MessageBubble({
   console.log("MESSAGE", message);
   console.log("ATTACHMENT", attachment);
 
-
   const timestamp =
     message.timestamp instanceof Date
       ? message.timestamp
@@ -43,14 +102,29 @@ export default function MessageBubble({
       await navigator.clipboard.writeText(message.content);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-    }
+    } catch {}
   }, [message.content]);
 
-  if (
-    typeof message.content !== "string" &&
-    !message.attachments?.length
-  ) {
+  const handleDownload = useCallback(
+    async (format: string, filename: string, content: any) => {
+      try {
+        const blob = await documentsApi.generateFile(filename, format, content);
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (error) {
+        console.error(`Error descargando el archivo ${filename}:`, error);
+      }
+    },
+    [],
+  );
+
+  if (typeof message.content !== "string" && !message.attachments?.length) {
     return null;
   }
 
@@ -95,7 +169,9 @@ export default function MessageBubble({
           {isUser ? "Tú" : "convert-IA"}
         </div>
 
-        <div className={`max-w-[90%] min-w-0 ${isUser ? "flex flex-col items-end" : ""}`}>
+        <div
+          className={`max-w-[90%] min-w-0 ${isUser ? "flex flex-col items-end" : ""}`}
+        >
           {isUser ? (
             <div className="w-fit max-w-full rounded-2xl rounded-tr-md bg-secondary/70 px-4 py-3 text-[15px] leading-relaxed text-foreground">
               {attachment && (
@@ -127,63 +203,62 @@ export default function MessageBubble({
           ) : (
             <div className="prose-chat text-[15px] leading-[1.7] text-foreground">
               <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
                 components={{
-                  /* Code blocks with copy button */
-                  pre: ({ children, ...props }) => (
-                    <div className="relative group/code my-3">
-                      <pre
-                        className="bg-[hsl(220,20%,13%)] text-[hsl(210,20%,88%)] rounded-xl p-4 overflow-x-auto text-sm leading-relaxed"
-                        {...props}
-                      >
-                        {children}
-                      </pre>
-                      <button
-                        onClick={() => {
-                          const node = (props as { node?: unknown }).node;
-                          let text = "";
+                  pre: ({ children, ...props }) => {
+                    const codeElement = children as any;
+                    const className = codeElement?.props?.className || "";
+                    const match = /language-(\w+)/.exec(className);
+                    const rawLang = match ? match[1] : "txt";
+                    const isSupportedForDownload = [
+                      "csv",
+                      "json",
+                      "markdown",
+                      "md",
+                      "txt",
+                    ].includes(rawLang);
 
-                          if (
-                            node &&
-                            typeof node === "object" &&
-                            "children" in node &&
-                            Array.isArray(
-                              (node as { children?: unknown }).children,
-                            )
-                          ) {
-                            const firstChild = (node as { children?: unknown })
-                              .children?.[0];
-                            if (
-                              firstChild &&
-                              typeof firstChild === "object" &&
-                              "children" in firstChild &&
-                              Array.isArray(
-                                (firstChild as { children?: unknown }).children,
-                              )
-                            ) {
-                              const codeChild = (
-                                firstChild as { children?: unknown }
-                              ).children?.[0];
-                              if (
-                                codeChild &&
-                                typeof codeChild === "object" &&
-                                "value" in codeChild
-                              ) {
-                                text = String(
-                                  (codeChild as { value?: unknown }).value ||
-                                    "",
+                    return (
+                      <div className="relative group/code my-3">
+                        <pre
+                          className="bg-[hsl(220,20%,13%)] text-[hsl(210,20%,88%)] rounded-xl p-4 overflow-x-auto text-sm leading-relaxed"
+                          {...props}
+                        >
+                          {children}
+                        </pre>
+                        <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/code:opacity-100 transition-all">
+                          {isSupportedForDownload && (
+                            <button
+                              onClick={() => {
+                                const text = getCodeText((props as any).node);
+                                const fileExt =
+                                  rawLang === "markdown" ? "md" : rawLang;
+                                handleDownload(
+                                  rawLang,
+                                  `codigo-descargado.${fileExt}`,
+                                  text,
                                 );
-                              }
-                            }
-                          }
-
-                          navigator.clipboard.writeText(text);
-                        }}
-                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/10 text-white/60 opacity-0 group-hover/code:opacity-100 hover:bg-white/20 transition-all text-xs"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ),
+                              }}
+                              className="p-1.5 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white transition-all text-xs"
+                              title={`Descargar archivo .${rawLang === "markdown" ? "md" : rawLang}`}
+                            >
+                              <FileDown className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              const text = getCodeText((props as any).node);
+                              navigator.clipboard.writeText(text);
+                            }}
+                            className="p-1.5 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white transition-all text-xs"
+                            title="Copiar código"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  },
                   code: ({ children, className, ...props }) => {
                     const isInline = !className;
                     if (isInline) {
@@ -205,11 +280,53 @@ export default function MessageBubble({
                       </code>
                     );
                   },
-                  table: ({ children }) => (
-                    <div className="overflow-x-auto my-3 rounded-lg border border-border">
-                      <table className="w-full text-sm">{children}</table>
-                    </div>
-                  ),
+                  table: ({ children }) => {
+                    const handleExport = (format: "excel" | "csv") => {
+                      const tableData = extractTableData(children);
+                      if (tableData.length > 0) {
+                        const extension = format === "excel" ? "xlsx" : "csv";
+                        handleDownload(
+                          format,
+                          `tabla-exportada.${extension}`,
+                          tableData,
+                        );
+                      }
+                    };
+
+                    return (
+                      <div className="my-4 rounded-xl border border-border bg-background/50 overflow-hidden group/table">
+                        <div className="flex items-center justify-between px-3 py-1.5 bg-secondary/30 border-b border-border text-[11px] text-muted-foreground">
+                          <span className="font-medium flex items-center gap-1.5">
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-success" />
+                            Tabla de datos
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleExport("excel")}
+                              className="px-2 py-0.5 rounded hover:bg-secondary hover:text-foreground transition-colors flex items-center gap-1 text-[11px]"
+                              title="Exportar a Excel (.xlsx)"
+                            >
+                              <Download className="w-3 h-3 text-success" />
+                              <span>Excel</span>
+                            </button>
+                            <button
+                              onClick={() => handleExport("csv")}
+                              className="px-2 py-0.5 rounded hover:bg-secondary hover:text-foreground transition-colors flex items-center gap-1 text-[11px]"
+                              title="Exportar a CSV (.csv)"
+                            >
+                              <Download className="w-3 h-3 text-primary" />
+                              <span>CSV</span>
+                            </button>
+                          </div>
+                        </div>
+                        <div className="overflow-x-auto p-1 bg-background">
+                          <table className="w-full text-sm border-collapse">
+                            {children}
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  },
                   th: ({ children }) => (
                     <th className="px-3 py-2 text-left font-semibold bg-secondary/50 border-b border-border text-foreground">
                       {children}
@@ -283,6 +400,36 @@ export default function MessageBubble({
               {/* Action buttons */}
               {!isStreaming && (
                 <div className="flex items-center gap-0.5 mt-3 -ml-1.5">
+                  <button
+                    onClick={() =>
+                      handleDownload(
+                        "word",
+                        `documento-${message.id.slice(0, 8)}.docx`,
+                        message.content,
+                      )
+                    }
+                    className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors flex items-center gap-1 text-[11px]"
+                    aria-label="Descargar Word"
+                    title="Descargar como Word (.docx)"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Word</span>
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleDownload(
+                        "pdf",
+                        `documento-${message.id.slice(0, 8)}.pdf`,
+                        message.content,
+                      )
+                    }
+                    className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors flex items-center gap-1 text-[11px]"
+                    aria-label="Descargar PDF"
+                    title="Descargar como PDF (.pdf)"
+                  >
+                    <FileDown className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">PDF</span>
+                  </button>
                   <button
                     onClick={handleCopy}
                     className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors"

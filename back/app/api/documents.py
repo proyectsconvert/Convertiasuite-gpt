@@ -1,9 +1,14 @@
 import logging
 from uuid import UUID
+import io
+from typing import Any
+from pydantic import BaseModel
 
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from app.dependencies.auth import get_current_user
 from app.services.Files_Processor.document_manager import DocumentManager
+from app.services.File_generator.file_generator import FileGeneratorService
 
 logger = logging.getLogger(__name__)
 
@@ -131,3 +136,81 @@ async def get_supported_formats(
         "types": [t.value for t in document_manager.get_supported_types()],
         "extensions": document_manager.get_supported_extensions(),
     }
+
+
+class GenerateFileRequest(BaseModel):
+    filename: str
+    format: str
+    content: Any
+
+
+@router.post("/generate")
+async def generate_document(
+    request: GenerateFileRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Generate a downloadable document in various formats."""
+    format_lower = request.format.lower()
+    filename = request.filename
+
+    # Standardize filename extensions
+    if format_lower == "pdf" and not filename.endswith(".pdf"):
+        filename += ".pdf"
+    elif format_lower in ["word", "docx"] and not filename.endswith(".docx"):
+        filename += ".docx"
+    elif format_lower in ["excel", "xlsx"] and not filename.endswith(".xlsx"):
+        filename += ".xlsx"
+    elif format_lower == "csv" and not filename.endswith(".csv"):
+        filename += ".csv"
+    elif format_lower == "json" and not filename.endswith(".json"):
+        filename += ".json"
+    elif format_lower == "md" and not filename.endswith(".md"):
+        filename += ".md"
+    elif format_lower == "txt" and not filename.endswith(".txt"):
+        filename += ".txt"
+
+    try:
+        if format_lower == "pdf":
+            file_bytes = FileGeneratorService.generate_pdf(request.content)
+            media_type = "application/pdf"
+        elif format_lower in ["word", "docx"]:
+            file_bytes = FileGeneratorService.generate_docx(request.content)
+            media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        elif format_lower in ["excel", "xlsx"]:
+            file_bytes = FileGeneratorService.generate_excel(request.content)
+            media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        elif format_lower == "csv":
+            file_bytes = FileGeneratorService.generate_csv(request.content)
+            media_type = "text/csv"
+        elif format_lower == "json":
+            file_bytes = FileGeneratorService.generate_json(request.content)
+            media_type = "application/json"
+        elif format_lower == "md":
+            file_bytes = FileGeneratorService.generate_md(request.content)
+            media_type = "text/markdown"
+        elif format_lower == "txt":
+            file_bytes = FileGeneratorService.generate_txt(request.content)
+            media_type = "text/plain"
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Formato no soportado: {request.format}"
+            )
+
+        headers = {
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition"
+        }
+
+        return StreamingResponse(
+            io.BytesIO(file_bytes),
+            media_type=media_type,
+            headers=headers
+        )
+
+    except Exception as e:
+        logger.error(f"Error generating document {filename}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al generar el archivo: {str(e)}"
+        )

@@ -387,3 +387,13 @@ export const chatApi = {
      return response.json();
    }
 };
+
+export const documentsApi = {
+  async generateFile(filename: string, format: string, content: any): Promise<Blob> {
+    const response = await apiFetch(`${API_URL}/api/documents/generate`, {
+      method: "POST",
+      body: JSON.stringify({ filename, format, content }),
+    });
+    return response.blob();
+  }
+};
