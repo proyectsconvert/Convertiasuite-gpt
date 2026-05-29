@@ -54,7 +54,7 @@ MODEL_REGISTRY = {
         "preset": "cold",
         "tier": "cold",
         "capabilities": ["vision", "image"],
-        "num_ctx": 2048,
+        "num_ctx": 4096,
         "max_tokens": 512,
     },
     "deepseek-ocr": {
@@ -111,8 +111,8 @@ MODEL_REGISTRY = {
         "preset": "cold",
         "tier": "cold",
         "capabilities": ["vision", "image"],
-        "num_ctx": 2048,
-        "max_tokens": 512,
+        "num_ctx": 8192,
+        "max_tokens": 2048,
     },
     "analysis": {
         "model": "gemma4-e4b:latest",

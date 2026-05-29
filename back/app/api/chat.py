@@ -206,12 +206,15 @@ async def get_chat_history(
                 "type": att_type
             })
             
+        msg_images = msg.get("images", []) if is_dict else getattr(msg, "images", [])
+
         formatted_messages.append({
             "id": msg_id,
             "role": role,
             "content": content,
             "timestamp": timestamp,
-            "attachments": formatted_attachments
+            "attachments": formatted_attachments,
+            "images": msg_images
         })
 
     return ChatHistoryResponse(messages=formatted_messages, session_id=session_id)
@@ -233,3 +236,24 @@ async def upload_file(
         session_id=session_id,
         user_id=current_user["id"]
     )
+
+
+@router.post("/upload-audio")
+async def upload_audio(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        from app.services.transcription_service import transcribe_audio
+        
+        contents = await file.read()
+        transcript = transcribe_audio(contents)
+        
+        return {"transcript": transcript}
+    except Exception as e:
+        logger.error(f"Error in upload_audio: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al procesar y transcribir el audio: {str(e)}"
+        )
+

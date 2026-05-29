@@ -37,6 +37,7 @@ class MessageDTO(BaseModel):
     content: str
     timestamp: str
     attachments: Optional[List[AttachmentDTO]] = []
+    images: Optional[List[str]] = []
 
 
 class ChatHistoryResponse(BaseModel):

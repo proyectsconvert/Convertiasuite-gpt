@@ -4,8 +4,7 @@ import WelcomeScreen from "@/components/chat/WelcomeScreen";
 import ChatInput from "@/components/chat/ChatInput";
 import ChatHeader from "@/components/chat/ChatHeader";
 import MessageBubble from "@/components/chat/MessageBubble";
-import { chatApi, ChatMessage } from "@/services/api";
-import { set } from "date-fns";
+import { chatApi, ChatMessage, documentsApi } from "@/services/api";
 
 export default function ChatView() {
   const { currentChatId, setCurrentChatId, user, addSession } = useAppStore();
@@ -14,6 +13,7 @@ export default function ChatView() {
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  const skipNextHistoryFetch = useRef(false);
 
   const isNewChat = !currentChatId;
 
@@ -22,28 +22,12 @@ export default function ChatView() {
   }, [messages.length, isLoading, streamingContent]);
 
   useEffect(() => {
-    const fetchChatHistory = async () => {
-      try {
-        const data = await chatApi.getHistory(currentChatId!);
-        if (data?.messages && Array.isArray(data.messages)) {
-          setMessages(data.messages);
-        } else {
-          setMessages([]);
-        }
-      } catch (error: unknown) {
-        if (error instanceof Error) {
-          console.error("Error al traer el historial de chat:", error.message);
-        } else {
-          console.error(
-            "Error desconocido al traer el historial de chat:",
-            error,
-          );
-        }
-        setMessages([]);
-      }
-    };
-
     if (currentChatId) {
+      if (skipNextHistoryFetch.current) {
+        skipNextHistoryFetch.current = false;
+        return;
+      }
+
       chatApi
         .getHistory(currentChatId)
         .then((data) => {
@@ -55,6 +39,7 @@ export default function ChatView() {
                 content: msg.content,
                 timestamp: msg.timestamp,
                 attachments: msg.attachments || [],
+                images: msg.images || [],
               })),
             );
           }
@@ -86,13 +71,10 @@ export default function ChatView() {
       content: input.trim() || "",
       timestamp: new Date().toISOString(),
       attachments: attachment ? [attachment] : [],
+      images: (attachmentType === "image" || attachmentType === "vision") && extractedContext ? [extractedContext] : [],
     };
 
-    const isInitialMessage = !currentChatId && messages.length === 0;
-
-    if (!isInitialMessage) {
-      setMessages((prev) => [...prev, userMsg]);
-    }
+    setMessages((prev) => [...prev, userMsg]);
 
     setStreamingContent("");
     setInput("");
@@ -107,30 +89,34 @@ export default function ChatView() {
             ? input.slice(0, 50)
             : filename || "Nueva Conversación";
 
+        
+        skipNextHistoryFetch.current = true;
+
         const s = await chatApi.createSession(sessionTitle);
         sid = s.id;
         setCurrentChatId(sid);
         addSession(s);
       } catch (e) {
         console.error("Session error:", e);
+        skipNextHistoryFetch.current = false;
       }
     }
 
-     try {
-       let fullResponse = "";
+    try {
+      let fullResponse = "";
 
-       for await (const chunk of chatApi.sendMessageStream({
-         message: messageText,
-         session_id: sid || undefined,
-         extracted_context: extractedContext,
-         attachment_type: attachmentType,
-         attachment_name: filename,
-       })) {
-         if (chunk.type === "chunk" && chunk.content) {
-           fullResponse += chunk.content;
-           setStreamingContent(fullResponse);
-         }
-       }
+      for await (const chunk of chatApi.sendMessageStream({
+        message: messageText,
+        session_id: sid || undefined,
+        extracted_context: extractedContext,
+        attachment_type: attachmentType,
+        attachment_name: filename,
+      })) {
+        if (chunk.type === "chunk" && chunk.content) {
+          fullResponse += chunk.content;
+          setStreamingContent(fullResponse);
+        }
+      }
 
       setMessages((prev) => [
         ...prev,
@@ -171,8 +157,13 @@ export default function ChatView() {
       <ChatHeader />
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-5 lg:px-8 py-3">
-          {messages.map((m) => (
-            <MessageBubble key={m.id} message={m} onRegenerate={undefined} />
+          {messages.map((m, index) => (
+            <MessageBubble
+              key={m.id}
+              message={m}
+              onRegenerate={undefined}
+              previousMessage={index > 0 ? messages[index - 1] : undefined}
+            />
           ))}
           {streamingContent && (
             <MessageBubble
@@ -184,6 +175,7 @@ export default function ChatView() {
               }}
               onRegenerate={undefined}
               isStreaming={true}
+              previousMessage={messages[messages.length - 1]}
             />
           )}
           {isLoading && !streamingContent && (

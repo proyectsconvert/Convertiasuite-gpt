@@ -365,12 +365,23 @@ class FileProcessorService:
             logger.error(f"Error parseando archivo MD: {str(e)}")
             raise ValueError(f"Error al procesar el archivo Markdown (.md): {str(e)}")
 
+    @staticmethod
+    def extract_base64_from_image(contents: bytes) -> str:
+        import base64
+        try:
+            return base64.b64encode(contents).decode("utf-8")
+        except Exception as e:
+            logger.error(f"Error codificando imagen a Base64: {str(e)}")
+            raise ValueError(f"Error al procesar la imagen: {str(e)}")
+
 
 class FileProcessorFactory:
     @staticmethod
     def get_parser(filename: str, content_type: str = None) -> tuple:
         filename_lower = filename.lower()
-        if filename_lower.endswith(".pdf") or content_type == "application/pdf":
+        if filename_lower.endswith((".png", ".jpg", ".jpeg", ".webp")) or (content_type and content_type.startswith("image/")):
+            return FileProcessorService.extract_base64_from_image, "image"
+        elif filename_lower.endswith(".pdf") or content_type == "application/pdf":
             return FileProcessorService.extract_text_from_pdf, "pdf"
         elif (
             filename_lower.endswith((".docx", ".doc"))

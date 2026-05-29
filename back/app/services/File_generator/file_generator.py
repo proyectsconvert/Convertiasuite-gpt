@@ -87,6 +87,7 @@ class FileGeneratorService:
             raise ImportError("python-docx is not installed.")
 
         try:
+            content = FileGeneratorService.clean_conversational_text(content)
             doc = Document()
             for section in doc.sections:
                 section.top_margin = Inches(1)
@@ -384,6 +385,49 @@ class FileGeneratorService:
             raise ValueError(f"Failed to generate DOCX: {str(e)}")
 
     @staticmethod
+    def clean_conversational_text(content: str) -> str:
+        if not content:
+            return content
+        lines = content.split("\n")
+        intro_outro_patterns = [
+            r"(?i)a\s+continuación,?\s+presento",
+            r"(?i)dado\s+que\s+ha\s+solicitado",
+            r"(?i)puede\s+descargar(lo)?\s+utilizando",
+            r"(?i)descargar\s+este\s+reporte",
+            r"(?i)botones\s+de\s+\"?pdf\"?\s+o\s+\"?word\"?",
+            r"(?i)he\s+redactado\s+el\s+contenido",
+            r"(?i)aquí\s+tiene\s+el\s+reporte",
+            r"(?i)espero\s+que\s+este\s+reporte",
+            r"(?i)al\s+final\s+de\s+esta\s+respuesta",
+            r"(?i)utilizando\s+los\s+botones",
+        ]
+        filtered_lines = []
+        for line in lines:
+            stripped = line.strip()
+            is_conversational = False
+            for pattern in intro_outro_patterns:
+                if re.search(pattern, stripped):
+                    is_conversational = True
+                    break
+            if not is_conversational:
+                filtered_lines.append(line)
+        start_idx = 0
+        while start_idx < len(filtered_lines):
+            line_val = filtered_lines[start_idx].strip()
+            if line_val in ["*", "**", "", "-", "_"]:
+                start_idx += 1
+            else:
+                break
+        end_idx = len(filtered_lines)
+        while end_idx > start_idx:
+            line_val = filtered_lines[end_idx - 1].strip()
+            if line_val in ["*", "**", "", "-", "_"]:
+                end_idx -= 1
+            else:
+                break
+        return "\n".join(filtered_lines[start_idx:end_idx])
+
+    @staticmethod
     def clean_markdown_tags(text: str) -> str:
         text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
         text = re.sub(r"\*(.*?)\*", r"<i>\1</i>", text)
@@ -399,6 +443,7 @@ class FileGeneratorService:
             raise ImportError("reportlab is not installed.")
 
         try:
+            content = cls.clean_conversational_text(content)
             font_normal = "inter"
             font_bold = "inter-bold"
 

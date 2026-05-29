@@ -96,13 +96,13 @@ export default function ChatInput({
     if (!file) return;
 
     const fileExtension = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
-    const allowedExtensions = [".xlsx", ".csv", ".pdf", ".docx", ".txt", ".json", ".md"];
+    const allowedExtensions = [".xlsx", ".csv", ".pdf", ".docx", ".txt", ".json", ".md", ".png", ".jpg", ".jpeg", ".webp"];
 
     if (!allowedExtensions.includes(fileExtension)) {
       toast({
         title: "Formato no permitido",
         description:
-          "Solo se admiten Excel (.xlsx), CSV, PDF (.pdf), Word (.docx), Texto (.txt), Markdown (.md) o JSON (.json)",
+          "Solo se admiten Excel (.xlsx), CSV, PDF (.pdf), Word (.docx), Texto (.txt), Markdown (.md), JSON (.json) o Imágenes (.png, .jpg, .jpeg, .webp)",
         variant: "destructive",
       });
 
@@ -192,12 +192,11 @@ export default function ChatInput({
   // STOP RECORDING
   const stopRecording = () => {
     mediaRecorderRef.current?.stop();
-
-    setUploadState("idle");
   };
 
   // AUDIO UPLOAD
   const uploadAudio = async (blob: Blob) => {
+    setUploadState("uploading");
     try {
       const formData = new FormData();
 
@@ -210,24 +209,13 @@ export default function ChatInput({
 
       const response = await chatApi.uploadAudio(formData);
 
-      setAttachedFile({
-        name: "Audio grabado",
-        context: response.transcript,
-        type: "audio",
-      });
+      if (response.transcript) {
+        onChange(value ? `${value.trim()} ${response.transcript}` : response.transcript);
+      }
 
-      toast({
-        title: "Éxito",
-        description: "Audio procesado correctamente",
-      });
+      
     } catch (error) {
       console.error("Error al procesar audio:", error);
-      toast({
-        title: "Error al procesar audio",
-        description:
-          "No se pudo procesar el archivo de audio. Intenta de nuevo.",
-        variant: "destructive",
-      });
     } finally {
       setUploadState("idle");
     }
@@ -247,7 +235,7 @@ export default function ChatInput({
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept=".xlsx,.csv,.pdf,.docx, .txt, .md, .json"
+          accept=".xlsx,.csv,.pdf,.docx,.txt,.md,.json,.png,.jpg,.jpeg,.webp"
           className="hidden"
         />
 
@@ -335,13 +323,13 @@ export default function ChatInput({
             {/* AUDIO BUTTON */}
             <button
               type="button"
-              disabled={isLoading || uploadState !== "idle"}
+              disabled={isLoading || uploadState === "uploading"}
               onClick={
                 uploadState === "recording" ? stopRecording : startRecording
               }
               className={`p-1.5 rounded-lg transition-colors ${
                 uploadState === "recording"
-                  ? "bg-red-500 text-white"
+                  ? "bg-red-500 text-white animate-pulse"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               }`}
             >

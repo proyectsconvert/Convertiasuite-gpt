@@ -182,11 +182,13 @@ async def process_chat(
         user_attachments = []
         attachment_name = "archivo adjunto"
         attachment_type = "archivo"
+        is_image = False
 
         # Determine attachment presence based on extracted_context (has_attachment flag deprecated)
         if request.extracted_context:
             attachment_name = request.attachment_name or attachment_name
             attachment_type = request.attachment_type or attachment_type
+            is_image = attachment_type.startswith("image") or attachment_type == "vision"
 
             # Lightweight attachment metadata without full context content inside history!
             user_attachments.append(
@@ -198,14 +200,15 @@ async def process_chat(
 
             if document_manager and session_id:
                 try:
-                    await document_manager.process_document(
-                        file_content=request.extracted_context.encode("utf-8"),
-                        filename=attachment_name,
-                        session_id=uuid.UUID(session_id),
-                        user_id=uuid.UUID(user_id),
-                        tags=[attachment_type],
-                        metadata={"upload_source": "chat_inference"},
-                    )
+                    if not is_image:
+                        await document_manager.process_document(
+                            file_content=request.extracted_context.encode("utf-8"),
+                            filename=attachment_name,
+                            session_id=uuid.UUID(session_id),
+                            user_id=uuid.UUID(user_id),
+                            tags=[attachment_type],
+                            metadata={"upload_source": "chat_inference"},
+                        )
                     
                     if hasattr(memory_repo, "save_attachment"):
                         storage_path = f"attachments/{session_id}/{attachment_name}"
@@ -231,7 +234,7 @@ async def process_chat(
             )
 
         doc_context = ""
-        if document_manager and session_id:
+        if document_manager and session_id and not is_image:
             try:
                 doc_context = await document_manager.get_relevant_context(
                     session_id=uuid.UUID(session_id),
@@ -245,7 +248,7 @@ async def process_chat(
                     str(e),
                 )
 
-        if not doc_context and request.extracted_context:
+        if not doc_context and request.extracted_context and not is_image:
             paragraphs = [p.strip() for p in request.extracted_context.split("\n\n") if p.strip()]
             query_words = set(clean_input.lower().split())
             scored = []
@@ -264,12 +267,22 @@ async def process_chat(
             if top_chunks:
                 doc_context = "## DOCUMENTOS RELACIONADOS (FALLBACK RETRIEVED CONTEXT):\n\n" + "\n\n".join(top_chunks)
 
+        message_content = clean_input
+        images_list = []
+        if request.extracted_context and is_image:
+            images_list = [request.extracted_context]
+            if clean_input:
+                message_content = f"[El usuario ha adjuntado la imagen: {attachment_name}]\nPregunta del usuario sobre este archivo: {clean_input}"
+            else:
+                message_content = f"[El usuario ha adjuntado la imagen: {attachment_name}]"
+
         user_message = Message(
             id=str(uuid.uuid4()),
             role="user",
-            content=clean_input,
+            content=message_content,
             timestamp=datetime.now(UTC),
             attachments=user_attachments,
+            images=images_list,
         )
 
         messages = sanitized_history.copy()
@@ -284,6 +297,7 @@ async def process_chat(
                     content=msg.content,
                     timestamp=msg.timestamp,
                     attachments=[],
+                    images=getattr(msg, "images", []),
                 )
             )
 

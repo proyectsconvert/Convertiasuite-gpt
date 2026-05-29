@@ -11,6 +11,7 @@ class Message:
         timestamp: datetime,
         attachments: Optional[list] = None,
         artifacts: Optional[list] = None,
+        images: Optional[list] = None,
     ):
         self.id = id
         self.role = role
@@ -18,9 +19,10 @@ class Message:
         self.timestamp = timestamp
         self.attachments = attachments or []
         self.artifacts = artifacts or []
+        self.images = images or []
 
     def to_dict(self) -> dict:
-        return {
+        res = {
             "id": self.id,
             "role": self.role,
             "content": self.content,
@@ -28,6 +30,9 @@ class Message:
             "attachments": self.attachments,
             "artifacts": self.artifacts,
         }
+        if self.images:
+            res["images"] = self.images
+        return res
 
     @classmethod
     def from_dict(cls, data: dict) -> "Message":
@@ -41,4 +46,5 @@ class Message:
             timestamp=timestamp,
             attachments=data.get("attachments", []),
             artifacts=data.get("artifacts", []),
+            images=data.get("images", []),
         )

@@ -36,3 +36,10 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+#modelos mic 
+vosk-model-*/
+vosk-models/
+.vosk-models/
+.vosk/
+model/

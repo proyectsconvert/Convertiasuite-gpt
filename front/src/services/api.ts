@@ -14,6 +14,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   attachments?: Attachment[];
+  images?: string[];
 }
 
 export interface SendMessageRequest {
@@ -380,6 +381,17 @@ export const chatApi = {
      }
 
      const response = await apiFetch(`${API_BASE}/upload`, {
+       method: "POST",
+       body: formData,
+     });
+
+     return response.json();
+   },
+
+   async uploadAudio(
+     formData: FormData
+   ): Promise<{ transcript: string }> {
+     const response = await apiFetch(`${API_BASE}/upload-audio`, {
        method: "POST",
        body: formData,
      });

@@ -24,18 +24,21 @@ class UploadService:
         if not parser_fn:
             raise HTTPException(
                 status_code=400,
-                detail="Formato de archivo no soportado (use PDF, Word, Excel, CSV, TXT, MD, JSON)",
+                detail="Formato de archivo no soportado (use PDF, Word, Excel, CSV, TXT, MD, JSON o imágenes PNG/JPG/JPEG/WEBP)",
             )
 
         try:
             contents = await file.read()
             extracted_text = parser_fn(contents)
 
-            max_characters = 32000
-            truncated_text = extracted_text[:max_characters]
+            if attachment_type == "image":
+                truncated_text = extracted_text
+            else:
+                max_characters = 32000
+                truncated_text = extracted_text[:max_characters]
 
-            if len(extracted_text) > max_characters:
-                truncated_text += "\n[... Archivo truncado por exceso de tamaño. Use herramientas de resumen o divida en secciones. ...]"
+                if len(extracted_text) > max_characters:
+                    truncated_text += "\n[... Archivo truncado por exceso de tamaño. Use herramientas de resumen o divida en secciones. ...]"
 
             if session_id:
                 # Save to document store via DocumentManager
