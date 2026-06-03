@@ -22,7 +22,6 @@ KEYWORDS_MEDICAL = [
     "diagnóstico", "síntoma", "medicamento", "enfermedad", "tratamiento", "médico", "clínico"
 ]
 
-# Agrupa todas las palabras clave por categoría
 ALL_KEYWORDS = {
     "vision": KEYWORDS_VISION,
     "analysis": KEYWORDS_ANALYSIS,

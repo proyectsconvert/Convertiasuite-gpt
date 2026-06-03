@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>{{ title }}</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap");
+
+      @page {
+        size: letter;
+        margin: 2.4cm 1.8cm 2.2cm 1.8cm;
+
+        @top-right {
+          content: element(header-logo);
+          vertical-align: middle;
+        }
+
+        @bottom-left {
+          content: "© Intelligence Customer Acquisition — Convertia — Documentación interna";
+          font-family: Inter, Arial, sans-serif;
+          font-size: 7.5pt;
+          color: #718096;
+          vertical-align: middle;
+        }
+
+        @bottom-right {
+          content: "Pág. " counter(page) " de " counter(pages);
+          font-family: Inter, Arial, sans-serif;
+          font-size: 7.5pt;
+          color: #718096;
+          vertical-align: middle;
+        }
+      }
+
+      @page :first {
+        margin-top: 0;
+        @top-right {
+          content: "";
+        }
+        @bottom-left {
+          content: "";
+        }
+        @bottom-right {
+          content: "";
+        }
+      }
+
+      :root {
+        --color-primary: #011e23;
+        --color-green: #10473f;
+        --color-accent: #1aeb9f;
+        --color-lavender: #bab8ff;
+        --color-body: #2d3748;
+        --color-muted: #718096;
+        --color-bg-lite: #f5f5f5;
+        --color-border: #dbdffc;
+        --color-white: #ffffff;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: Inter, Arial, sans-serif;
+        font-size: 10.5pt;
+        color: var(--color-body);
+        line-height: 1.65;
+      }
+
+      #header-logo {
+        position: running(header-logo);
+      }
+      #header-logo img {
+        height: 28px;
+        object-fit: contain;
+      }
+
+      .cover {
+        page-break-after: always;
+        min-height: 100vh;
+        background: var(--color-white);
+        display: flex;
+        flex-direction: column;
+        padding: 80pt 54pt 60pt 54pt;
+        position: relative;
+      }
+
+      .cover-top-line {
+        height: 2px;
+        background: rgba(255, 255, 255, 0.15);
+        margin-bottom: 60pt;
+      }
+
+      .cover-logo {
+        margin-bottom: 40pt;
+      }
+      .cover-logo img {
+        height: 36px;
+        object-fit: contain;
+      }
+
+      .cover h1 {
+        font-size: 38pt;
+        font-weight: 700;
+        color: var(--color-primary);
+        line-height: 1.15;
+        margin-bottom: 10pt;
+        max-width: 480pt;
+      }
+
+      .cover-accent-line {
+        width: 80pt;
+        height: 3.5pt;
+        background: var(--color-accent);
+        margin: 14pt 0 16pt;
+        border-radius: 2pt;
+      }
+
+      .cover-subtitle {
+        font-size: 17pt;
+        font-weight: 400;
+        color: #585757;
+        margin-bottom: 60pt;
+      }
+
+      .cover-meta {
+        margin-top: auto;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        padding-top: 14pt;
+      }
+      .cover-meta p {
+        font-size: 9pt;
+        color: rgba(19, 59, 51, 0.726);
+        margin-bottom: 3pt;
+      }
+      .cover-meta strong {
+        color: var(--color-primary);
+      }
+
+      .content {
+        padding: 0;
+      }
+
+      h1.section-divider {
+        page-break-before: always;
+        background: var(--color-white);
+        color: var(--color-primary);
+        font-size: 26pt;
+        font-weight: 700;
+        padding: 28pt 0 22pt;
+        margin: 0 0 24pt;
+        border-bottom: 3pt solid var(--color-accent);
+      }
+
+      h1 {
+        font-size: 20pt;
+        font-weight: 700;
+        color: var(--color-primary);
+        margin: 22pt 0 10pt;
+        page-break-after: avoid;
+      }
+
+      h2 {
+        font-size: 15pt;
+        font-weight: 600;
+        color: var(--color-green);
+        margin: 18pt 0 8pt;
+        page-break-after: avoid;
+        border-left: 3pt solid var(--color-accent);
+        padding-left: 10pt;
+      }
+
+      h3 {
+        font-size: 12pt;
+        font-weight: 600;
+        color: var(--color-body);
+        margin: 14pt 0 6pt;
+        page-break-after: avoid;
+      }
+
+      p {
+        margin-bottom: 7pt;
+        text-align: justify;
+        color: var(--color-primary);
+      }
+
+      ul,
+      ol {
+        padding-left: 18pt;
+        margin: 6pt 0 10pt;
+      }
+
+      li {
+        margin-bottom: 4pt;
+      }
+
+      ul li::marker {
+        color: var(--color-accent);
+      }
+
+      .table-wrapper {
+        margin: 14pt 0 18pt;
+        border-radius: 4pt;
+        overflow: hidden;
+      }
+
+      .table-caption {
+        font-size: 9pt;
+        font-weight: 600;
+        color: var(--color-muted);
+        margin-bottom: 5pt;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 9pt;
+      }
+
+      thead th {
+        background: var(--color-primary);
+        color: var(--color-white);
+        font-weight: 600;
+        padding: 7pt 9pt;
+        text-align: left;
+        border: none;
+      }
+
+      tbody tr:nth-child(even) {
+        background: var(--color-bg-lite);
+      }
+
+      tbody tr:nth-child(odd) {
+        background: var(--color-white);
+      }
+
+      tbody td {
+        padding: 5pt 9pt;
+        border-bottom: 0.5pt solid var(--color-border);
+        vertical-align: top;
+      }
+
+      /* ── Separador visual ────────────────────────────────────────────────── */
+      hr.accent {
+        border: none;
+        height: 2pt;
+        background: linear-gradient(
+          90deg,
+          var(--color-accent) 0%,
+          var(--color-lavender) 100%
+        );
+        margin: 16pt 0;
+        border-radius: 2pt;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Logo en encabezado de páginas interiores -->
+    {% if logo_src %}
+    <div id="header-logo">
+      <img src="{{ logo_src }}" alt="{{ brand_name }}" />
+    </div>
+    {% endif %}
+
+    <!-- PORTADA -->
+    <div class="cover">
+      <div class="cover-top-line"></div>
+
+      {% if logo_src %}
+      <div class="cover-logo">
+        <img src="{{ logo_src }}" alt="{{ brand_name }}" />
+      </div>
+      {% endif %}
+
+      <h1>{{ title }}</h1>
+      <div class="cover-accent-line"></div>
+
+      {% if subtitle %}
+      <p class="cover-subtitle">{{ subtitle }}</p>
+      {% endif %}
+
+      <div class="cover-meta">
+        <p><strong>Fecha de generación:</strong> {{ date }}</p>
+        <p><strong>Generado por:</strong> {{ author }}</p>
+        <p><strong>Clasificación:</strong> {{ classification }}</p>
+      </div>
+    </div>
+
+    <!-- CONTENIDO -->
+    <div class="content">
+      {% for section in sections %} {# Nivel 1 → Divisor de sección con fondo
+      oscuro #} {% if section.level == 1 %}
+      <h1 class="section-divider">{{ section.title }}</h1>
+      {% if section.content %}
+      <p>{{ section.content }}</p>
+      {% endif %} {# Nivel 2 → Slide de contenido principal #} {% elif
+      section.level == 2 %}
+      <h2>{{ section.title }}</h2>
+      {% if section.content %} {% for para in section.content.split('\n') %} {%
+      if para.strip() %}
+      <p>{{ para }}</p>
+      {% endif %} {% endfor %} {% endif %} {# Nivel 3 → Sub-encabezado inline #}
+      {% else %}
+      <h3>{{ section.title }}</h3>
+      {% if section.content %} {% for para in section.content.split('\n') %} {%
+      if para.strip() %}
+      <p>{{ para }}</p>
+      {% endif %} {% endfor %} {% endif %} {% endif %} {# Bullets de la sección
+      #} {% if section.has_bullets %}
+      <ul>
+        {% for bullet in section.bullets %}
+        <li>{{ bullet }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %} {# Tabla inline de la sección #} {% if section.has_table %}
+      <div class="table-wrapper">
+        {% if section.table.caption %}
+        <p class="table-caption">{{ section.table.caption }}</p>
+        {% endif %}
+        <table>
+          <thead>
+            <tr>
+              {% for header in section.table.headers %}
+              <th>{{ header }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in section.table.rows %}
+            <tr>
+              {% for cell in row %}
+              <td>{{ cell }}</td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %} {% endfor %} {# Tablas globales al final del documento #} {%
+      for table in tables %}
+      <div class="table-wrapper">
+        {% if table.caption %}
+        <p class="table-caption">{{ table.caption }}</p>
+        {% endif %}
+        <table>
+          <thead>
+            <tr>
+              {% for header in table.headers %}
+              <th>{{ header }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in table.rows %}
+            <tr>
+              {% for cell in row %}
+              <td>{{ cell }}</td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endfor %}
+    </div>
+  </body>
+</html>

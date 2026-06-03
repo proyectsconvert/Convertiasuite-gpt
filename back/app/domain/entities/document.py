@@ -106,5 +106,5 @@ class Document:
 class DocumentSearchResult:
     document: Document
     matching_sections: list[Section]
-    relevance_score: float  # 0.0 to 1.0
+    relevance_score: float  
     matched_text: str

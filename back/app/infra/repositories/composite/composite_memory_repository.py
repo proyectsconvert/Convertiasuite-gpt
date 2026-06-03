@@ -12,19 +12,10 @@ logger = logging.getLogger(__name__)
 
 
 class CompositeMemoryRepository(ISessionRepository, IMessageRepository, IAttachmentRepository):
-    """Composite repository that delegates persistent operations to Supabase and stream management to Redis.
-
-    - Session, message, and attachment CRUD are handled by ``SupabaseMemoryRepository`` (the source of truth).
-    - Stream start/stop/check/cleanup are handled by ``RedisCacheRepository`` (fast in‑memory state).
-    """
-
     def __init__(self, *, cache: RedisCacheRepository, db: SupabaseMemoryRepository):
         self.cache = cache
         self.db = db
 
-    # ---------------------------------------------------------------------
-    # Stream management (delegate to Redis)
-    # ---------------------------------------------------------------------
     async def start_stream(self, session_id: str) -> None:
         return await self.cache.start_stream(session_id)
 
@@ -55,9 +46,8 @@ class CompositeMemoryRepository(ISessionRepository, IMessageRepository, IAttachm
     async def delete_session(self, user_id: str, session_id: str) -> None:
         return await self.db.delete_session(user_id, session_id)
 
-    # ---------------------------------------------------------------------
-    # Message operations (delegate to Supabase)
-    # ---------------------------------------------------------------------
+  
+  
     async def get_messages(self, session_id: str, limit: int = 50) -> Optional[List[dict]]:
         return await self.db.get_messages(session_id, limit)
 

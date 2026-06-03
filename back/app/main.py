@@ -13,9 +13,7 @@ from app.infra.clients.redis_client import (
     close_redis_client,
 )
 from app.infra.clients.supabase_client import SupabaseClient
-from app.infra.repositories.composite_memory_repository import (
-    CompositeMemoryRepository,
-)
+from app.infra.repositories.composite import CompositeMemoryRepository
 from app.infra.repositories.redis.cache_repository import (
     RedisCacheRepository,
 )

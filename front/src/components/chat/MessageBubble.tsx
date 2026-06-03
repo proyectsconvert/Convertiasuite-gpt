@@ -10,11 +10,13 @@ import {
   FileSpreadsheet,
   FileDown,
   Download,
+  Presentation, // 1. Importamos el icono para presentaciones
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion } from "framer-motion";
 import { ChatMessage, documentsApi } from "@/services/api";
 import remarkGfm from "remark-gfm";
+
 interface MessageBubbleProps {
   message: ChatMessage;
   onRegenerate?: () => void;
@@ -97,15 +99,23 @@ export default function MessageBubble({
   const userText = previousMessage?.content?.toLowerCase() || "";
   const assistantText = message.content?.toLowerCase() || "";
 
+  // Lógica de detección para PDF
   const hasPdfKeyword = /\bpdf\b/i.test(userText);
   const hasPdfIntent = hasPdfKeyword && /(gener|crea|descarg|export|haz|hac|pas|convert|en\s+pdf|como\s+pdf|un\s+pdf|el\s+pdf|descarga|bajar|guard|reporte|informe)/i.test(userText);
   const assistantOffersPdf = /\bpdf\b/i.test(assistantText) && /(descargar\s+pdf|descarga\s+pdf|pdf\s+generado|he\s+generado\s+el\s+pdf|aquí\s+tienes\s+el\s+pdf)/i.test(assistantText);
   const showPdfButton = hasPdfIntent || assistantOffersPdf;
 
+  // Lógica de detección para Word
   const hasWordKeyword = /\b(word|docx)\b/i.test(userText);
   const hasWordIntent = hasWordKeyword && /(gener|crea|descarg|export|haz|hac|pas|convert|en\s+(word|docx)|como\s+(word|docx)|un\s+(word|docx)|el\s+(word|docx)|descarga|bajar|guard|reporte|informe)/i.test(userText);
   const assistantOffersWord = /\b(word|docx)\b/i.test(assistantText) && /(descargar\s+(word|docx)|descarga\s+(word|docx)|(word|docx)\s+generado|he\s+generado\s+el\s+(word|docx)|aquí\s+tienes\s+el\s+(word|docx))/i.test(assistantText);
   const showWordButton = hasWordIntent || assistantOffersWord;
+
+  // 2. Lógica de detección para PPTX / PowerPoint
+  const hasPptKeyword = /\b(powerpoint|ppt|pptx|diapositiva|diapositivas|presentacion|presentación)\b/i.test(userText);
+  const hasPptIntent = hasPptKeyword && /(gener|crea|descarg|export|haz|hac|pas|convert|en\s+(powerpoint|ppt|pptx)|como\s+(powerpoint|ppt|pptx)|un\s+(powerpoint|ppt|pptx)|el\s+(powerpoint|ppt|pptx)|descarga|bajar|guard|presentacion|presentación)/i.test(userText);
+  const assistantOffersPpt = /\b(powerpoint|ppt|pptx)\b/i.test(assistantText) && /(descargar\s+(powerpoint|ppt|pptx)|descarga\s+(powerpoint|ppt|pptx)|(powerpoint|ppt|pptx)\s+generado|he\s+generado\s+la\s+presentacion|he\s+generado\s+el\s+ppt|aquí\s+tienes\s+la\s+presentación|aquí\s+tienes\s+el\s+ppt)/i.test(assistantText);
+  const showPptButton = hasPptIntent || assistantOffersPpt;
 
   const timestamp =
     message.timestamp instanceof Date
@@ -138,6 +148,22 @@ export default function MessageBubble({
     },
     [],
   );
+
+  // Helper para renderizar un mensaje de éxito dinámico basado en los formatos activos
+  const getSuccessMessage = () => {
+    const formats = [];
+    if (showPdfButton) formats.push("PDF");
+    if (showWordButton) formats.push("Word");
+    if (showPptButton) formats.push("PowerPoint");
+
+    if (formats.length === 3) {
+      return "¡Listo! Aquí tienes el PDF, documento Word y la presentación de PowerPoint solicitados. Puedes descargarlos abajo 👇";
+    }
+    if (formats.length === 2) {
+      return `¡Listo! Aquí te presento el ${formats[0]} y ${formats[1]} solicitados. Puedes descargarlos abajo 👇`;
+    }
+    return `¡Listo! Aquí te presento el documento ${formats[0] || "solicitado"}. Puedes descargarlo directamente abajo 👇`;
+  };
 
   if (typeof message.content !== "string" && !message.attachments?.length) {
     return null;
@@ -227,15 +253,13 @@ export default function MessageBubble({
             </div>
           ) : (
             <div className="prose-chat text-[15px] leading-[1.7] text-foreground">
-              {(!isStreaming && (showPdfButton || showWordButton)) ? (
+              {(!isStreaming && (showPdfButton || showWordButton || showPptButton)) ? (
                 <div className="flex flex-col gap-3 my-3">
                   <p className="text-[15px] leading-relaxed text-foreground">
-                    {showPdfButton && showWordButton
-                      ? "¡Listo! Aquí te presento el PDF y Word solicitados. Puedes descargarlos directamente con los botones de abajo 👇"
-                      : showPdfButton
-                        ? "¡Listo! Aquí te presento el PDF solicitado. Puedes descargarlo directamente con el botón de abajo 👇"
-                        : "¡Listo! Aquí te presento el documento Word solicitado. Puedes descargarlo directamente con el botón de abajo 👇"}
+                    {getSuccessMessage()}
                   </p>
+                  
+                  {/* Botón de PDF */}
                   {showPdfButton && (
                     <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-card hover:bg-secondary/20 transition-all shadow-sm">
                       <div className="flex items-center gap-3">
@@ -269,6 +293,7 @@ export default function MessageBubble({
                     </div>
                   )}
 
+                  {/* Botón de Word */}
                   {showWordButton && (
                     <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-card hover:bg-secondary/20 transition-all shadow-sm">
                       <div className="flex items-center gap-3">
@@ -296,6 +321,40 @@ export default function MessageBubble({
                         }
                         className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
                         title="Descargar Word"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 4. Botón de PPTX / PowerPoint */}
+                  {showPptButton && (
+                    <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-card hover:bg-secondary/20 transition-all shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-orange-500/10 text-orange-500">
+                          <Presentation className="w-6 h-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-foreground truncate max-w-[200px] sm:max-w-xs">
+                            {previousMessage?.attachments?.[0]?.filename
+                              ? `${previousMessage.attachments[0].filename.substring(0, previousMessage.attachments[0].filename.lastIndexOf('.')) || previousMessage.attachments[0].filename}.pptx`
+                              : `presentacion-${message.id.slice(0, 8)}.pptx`}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Presentación lista para descargar</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() =>
+                          handleDownload(
+                            "pptx", // El formato exacto que espera tu backend en api.ts
+                            previousMessage?.attachments?.[0]?.filename
+                              ? `${previousMessage.attachments[0].filename.substring(0, previousMessage.attachments[0].filename.lastIndexOf('.')) || previousMessage.attachments[0].filename}.pptx`
+                              : `presentacion-${message.id.slice(0, 8)}.pptx`,
+                            message.content,
+                          )
+                        }
+                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
+                        title="Descargar PowerPoint"
                       >
                         <Download className="w-4 h-4" />
                       </button>
@@ -499,7 +558,7 @@ export default function MessageBubble({
                 </span>
               )}
 
-              {/* Action buttons */}
+              {/* Botones de acción del mensaje */}
               {!isStreaming && (
                 <div className="flex items-center gap-0.5 mt-3 -ml-1.5">
                   <button
