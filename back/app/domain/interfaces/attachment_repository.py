@@ -19,5 +19,6 @@ class IAttachmentRepository(ABC):
     async def get_attachments(
         self,
         session_id: str,
+        
     ) -> list:
         pass

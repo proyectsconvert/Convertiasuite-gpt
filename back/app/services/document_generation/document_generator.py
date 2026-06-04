@@ -1,17 +1,21 @@
 from __future__ import annotations
 import logging
 from typing import Any, Dict, Union
-import json
-import io
-import pandas as pd
+
 from app.domain.entities.document_content import DocumentContent
 from app.domain.interfaces.document_builder import IDocumentBuilder
 from app.services.document_generation.template_engine import TemplateEngine
 from app.services.document_generation.markdown_parser import MarkdownToDocumentContentParser
-from app.services.document_generation.builders.docx_builder import DocxBuilder
-from app.services.document_generation.builders.pptx_builder import PptxBuilder
-from app.services.document_generation.builders.excel_builder import ExcelBuilder
-from app.services.document_generation.builders.pdf_builder import PdfBuilder
+from app.services.document_generation.builders import (
+    DocxBuilder,
+    PptxBuilder,
+    ExcelBuilder,
+    PdfBuilder,
+    TxtBuilder,
+    MdBuilder,
+    JsonBuilder,
+    CsvBuilder,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +45,10 @@ class DocumentGenerator:
         self.register(PptxBuilder(self._engine))
         self.register(ExcelBuilder(self._engine))
         self.register(PdfBuilder(self._engine))
-
+        self.register(TxtBuilder())
+        self.register(MdBuilder())
+        self.register(JsonBuilder())
+        self.register(CsvBuilder())
 
     def generate(
         self,
@@ -62,48 +69,15 @@ class DocumentGenerator:
 
         logger.info(
             f"Generando '{normalized_fmt}' para '{doc_content.title}' "
-            f"({len(doc_content.sections)} secciones, {len(doc_content.tables)} tablas)"
+            f"({len(doc_content.sections)} secciones, {len(doc_content.all_tables())} tablas)"
         )
 
         return builder.build(doc_content)
 
-    def generate_txt(self, content: str) -> bytes:
-        return content.encode("utf-8")
-
-    def generate_md(self, content: str) -> bytes:
-        return content.encode("utf-8")
-
-    def generate_json(self, content: Any) -> bytes:
-        import json
-        try:
-            if isinstance(content, str):
-                parsed = json.loads(content)
-                return json.dumps(parsed, indent=2, ensure_ascii=False).encode("utf-8")
-            return json.dumps(content, indent=2, ensure_ascii=False).encode("utf-8")
-        except Exception as e:
-            logger.error(f"Error generando JSON: {e}")
-            if isinstance(content, str):
-                return content.encode("utf-8")
-            return str(content).encode("utf-8")
-
-    def generate_csv(self, content: Any) -> bytes:
-        try:
-            df = self._to_dataframe(content)
-            output = io.BytesIO()
-            df.to_csv(output, index=False, encoding="utf-8")
-            return output.getvalue()
-        except Exception as e:
-            logger.error(f"Error generando CSV: {e}")
-            if isinstance(content, str):
-                return content.encode("utf-8")
-            raise ValueError(f"Error al generar CSV: {e}")
-
- 
     def _normalize_input(
         self,
         content: Union[DocumentContent, Dict[str, Any], str],
     ) -> DocumentContent:
-    
         if isinstance(content, DocumentContent):
             return content
 
@@ -123,24 +97,6 @@ class DocumentGenerator:
             return MarkdownToDocumentContentParser.parse(content)
 
         return DocumentContent(title="Documento", sections=[], tables=[])
-
-    @staticmethod
-    def _to_dataframe(content: Any):
-
-        if isinstance(content, pd.DataFrame):
-            return content
-        if isinstance(content, str):
-            try:
-                parsed = json.loads(content)
-                return pd.DataFrame(parsed if isinstance(parsed, list) else [parsed])
-            except Exception:
-                try:
-                    return pd.read_csv(io.StringIO(content))
-                except Exception:
-                    return pd.DataFrame([{"Contenido": content}])
-        if isinstance(content, list):
-            return pd.DataFrame(content)
-        return pd.DataFrame([{"Contenido": str(content)}])
 
     @property
     def supported_formats(self) -> list[str]:

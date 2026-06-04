@@ -6,12 +6,18 @@ from typing import Optional
 from app.domain.interfaces.session_repository import ISessionRepository
 from app.domain.interfaces.message_repository import IMessageRepository
 from app.domain.interfaces.attachment_repository import IAttachmentRepository
+from app.domain.interfaces.ai_generated_files import IAIGeneratedFilesRepository
 from app.infra.clients.supabase_client import SupabaseClient
 
 logger = logging.getLogger(__name__)
 
 
-class SupabaseMemoryRepository(ISessionRepository, IMessageRepository, IAttachmentRepository):
+class SupabaseMemoryRepository(
+    ISessionRepository,
+    IMessageRepository,
+    IAttachmentRepository,
+    IAIGeneratedFilesRepository,
+):
     def __init__(self, supabase_client: Optional[SupabaseClient] = None):
         self.client = supabase_client or SupabaseClient()
 
@@ -316,3 +322,141 @@ class SupabaseMemoryRepository(ISessionRepository, IMessageRepository, IAttachme
                 str(e),
             )
             return []
+
+    # ai generated files operations
+    async def save_ai_file(
+        self,
+        session_id: str,
+        user_id: str,
+        file_type: str,
+        storage_path: str,
+        file_name: str,
+        metadata: dict | None = None,
+        expires_at: str | None = None,
+    ) -> str:
+        try:
+            file_id = str(uuid.uuid4())
+
+            (
+                self.supabase.table("ai_generated_files")
+                .insert(
+                    {
+                        "file_id": file_id,
+                        "session_id": session_id,
+                        "user_id": user_id,
+                        "file_type": file_type,
+                        "storage_path": storage_path,
+                        "file_name": file_name,
+                        "metadata": metadata,
+                        "expires_at": expires_at,
+                    }
+                )
+                .execute()
+            )
+
+            return file_id
+
+        except Exception as e:
+            logger.error(
+                "Error saving AI generated file session=%s error=%s",
+                session_id,
+                str(e),
+            )
+            raise
+
+    async def get_ai_files(
+        self,
+        session_id: str,
+        file_type: str | None = None,
+    ) -> list:
+        try:
+            query = (
+                self.supabase.table("ai_generated_files")
+                .select("*")
+                .eq("session_id", session_id)
+                .is_("deleted_at", "null")
+            )
+
+            if file_type:
+                query = query.eq("file_type", file_type)
+
+            response = query.order("created_at", desc=False).execute()
+
+            return response.data or []
+
+        except Exception as e:
+            logger.error(
+                "Error fetching AI generated files session=%s error=%s",
+                session_id,
+                str(e),
+            )
+            return []
+
+    async def get_ai_file_by_id(
+        self,
+        file_id: str,
+    ) -> Optional[dict]:
+        """Retrieve an AI-generated file by ID from Supabase."""
+        try:
+            response = (
+                self.supabase.table("ai_generated_files")
+                .select("*")
+                .eq("file_id", file_id)
+                .is_("deleted_at", "null")
+                .maybe_single()
+                .execute()
+            )
+            return response.data if response else None
+
+        except Exception as e:
+            logger.error(
+                "Error fetching AI generated file file_id=%s error=%s",
+                file_id,
+                str(e),
+            )
+            return None
+
+    async def soft_delete_ai_file(
+        self,
+        file_id: str,
+        user_id: str,
+    ) -> bool:
+        """Soft delete an AI-generated file by marking it with a deleted_at timestamp."""
+        try:
+            # First verify the file belongs to the user
+            response = (
+                self.supabase.table("ai_generated_files")
+                .select("file_id")
+                .eq("file_id", file_id)
+                .eq("user_id", user_id)
+                .maybe_single()
+                .execute()
+            )
+
+            if not response or not response.data:
+                logger.warning(
+                    "AI file not found or does not belong to user file_id=%s user_id=%s",
+                    file_id,
+                    user_id,
+                )
+                return False
+
+            # Soft delete by updating deleted_at timestamp
+            (
+                self.supabase.table("ai_generated_files")
+                .update({"deleted_at": self._now()})
+                .eq("file_id", file_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
+
+            return True
+
+        except Exception as e:
+            logger.error(
+                "Error soft deleting AI file file_id=%s user_id=%s error=%s",
+                file_id,
+                user_id,
+                str(e),
+            )
+            return False

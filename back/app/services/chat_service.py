@@ -7,7 +7,9 @@ from app.domain.entities.message import Message
 from app.domain.contracts import PromptContract
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.message_repository import IMessageRepository
-
+from app.security.risk_scorer import risk_scorer
+from app.services.model_router import route_model
+from app.services.document_processing.document_manager import DocumentManager
 from app.security.exceptions import (
     PolicyViolationException,
     SecurityException,
@@ -32,10 +34,6 @@ from app.security.output_guard import (
 from app.security.prompt_injection_guard import (
     validate_prompt_safety,
 )
-
-from app.security.risk_scorer import risk_scorer
-from app.services.model_router import route_model
-from app.services.Files_Processor.document_manager import DocumentManager
 
 MODEL_CONFIG = get_model_config()
 logger = logging.getLogger(__name__)

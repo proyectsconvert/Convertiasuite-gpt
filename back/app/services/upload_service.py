@@ -2,8 +2,7 @@ import logging
 from typing import Optional
 from uuid import UUID
 from fastapi import UploadFile, HTTPException
-from app.services.Files_Processor.file_processor import FileProcessorFactory
-from app.services.Files_Processor.document_manager import DocumentManager
+from app.services.document_processing.document_manager import DocumentManager
 from app.domain.interfaces.attachment_repository import IAttachmentRepository
 
 logger = logging.getLogger(__name__)
@@ -20,16 +19,32 @@ class UploadService:
         session_id: Optional[str],
         user_id: str,
     ) -> dict:
-        parser_fn, attachment_type = FileProcessorFactory.get_parser(file.filename, file.content_type)
-        if not parser_fn:
-            raise HTTPException(
-                status_code=400,
-                detail="Formato de archivo no soportado (use PDF, Word, Excel, CSV, TXT, MD, JSON o imágenes PNG/JPG/JPEG/WEBP)",
-            )
+        filename_lower = file.filename.lower()
+        is_image = filename_lower.endswith((".png", ".jpg", ".jpeg", ".webp")) or (file.content_type and file.content_type.startswith("image/"))
 
         try:
             contents = await file.read()
-            extracted_text = parser_fn(contents)
+            if is_image:
+                import base64
+                extracted_text = base64.b64encode(contents).decode("utf-8")
+                attachment_type = "image"
+            else:
+                processor = self.document_manager.processor_factory.get_processor_by_extension(file.filename)
+                if not processor:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Formato de archivo no soportado (use PDF, Word, Excel, CSV, TXT, MD, JSON o imágenes PNG/JPG/JPEG/WEBP)",
+                    )
+                parsed_content = await processor.parse(contents, file.filename)
+                extracted_text = parsed_content.text
+
+                ext = file.filename.rsplit(".", 1)[1].lower() if "." in file.filename else ""
+                if ext in ("docx", "doc"):
+                    attachment_type = "word"
+                elif ext in ("xlsx", "xls"):
+                    attachment_type = "excel"
+                else:
+                    attachment_type = processor.supported_type.value
 
             if attachment_type == "image":
                 truncated_text = extracted_text

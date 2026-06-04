@@ -5,7 +5,6 @@ from app.schemas.chat import UserRole
 
 
 class FallbackTemplate(Enum):
-    """Respuestas fallback por tipo de error"""
 
     SAFETY_BLOCK = "safety_block"
     JAILBREAK_DETECTED = "jailbreak_detected"

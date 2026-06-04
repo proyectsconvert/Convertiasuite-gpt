@@ -84,3 +84,25 @@ class IMemoryRepository(ABC):
         session_id: str,
     ) -> list:
         pass
+
+
+    @abstractmethod
+    async def save_ai_file(
+        self,
+        session_id: str,
+        user_id: str,
+        file_type: str,          
+        storage_path: str,
+        file_name: str,
+        metadata: dict | None = None,
+        expires_at: str | None = None,
+    )->str:
+        pass
+
+    @abstractmethod
+    async def get_ai_files(
+        self,
+        session_id: str,
+        file_type: str | None = None,
+    ) -> list:
+        pass

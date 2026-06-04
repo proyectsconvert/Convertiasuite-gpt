@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import re
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -75,18 +76,33 @@ class TemplateEngine:
             logger.warning(f"Plantilla HTML no encontrada, usando template inline: {e}")
             return self._render_inline_html(content)
 
-        logo_path = self._brand_cfg["logos"].get("docs", "")
-        logo_src = f"file://{logo_path}" if logo_path and os.path.exists(logo_path) else ""
+        logo_main_path = self._brand_cfg["logos"].get("main", "")
+        logo_main_src = f"file://{logo_main_path}" if logo_main_path and os.path.exists(logo_main_path) else ""
+
+        logo_docs_path = self._brand_cfg["logos"].get("docs", "")
+        logo_docs_src = f"file://{logo_docs_path}" if logo_docs_path and os.path.exists(logo_docs_path) else ""
+
+        words = content.title.split()
+        if len(words) > 1:
+            title_part1 = " ".join(words[:-1]) + " "
+            title_part2 = words[-1]
+        else:
+            title_part1 = content.title
+            title_part2 = ""
 
         context = {
             "title": content.title,
+            "title_part1": title_part1,
+            "title_part2": title_part2,
             "subtitle": content.subtitle or "",
             "author": content.author,
             "date": content.get_date(),
             "classification": content.classification,
             "sections": [self._section_to_dict(s) for s in content.sections],
             "tables": [self._table_to_dict(t) for t in content.tables],
-            "logo_src": logo_src,
+            "logo_src": logo_docs_src,
+            "logo_main_src": logo_main_src,
+            "logo_docs_src": logo_docs_src,
             "brand_name": self._brand_cfg.get("nametag", "Convertia"),
             "colors": self._brand_cfg.get("colors", {}),
         }
@@ -104,6 +120,29 @@ class TemplateEngine:
             "subtitle": content.subtitle or content.author,
             "date": content.get_date(),
             "classification": content.classification,
+        })
+
+        # Slide de índice / contenido
+        index_items = []
+        h1_count = 0
+        for section in content.sections:
+            if section.level == 1:
+                h1_count += 1
+                index_items.append({
+                    "number": f"{h1_count:02d}",
+                    "title": section.title,
+                    "subsections": []
+                })
+            elif section.level == 2 and index_items:
+                sub_count = len(index_items[-1]["subsections"]) + 1
+                index_items[-1]["subsections"].append({
+                    "number": f"{sub_count}",
+                    "title": section.title
+                })
+
+        slides.append({
+            "type": "index",
+            "items": index_items
         })
 
         # Slides de contenido por sección
@@ -199,10 +238,32 @@ class TemplateEngine:
 
     @staticmethod
     def _section_to_dict(section: Section) -> Dict[str, Any]:
+        paragraphs = []
+        if section.content:
+            for para in section.content.split("\n"):
+                if para.strip():
+                    p_text = para.strip()
+                    if p_text.startswith(">"):
+                        # Callout box! Parse simple **bold** tags to class span
+                        callout_text = p_text.lstrip(">").strip()
+                        parts = re.split(r"(\*\*.*?\*\*)", callout_text)
+                        html_parts = []
+                        for part in parts:
+                            if part.startswith("**") and part.endswith("**"):
+                                html_parts.append(
+                                    f'<span class="callout-highlight">{part[2:-2]}</span>'
+                                )
+                            else:
+                                html_parts.append(part)
+                        callout_html = "".join(html_parts)
+                        paragraphs.append({"type": "callout", "text": callout_html})
+                    else:
+                        paragraphs.append({"type": "text", "text": p_text})
         return {
             "title": section.title,
             "level": section.level,
             "content": section.content,
+            "paragraphs": paragraphs,
             "bullets": section.bullets or [],
             "has_bullets": bool(section.bullets),
             "table": (
@@ -214,9 +275,16 @@ class TemplateEngine:
 
     @staticmethod
     def _table_to_dict(table: TableData) -> Dict[str, Any]:
+        rows_processed = []
+        for row in table.rows:
+            is_highlight = any(str(val).strip().lower() == "destacado" for val in row)
+            rows_processed.append({
+                "cells": [str(val) for val in row],
+                "is_highlight": is_highlight
+            })
         return {
             "headers": table.headers,
-            "rows": table.rows,
+            "rows": rows_processed,
             "caption": table.caption or "",
             "row_count": table.row_count,
             "column_count": table.column_count,
@@ -227,15 +295,48 @@ class TemplateEngine:
         colors = self._brand_cfg.get("colors", {})
         primary = colors.get("primary", "#011E23")
         accent = colors.get("accent_green", "#1AEB9F")
+        green = colors.get("secondary_dark_green", "#10473f")
+        muted = "#718096"
+
+        words = content.title.split()
+        if len(words) > 1:
+            title_part1 = " ".join(words[:-1]) + " "
+            title_part2 = words[-1]
+        else:
+            title_part1 = content.title
+            title_part2 = ""
 
         sections_html = ""
         for section in content.sections:
-            tag = f"h{section.level}"
-            sections_html += f"<{tag}>{section.title}</{tag}>\n"
+            if section.level == 1:
+                sections_html += f'<h1 class="section-divider">{section.title}</h1>\n'
+            elif section.level == 2:
+                sections_html += f'<h2 style="border-left: 3px solid {accent}; padding-left: 10px; color: {green};">{section.title}</h2>\n'
+            else:
+                sections_html += f'<h3 style="color: #2D3748;">{section.title}</h3>\n'
+
             if section.content:
                 for para in section.content.split("\n"):
                     if para.strip():
-                        sections_html += f"<p>{para}</p>\n"
+                        p_text = para.strip()
+                        if p_text.startswith(">"):
+                            callout_text = p_text.lstrip(">").strip()
+                            parts = re.split(r"(\*\*.*?\*\*)", callout_text)
+                            html_parts = []
+                            for part in parts:
+                                if part.startswith("**") and part.endswith("**"):
+                                    html_parts.append(
+                                        f'<span style="color: {accent};">{part[2:-2]}</span>'
+                                    )
+                                else:
+                                    html_parts.append(part)
+                            callout_html = "".join(html_parts)
+                            sections_html += (
+                                f'<div class="callout-box"><p style="color: white; text-align: center; '
+                                f'font-weight: bold; margin: 0;">{callout_html}</p></div>\n'
+                            )
+                        else:
+                            sections_html += f"<p>{p_text}</p>\n"
             if section.bullets:
                 sections_html += "<ul>\n"
                 for bullet in section.bullets:
@@ -246,6 +347,11 @@ class TemplateEngine:
 
         tables_html = "".join(self._table_to_html(t) for t in content.tables)
 
+        logo_path = self._brand_cfg["logos"].get("main", "")
+        logo_html = ""
+        if logo_path and os.path.exists(logo_path):
+            logo_html = f'<div style="text-align: right; margin-bottom: 80pt;"><img src="file://{logo_path}" style="height: 28px; object-fit: contain;" /></div>'
+
         return f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -254,32 +360,36 @@ class TemplateEngine:
 <style>
   @page {{
     size: letter;
-    margin: 2cm 1.8cm;
-    @bottom-left {{ content: "© Convertia — Documentación interna"; font-size: 8pt; color: #888; }}
-    @bottom-right {{ content: "Pág. " counter(page); font-size: 8pt; color: #888; }}
+    margin: 2.4cm 1.8cm 2.2cm 1.8cm;
+    @bottom-left {{ content: "© Intelligence Customer Acquisition — Convertia — Documentación interna"; font-family: Inter, Arial, sans-serif; font-size: 7.5pt; color: #718096; }}
+    @bottom-right {{ content: "Pág. " counter(page); font-family: Inter, Arial, sans-serif; font-size: 7.5pt; color: #718096; }}
   }}
-  body {{ font-family: Inter, Arial, sans-serif; font-size: 11pt; color: #1a202c; line-height: 1.6; }}
-  .cover {{ page-break-after: always; padding-top: 80pt; }}
-  .cover h1 {{ font-size: 36pt; color: {primary}; margin-bottom: 8pt; }}
-  .cover .subtitle {{ font-size: 18pt; color: #4a5568; }}
-  .cover .meta {{ margin-top: 60pt; font-size: 10pt; color: #718096; }}
-  .accent-line {{ height: 3pt; width: 80pt; background: {accent}; margin: 12pt 0; }}
-  h1 {{ font-size: 22pt; color: {primary}; margin-top: 24pt; page-break-after: avoid; }}
-  h2 {{ font-size: 16pt; color: #10473f; margin-top: 18pt; page-break-after: avoid; }}
-  h3 {{ font-size: 13pt; color: #2d3748; margin-top: 14pt; page-break-after: avoid; }}
-  p {{ margin: 6pt 0; }}
-  ul {{ padding-left: 20pt; margin: 6pt 0; }}
-  li {{ margin: 3pt 0; }}
-  table {{ width: 100%; border-collapse: collapse; margin: 12pt 0; font-size: 9pt; }}
-  thead th {{ background: {primary}; color: white; padding: 6pt 8pt; text-align: left; }}
+  body {{ font-family: Inter, Arial, sans-serif; font-size: 10.5pt; color: #2d3748; line-height: 1.65; }}
+  .cover {{ page-break-after: always; padding-top: 80pt; position: relative; }}
+  .cover h1 {{ font-size: 32pt; color: {primary}; margin-bottom: 10pt; font-weight: 700; line-height: 1.15; }}
+  .cover h1 span.title-highlight {{ color: {muted}; }}
+  .cover-badge {{ display: inline-block; background-color: #f5f5f5; color: {muted}; font-size: 8pt; font-weight: bold; padding: 4px 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12pt; }}
+  .cover .subtitle {{ font-size: 13pt; color: {green}; margin-bottom: 60pt; }}
+  .cover .meta {{ margin-top: 60pt; font-size: 9pt; color: #718096; }}
+  .section-divider {{ page-break-before: always; background: #ffffff; color: {primary}; font-size: 26pt; font-weight: 700; padding: 28pt 0 22pt; margin: 0 0 24pt; border-bottom: 3pt solid {accent}; }}
+  p {{ margin-bottom: 7pt; text-align: justify; color: {primary}; }}
+  ul {{ padding-left: 18pt; margin: 6pt 0 10pt; }}
+  li {{ margin-bottom: 4pt; }}
+  ul li::marker {{ color: {accent}; }}
+  .callout-box {{ background-color: {primary}; color: #ffffff; font-weight: bold; padding: 16px 20px; margin: 14pt 0 18pt; text-align: center; }}
+  table {{ width: 100%; border-collapse: collapse; margin: 14pt 0 18pt; font-size: 9pt; }}
+  thead th {{ background: {primary}; color: white; padding: 7pt 9pt; text-align: left; font-weight: 600; }}
   tbody tr:nth-child(even) {{ background: #f5f5f5; }}
-  tbody td {{ padding: 5pt 8pt; border-bottom: 0.5pt solid #ddd; }}
+  tbody tr:nth-child(odd) {{ background: #ffffff; }}
+  tbody tr.row-highlight {{ background-color: #E6FFFA !important; color: {green}; font-weight: bold; }}
+  tbody tr.row-highlight td {{ color: {green}; font-weight: bold; }}
+  tbody td {{ padding: 5pt 9pt; border-bottom: 0.5pt solid #dbdffc; vertical-align: top; }}
 </style>
 </head>
 <body>
   <div class="cover">
-    <h1>{content.title}</h1>
-    <div class="accent-line"></div>
+    {logo_html}
+    <h1>{title_part1}{f'<span class="title-highlight">{title_part2}</span>' if title_part2 else ''}</h1>
     <div class="subtitle">{content.subtitle or content.author}</div>
     <div class="meta">
       <strong>Fecha:</strong> {content.get_date()}<br>
@@ -296,8 +406,10 @@ class TemplateEngine:
         header_cells = "".join(f"<th>{h}</th>" for h in table.headers)
         rows_html = ""
         for row in table.rows:
+            is_highlight = any(str(val).strip().lower() == "destacado" for val in row)
+            tr_class = ' class="row-highlight"' if is_highlight else ""
             cells = "".join(f"<td>{cell}</td>" for cell in row)
-            rows_html += f"<tr>{cells}</tr>\n"
+            rows_html += f"<tr{tr_class}>{cells}</tr>\n"
         caption = f"<caption>{table.caption}</caption>" if table.caption else ""
         return f"""<table>{caption}
   <thead><tr>{header_cells}</tr></thead>

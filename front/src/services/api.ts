@@ -18,13 +18,13 @@ export interface ChatMessage {
 }
 
 export interface SendMessageRequest {
-    message: string;
-    session_id?: string;
-    model?: string;
-    user_role?: string;
-    extracted_context?: string;
-    attachment_type?: string;
-    attachment_name?: string;
+  message: string;
+  session_id?: string;
+  model?: string;
+  user_role?: string;
+  extracted_context?: string;
+  attachment_type?: string;
+  attachment_name?: string;
 }
 
 export interface StreamChunk {
@@ -369,42 +369,46 @@ export const chatApi = {
     );
   },
 
-   async uploadFile(
-     file: File,
-     sessionId?: string
-   ): Promise<{ filename: string; extracted_context: string; attachment_type?: string }> {
-     const formData = new FormData();
-     formData.append("file", file);
+  async uploadFile(
+    file: File,
+    sessionId?: string
+  ): Promise<{ filename: string; extracted_context: string; attachment_type?: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
 
-     if (sessionId) {
-       formData.append("session_id", sessionId);
-     }
+    if (sessionId) {
+      formData.append("session_id", sessionId);
+    }
 
-     const response = await apiFetch(`${API_BASE}/upload`, {
-       method: "POST",
-       body: formData,
-     });
+    const response = await apiFetch(`${API_BASE}/upload`, {
+      method: "POST",
+      body: formData,
+    });
 
-     return response.json();
-   },
+    return response.json();
+  },
 
-   async uploadAudio(
-     formData: FormData
-   ): Promise<{ transcript: string }> {
-     const response = await apiFetch(`${API_BASE}/upload-audio`, {
-       method: "POST",
-       body: formData,
-     });
+  async uploadAudio(
+    formData: FormData
+  ): Promise<{ transcript: string }> {
+    const response = await apiFetch(`${API_BASE}/upload-audio`, {
+      method: "POST",
+      body: formData,
+    });
 
-     return response.json();
-   }
+    return response.json();
+  }
 };
 
 export const documentsApi = {
-  async generateFile(filename: string, format: string, content: any): Promise<Blob> {
+  async generateFile(filename: string, format: string, content: any, sessionId?: string): Promise<Blob> {
+    const payload: any = { filename, format, content };
+    if (sessionId) {
+      payload.session_id = sessionId;
+    }
     const response = await apiFetch(`${API_URL}/api/documents/generate`, {
       method: "POST",
-      body: JSON.stringify({ filename, format, content }),
+      body: JSON.stringify(payload),
     });
     return response.blob();
   }

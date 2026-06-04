@@ -41,12 +41,24 @@ class PdfBuilder(IDocumentBuilder):
 
     def _build_with_reportlab_fallback(self, content: DocumentContent) -> bytes:
         try:
+            import os
+            import re
             from reportlab.platypus import (
-                SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table as PDFTable, TableStyle
+                SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table as PDFTable, TableStyle, Image
             )
             from reportlab.lib.pagesizes import letter
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
             from reportlab.lib import colors
+
+            try:
+                from PIL import Image as PILImage
+                has_pil = True
+            except ImportError:
+                has_pil = False
+
+            brand = content.brand or "convertia"
+            from app.core.files_config import BRAND_CONFIG
+            cfg = BRAND_CONFIG.get(brand, BRAND_CONFIG["convertia"])
 
             c_dark    = colors.HexColor("#011E23")
             c_green   = colors.HexColor("#10473F")
@@ -65,9 +77,9 @@ class PdfBuilder(IDocumentBuilder):
             styles = getSampleStyleSheet()
 
             title_s = ParagraphStyle("T1", parent=styles["Title"],
-                fontSize=36, textColor=c_dark, spaceAfter=12)
+                fontSize=32, textColor=c_dark, spaceAfter=12, alignment=0)
             sub_s = ParagraphStyle("Sub", parent=styles["Normal"],
-                fontSize=18, textColor=c_body, spaceAfter=10)
+                fontSize=13, textColor=c_green, spaceAfter=10)
             h1_s = ParagraphStyle("H1", parent=styles["Heading1"],
                 fontSize=18, textColor=c_green, spaceBefore=16, spaceAfter=8)
             h2_s = ParagraphStyle("H2", parent=styles["Heading2"],
@@ -82,15 +94,48 @@ class PdfBuilder(IDocumentBuilder):
             story = []
 
             # Portada
-            story.append(Spacer(1, 100))
-            story.append(Paragraph(content.title, title_s))
-            accent_line = PDFTable([[""]], colWidths=[100], rowHeights=[3])
-            accent_line.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), c_accent)]))
-            story.append(accent_line)
+            # Logotipo principal arriba a la derecha (convertia_main.png)
+            logo_main_path = cfg["logos"].get("main")
+            if logo_main_path and os.path.exists(logo_main_path):
+                try:
+                    if has_pil:
+                        with PILImage.open(logo_main_path) as img_file:
+                            w, h = img_file.size
+                            aspect = w / h
+                            logo_w = 25 * aspect
+                            logo_h = 25
+                    else:
+                        logo_w = 100
+                        logo_h = 25
+                    img = Image(logo_main_path, width=logo_w, height=logo_h, hAlign="RIGHT")
+                    story.append(img)
+                except Exception as img_err:
+                    logger.warning(f"Error loading main logo in ReportLab cover: {img_err}")
+
+            story.append(Spacer(1, 40))
+
+        
+
+            # Título principal en dos tonos (última palabra en gris)
+            words = content.title.split()
+            if len(words) > 1:
+                part1 = " ".join(words[:-1]) + " "
+                part2 = words[-1]
+            else:
+                part1 = content.title
+                part2 = ""
+
+            title_text = f"{part1}"
+            if part2:
+                title_text += f'<font color="#718096">{part2}</font>'
+
+            story.append(Paragraph(title_text, title_s))
             story.append(Spacer(1, 8))
+
             if content.subtitle:
                 story.append(Paragraph(content.subtitle, sub_s))
-            story.append(Spacer(1, 120))
+
+            story.append(Spacer(1, 60))
             story.append(Paragraph(f"<b>Fecha:</b> {content.get_date()}", body_s))
             story.append(Paragraph(f"<b>Clasificación:</b> {content.classification}", body_s))
             story.append(PageBreak())
@@ -105,7 +150,37 @@ class PdfBuilder(IDocumentBuilder):
                 if section.content:
                     for para in section.content.split("\n"):
                         if para.strip():
-                            story.append(Paragraph(para, body_s))
+                            p_text = para.strip()
+                            if p_text.startswith(">"):
+                                # Renderizar como bloque de cita/destacado
+                                callout_text = p_text.lstrip(">").strip()
+                                parts = re.split(r"(\*\*.*?\*\*)", callout_text)
+                                formatted_parts = []
+                                for part in parts:
+                                    if part.startswith("**") and part.endswith("**"):
+                                        formatted_parts.append(f'<font color="#1AEB9F"><b>{part[2:-2]}</b></font>')
+                                    else:
+                                        formatted_parts.append(part)
+                                formatted_text = "".join(formatted_parts)
+
+                                callout_style = ParagraphStyle("CalloutText", parent=styles["Normal"],
+                                    fontName="Helvetica-Bold", fontSize=10.5, textColor=colors.white,
+                                    alignment=1, spaceAfter=0)
+
+                                callout_p = Paragraph(formatted_text, callout_style)
+                                callout_table = PDFTable([[callout_p]], colWidths=[doc.width])
+                                callout_table.setStyle(TableStyle([
+                                    ("BACKGROUND", (0, 0), (-1, -1), c_dark),
+                                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                                    ("BOTTOMPADDING", (0, 0), (-1, -1), 16),
+                                    ("TOPPADDING", (0, 0), (-1, -1), 16),
+                                    ("LEFTPADDING", (0, 0), (-1, -1), 20),
+                                    ("RIGHTPADDING", (0, 0), (-1, -1), 20),
+                                ]))
+                                story.append(callout_table)
+                                story.append(Spacer(1, 10))
+                            else:
+                                story.append(Paragraph(p_text, body_s))
                 if section.bullets:
                     for bullet in section.bullets:
                         story.append(Paragraph(f"• {bullet}", bullet_s))
@@ -125,21 +200,37 @@ class PdfBuilder(IDocumentBuilder):
                 ))
                 story.append(Spacer(1, 10))
 
-            def draw_footer(canvas, document):
+            def draw_page_decorations(canvas, document):
                 canvas.saveState()
-                canvas.setStrokeColor(c_accent)
-                canvas.setLineWidth(0.5)
-                canvas.line(54, 45, letter[0] - 54, 45)
-                canvas.setFillColor(colors.HexColor("#494D52"))
+
+                # Draw Header (docs logo on the top right)
+                logo_docs_path = cfg["logos"].get("docs")
+                if logo_docs_path and os.path.exists(logo_docs_path):
+                    try:
+                        if has_pil:
+                            with PILImage.open(logo_docs_path) as img_file:
+                                w, h = img_file.size
+                                aspect = w / h
+                                logo_w = 25 * aspect
+                                logo_h = 25
+                        else:
+                            logo_w = 25
+                            logo_h = 25
+                        canvas.drawImage(logo_docs_path, letter[0] - 54 - logo_w, letter[1] - 54, width=logo_w, height=logo_h, mask='auto')
+                    except Exception as header_img_err:
+                        logger.warning(f"Error drawing header logo in ReportLab: {header_img_err}")
+
+                # Draw Footer (Copyright on left, Page number on right)
+                canvas.setFillColor(colors.HexColor("#718096"))
                 canvas.setFont("Helvetica", 8)
                 canvas.drawString(
                     54, 30,
                     "© Intelligence Customer Acquisition — Convertia — Documentación interna"
                 )
-                canvas.drawRightString(letter[0] - 54, 30, f"Página {document.page}")
+                canvas.drawRightString(letter[0] - 54, 30, f"{document.page}")
                 canvas.restoreState()
 
-            doc.build(story, onLaterPages=draw_footer)
+            doc.build(story, onFirstPage=lambda c, d: None, onLaterPages=draw_page_decorations)
             logger.info(f"PDF generado con ReportLab (fallback): '{content.title}'")
             return buffer.getvalue()
 
@@ -151,36 +242,48 @@ class PdfBuilder(IDocumentBuilder):
     def _build_pdf_table(table, doc, body_s, c_petrol, c_light, c_border):
         from reportlab.platypus import Table as PDFTable, TableStyle, Paragraph
         from reportlab.lib import colors
+        from reportlab.lib.styles import ParagraphStyle
 
         nc = len(table.headers)
         formatted = []
         header_row = []
         for h in table.headers:
-            from reportlab.lib.styles import ParagraphStyle
-            hs = ParagraphStyle("th", parent=body_s, fontSize=8,
+            hs = ParagraphStyle("th", parent=body_s, fontSize=9.5,
                                 textColor=colors.white, fontName="Helvetica-Bold")
             header_row.append(Paragraph(str(h), hs))
         formatted.append(header_row)
 
-        for row in table.rows:
-            data_row = []
-            for cell in row:
-                bs = ParagraphStyle("td", parent=body_s, fontSize=8,
-                                    textColor=colors.HexColor("#1A202C"))
-                data_row.append(Paragraph(str(cell), bs))
-            formatted.append(data_row)
-
-        col_width = doc.width / nc if nc else doc.width
-        pdf_table = PDFTable(formatted, colWidths=[col_width] * nc)
-        pdf_table.setStyle(TableStyle([
+        table_styles = [
             ("BACKGROUND",    (0, 0), (-1, 0),  c_petrol),
             ("ALIGN",         (0, 0), (-1, -1), "LEFT"),
             ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING",    (0, 0), (-1, -1), 5),
             ("GRID",          (0, 0), (-1, -1), 0.4, c_border),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, c_light]),
-        ]))
+        ]
+
+        for r_idx, row in enumerate(table.rows):
+            is_highlight = any(str(val).strip().lower() == "destacado" for val in row)
+            data_row = []
+            
+            if is_highlight:
+                row_bg = colors.HexColor("#E6FFFA")
+                td_style = ParagraphStyle(f"td_h_{r_idx}", parent=body_s, fontSize=9.5,
+                                          textColor=colors.HexColor("#10473F"), fontName="Helvetica-Bold")
+            else:
+                row_bg = colors.white if r_idx % 2 == 0 else c_light
+                td_style = ParagraphStyle(f"td_n_{r_idx}", parent=body_s, fontSize=9.5,
+                                          textColor=colors.HexColor("#2D3748"))
+            
+            for cell in row:
+                data_row.append(Paragraph(str(cell), td_style))
+            formatted.append(data_row)
+            
+            table_styles.append(("BACKGROUND", (0, r_idx + 1), (-1, r_idx + 1), row_bg))
+
+        col_width = doc.width / nc if nc else doc.width
+        pdf_table = PDFTable(formatted, colWidths=[col_width] * nc)
+        pdf_table.setStyle(TableStyle(table_styles))
         return pdf_table
 
     @staticmethod
@@ -188,5 +291,12 @@ class PdfBuilder(IDocumentBuilder):
         try:
             import weasyprint  
             return True
-        except ImportError:
+        except (ImportError, OSError) as e:
+            logger.warning(
+                f"WeasyPrint no disponible (faltan dependencias binarias de GTK/GObject): {e}. "
+                "Se usará ReportLab como fallback."
+            )
+            return False
+        except Exception as e:
+            logger.warning(f"WeasyPrint no disponible por error inesperado: {e}")
             return False

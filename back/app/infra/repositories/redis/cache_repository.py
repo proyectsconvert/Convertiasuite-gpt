@@ -1,15 +1,19 @@
 import json
 import uuid
 from datetime import datetime, UTC
-
 from redis.asyncio import Redis
-
 from app.domain.interfaces.session_repository import ISessionRepository
 from app.domain.interfaces.message_repository import IMessageRepository
 from app.domain.interfaces.attachment_repository import IAttachmentRepository
+from app.domain.interfaces.ai_generated_files import IAIGeneratedFilesRepository
 
 
-class RedisCacheRepository(ISessionRepository, IMessageRepository, IAttachmentRepository):
+class RedisCacheRepository(
+    ISessionRepository,
+    IMessageRepository,
+    IAttachmentRepository,
+    IAIGeneratedFilesRepository,
+):
     SESSION_TTL = 14400  # 4h
 
     def __init__(self, redis_client: Redis):
@@ -190,7 +194,6 @@ class RedisCacheRepository(ISessionRepository, IMessageRepository, IAttachmentRe
         self,
         session_id: str,
     ) -> list:
-        # Cache is not source of truth for attachments, return empty list
         return []
 
     # Redis Stream Management
@@ -216,3 +219,98 @@ class RedisCacheRepository(ISessionRepository, IMessageRepository, IAttachmentRe
     async def cleanup_stream(self, session_id: str) -> None:
         key = f"stream:{session_id}:stopped"
         await self.redis.delete(key)
+
+    # ai generated files operations
+    async def save_ai_file(
+        self,
+        session_id: str,
+        user_id: str,
+        file_type: str,
+        storage_path: str,
+        file_name: str,
+        metadata: dict | None = None,
+        expires_at: str | None = None,
+    ) -> str:
+        file_id = str(uuid.uuid4())
+
+        key = f"chat:{session_id}:ai_files:{file_id}"
+
+        data = {
+            "id": file_id,
+            "user_id": user_id,
+            "file_type": file_type,
+            "storage_path": storage_path,
+            "file_name": file_name,
+            "metadata": json.dumps(metadata) if metadata else "{}",
+            "created_at": self._now(),
+        }
+
+        async with self.redis.pipeline() as pipe:
+            pipe.hset(key, mapping=data)
+            pipe.expire(key, self.SESSION_TTL)
+            await pipe.execute()
+
+        return file_id
+
+    async def get_ai_files(
+        self,
+        session_id: str,
+        file_type: str | None = None,
+    ) -> list:
+        return []
+
+    async def get_ai_file_by_id(
+        self,
+        file_id: str,
+    ) -> dict | None:
+        """Retrieve an AI-generated file by ID from Redis."""
+        # Search through all sessions to find the file
+        # Pattern: chat:{session_id}:ai_files:{file_id}
+        cursor = 0
+        while True:
+            cursor, keys = await self.redis.scan(
+                cursor, match=f"chat:*:ai_files:{file_id}"
+            )
+            if keys:
+                for key in keys:
+                    data = await self.redis.hgetall(key)
+                    if data and b"deleted_at" not in data:
+                        # Convert bytes to strings
+                        return {
+                            k.decode() if isinstance(k, bytes) else k: v.decode()
+                            if isinstance(v, bytes)
+                            else v
+                            for k, v in data.items()
+                        }
+            if cursor == 0:
+                break
+        return None
+
+    async def soft_delete_ai_file(
+        self,
+        file_id: str,
+        user_id: str,
+    ) -> bool:
+        """Soft delete an AI-generated file by marking it with a deleted_at timestamp."""
+        # Search through all sessions to find and soft delete the file
+        cursor = 0
+        found = False
+        while True:
+            cursor, keys = await self.redis.scan(
+                cursor, match=f"chat:*:ai_files:{file_id}"
+            )
+            if keys:
+                for key in keys:
+                    # Verify that the file belongs to the user
+                    data = await self.redis.hgetall(key)
+                    if data:
+                        stored_user_id = data.get(b"user_id")
+                        if isinstance(stored_user_id, bytes):
+                            stored_user_id = stored_user_id.decode()
+                        if stored_user_id == user_id:
+                            # Mark as deleted
+                            await self.redis.hset(key, "deleted_at", self._now())
+                            found = True
+            if cursor == 0:
+                break
+        return found

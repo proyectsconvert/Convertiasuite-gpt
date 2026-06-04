@@ -61,9 +61,10 @@ export default function ChatView() {
     const messageText =
       input.trim() || `Analiza el archivo adjunto: ${filename}`;
 
-    const attachment = filename && attachmentType
-      ? { filename, type: attachmentType }
-      : undefined;
+    const attachment =
+      filename && attachmentType
+        ? { filename, type: attachmentType }
+        : undefined;
 
     const userMsg: ChatMessage = {
       id: `${Date.now()}-user`,
@@ -71,7 +72,11 @@ export default function ChatView() {
       content: input.trim() || "",
       timestamp: new Date().toISOString(),
       attachments: attachment ? [attachment] : [],
-      images: (attachmentType === "image" || attachmentType === "vision") && extractedContext ? [extractedContext] : [],
+      images:
+        (attachmentType === "image" || attachmentType === "vision") &&
+        extractedContext
+          ? [extractedContext]
+          : [],
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -89,7 +94,6 @@ export default function ChatView() {
             ? input.slice(0, 50)
             : filename || "Nueva Conversación";
 
-        
         skipNextHistoryFetch.current = true;
 
         const s = await chatApi.createSession(sessionTitle);
@@ -163,6 +167,7 @@ export default function ChatView() {
               message={m}
               onRegenerate={undefined}
               previousMessage={index > 0 ? messages[index - 1] : undefined}
+              sessionId={currentChatId}
             />
           ))}
           {streamingContent && (
@@ -176,22 +181,23 @@ export default function ChatView() {
               onRegenerate={undefined}
               isStreaming={true}
               previousMessage={messages[messages.length - 1]}
+              sessionId={currentChatId}
             />
           )}
           {isLoading && !streamingContent && (
-             <div className="flex items-center gap-3 py-4">
-            <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center">
-              <img
-                src="/logo-dark.ico"
-                alt=""
-                className="w-5 h-5 object-contain block dark:hidden"
-              />
-              <img
-                src="/favicon.ico"
-                alt=""
-                className="w-5 h-5 object-contain hidden dark:block"
-              />
-            </div>
+            <div className="flex items-center gap-3 py-4">
+              <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center">
+                <img
+                  src="/logo-dark.ico"
+                  alt=""
+                  className="w-5 h-5 object-contain block dark:hidden"
+                />
+                <img
+                  src="/favicon.ico"
+                  alt=""
+                  className="w-5 h-5 object-contain hidden dark:block"
+                />
+              </div>
               <div className="flex gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce" />
                 <span className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:150ms]" />

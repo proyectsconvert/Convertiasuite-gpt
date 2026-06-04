@@ -1,14 +1,16 @@
 import logging
 from uuid import UUID
 import io
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from app.dependencies.auth import get_current_user
-from app.services.Files_Processor.document_manager import DocumentManager
+from app.services.document_processing.document_manager import DocumentManager
 from app.services.document_generation.document_generator import DocumentGenerator
 from app.domain.entities.document_content import DocumentContent
+from app.domain.interfaces.memory_repository import IMemoryRepository
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +23,16 @@ def get_document_generator() -> DocumentGenerator:
         _document_generator = DocumentGenerator()
     return _document_generator
 
+
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 
 def get_document_manager(request: Request) -> DocumentManager:
     return request.app.state.document_manager
+
+
+def get_memory_repo(request: Request) -> IMemoryRepository:
+    return request.app.state.memory
 
 
 @router.post("/upload")
@@ -149,29 +156,38 @@ class GenerateFileRequest(BaseModel):
     filename: str
     format: str
     content: Union[DocumentContent, Dict[str, Any], str, Any]
+    session_id: Optional[str] = None
 
 
 _MEDIA_TYPES: dict[str, str] = {
-    "pdf":  "application/pdf",
+    "pdf": "application/pdf",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "word": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "excel":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "excel": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "ppt":  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "ppt": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "powerpoint": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "csv":  "text/csv",
+    "csv": "text/csv",
     "json": "application/json",
-    "md":   "text/markdown",
-    "txt":  "text/plain",
+    "md": "text/markdown",
+    "txt": "text/plain",
 }
 
 _EXT_MAP: dict[str, str] = {
-    "word": ".docx", "docx": ".docx",
-    "excel": ".xlsx", "xlsx": ".xlsx", "xls": ".xlsx",
-    "pptx": ".pptx", "ppt": ".pptx", "powerpoint": ".pptx",
-    "pdf": ".pdf", "csv": ".csv",
-    "json": ".json", "md": ".md", "txt": ".txt",
+    "word": ".docx",
+    "docx": ".docx",
+    "excel": ".xlsx",
+    "xlsx": ".xlsx",
+    "xls": ".xlsx",
+    "pptx": ".pptx",
+    "ppt": ".pptx",
+    "powerpoint": ".pptx",
+    "pdf": ".pdf",
+    "csv": ".csv",
+    "json": ".json",
+    "md": ".md",
+    "txt": ".txt",
 }
 
 
@@ -179,6 +195,7 @@ _EXT_MAP: dict[str, str] = {
 async def generate_document(
     request: GenerateFileRequest,
     current_user: dict = Depends(get_current_user),
+    memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
 
     format_lower = request.format.lower()
@@ -191,32 +208,53 @@ async def generate_document(
     media_type = _MEDIA_TYPES.get(format_lower)
     if not media_type:
         raise HTTPException(
-            status_code=400,
-            detail=f"Formato no soportado: {request.format}"
+            status_code=400, detail=f"Formato no soportado: {request.format}"
         )
 
     try:
         generator = get_document_generator()
 
-        if format_lower == "txt":
-            file_bytes = generator.generate_txt(
-                request.content if isinstance(request.content, str) else str(request.content)
-            )
-        elif format_lower == "md":
-            file_bytes = generator.generate_md(
-                request.content if isinstance(request.content, str) else str(request.content)
-            )
-        elif format_lower == "json":
-            file_bytes = generator.generate_json(request.content)
-        elif format_lower == "csv":
-            file_bytes = generator.generate_csv(request.content)
-        else:
-            file_bytes = generator.generate(request.content, fmt=format_lower)
+        file_bytes = generator.generate(request.content, fmt=format_lower)
+
+        # Save AI-generated file metadata to database if session_id is provided
+        file_id = None
+        if request.session_id:
+            try:
+                storage_path = f"ai_files/{request.session_id}/{filename}"
+                file_id = await memory_repo.save_ai_file(
+                    session_id=request.session_id,
+                    user_id=current_user["id"],
+                    file_type=format_lower,
+                    storage_path=storage_path,
+                    file_name=filename,
+                    metadata={
+                        "generated_at": datetime.utcnow().isoformat(),
+                        "generator": "DocumentGenerator",
+                    },
+                )
+                logger.info(
+                    f"AI-generated file saved: file_id={file_id}, filename={filename}",
+                    extra={
+                        "user_id": current_user["id"],
+                        "session_id": request.session_id,
+                    },
+                )
+            except Exception as db_err:
+                logger.warning(
+                    f"Failed to save AI file metadata to database: {db_err}",
+                    extra={
+                        "generated_filename": filename,
+                        "session_id": request.session_id,
+                    },
+                )
 
         headers = {
             "Content-Disposition": f'attachment; filename="{filename}"',
             "Access-Control-Expose-Headers": "Content-Disposition",
         }
+
+        if file_id:
+            headers["X-File-ID"] = file_id
 
         return StreamingResponse(
             io.BytesIO(file_bytes),
@@ -229,6 +267,5 @@ async def generate_document(
     except Exception as e:
         logger.error(f"Error generating document '{filename}': {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Error al generar el archivo: {str(e)}"
+            status_code=500, detail=f"Error al generar el archivo: {str(e)}"
         )
