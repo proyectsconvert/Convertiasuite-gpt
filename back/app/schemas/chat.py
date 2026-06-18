@@ -31,12 +31,21 @@ class AttachmentDTO(BaseModel):
     type: str
 
 
+class ArtifactDTO(BaseModel):
+    id: Optional[str] = None
+    filename: str
+    type: str
+    content: Optional[str] = None
+    url: Optional[str] = None
+
+
 class MessageDTO(BaseModel):
     id: str
     role: str
     content: str
     timestamp: str
     attachments: Optional[List[AttachmentDTO]] = []
+    artifacts: Optional[List[ArtifactDTO]] = []
     images: Optional[List[str]] = []
 
 

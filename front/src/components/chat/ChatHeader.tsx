@@ -4,10 +4,12 @@ import {
   PanelRightOpen,
   PanelRightClose,
   Check,
+  Package,
 } from "lucide-react";
 
-import { useAppStore } from "@/store/appStore";
+import { useAppStore, useCurrentChatArtifacts } from "@/store/appStore";
 import { AnimatePresence } from "framer-motion";
+import { getArtifactCounts } from "@/lib/artifact-utils";
 
 export default function ChatHeader() {
   const {
@@ -17,6 +19,9 @@ export default function ChatHeader() {
     artifactsPanelOpen,
     setArtifactsPanelOpen,
   } = useAppStore();
+
+  const artifacts = useCurrentChatArtifacts();
+  const artifactCounts = getArtifactCounts(artifacts);
 
   const activeChat = sessions.find((c) => c.id === currentChatId);
 
@@ -72,7 +77,7 @@ export default function ChatHeader() {
   const title = activeChat?.title || "Nuevo chat";
 
   return (
-    <header className="h-12 border-b border-border/40 flex items-center justify-between px-4 flex-shrink-0 bg-background/80 backdrop-blur-sm">
+    <header className="min-h-12 border-b border-border/40 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-4 flex-shrink-0 bg-background/80 backdrop-blur-sm">
       {/* Left */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
         {isEditing ? (
@@ -93,7 +98,7 @@ export default function ChatHeader() {
               setEditValue(title);
               setIsEditing(true);
             }}
-            className="text-sm font-medium text-foreground hover:text-primary transition-colors truncate max-w-[300px]"
+            className="text-sm font-medium text-foreground hover:text-primary transition-colors truncate max-w-[180px] sm:max-w-[300px]"
             title="Click para editar el nombre"
           >
             {title}
@@ -102,7 +107,7 @@ export default function ChatHeader() {
       </div>
 
       {/* Right */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2">
         <AnimatePresence>
           {showModels && (
             <div
@@ -128,23 +133,31 @@ export default function ChatHeader() {
         </button>
 
         {/* Artifacts */}
-        <button
-          onClick={() => setArtifactsPanelOpen(!artifactsPanelOpen)}
-          className={`p-2 rounded-lg transition-colors ${
-            artifactsPanelOpen
-              ? "text-primary bg-primary/10"
-              : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-          }`}
-          aria-label={
-            artifactsPanelOpen ? "Cerrar panel" : "Abrir panel"
-          }
-        >
-          {artifactsPanelOpen ? (
-            <PanelRightClose className="w-4 h-4" />
-          ) : (
-            <PanelRightOpen className="w-4 h-4" />
-          )}
-        </button>
+        {artifactCounts.total > 0 && (
+          <button
+            onClick={() => setArtifactsPanelOpen(!artifactsPanelOpen)}
+            className={`p-2 rounded-lg transition-colors relative ${
+              artifactsPanelOpen
+                ? "text-primary bg-primary/10"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+            }`}
+            aria-label={artifactsPanelOpen ? "Cerrar panel" : "Abrir panel"}
+            title={`Artefactos: ${artifactCounts.documents} documentos, ${artifactCounts.html} HTML, ${artifactCounts.code} código, ${artifactCounts.markdown} markdown`}
+          >
+            {artifactsPanelOpen ? (
+              <PanelRightClose className="w-4 h-4" />
+            ) : (
+              <>
+                <PanelRightOpen className="w-4 h-4" />
+                {artifactCounts.total > 0 && (
+                  <span className="absolute top-0 right-0 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                    {artifactCounts.total}
+                  </span>
+                )}
+              </>
+            )}
+          </button>
+        )}
       </div>
     </header>
   );

@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { SessionSummary, authApi } from "@/services/api";
+import { SessionSummary, authApi, ChatMessage, type DocumentArtifact, setTokenRefreshListener, documentsApi } from "@/services/api";
+import { extractAllArtifacts } from "@/lib/artifact-utils";
 
 export type AppView =
   | "landing"
@@ -19,16 +20,24 @@ export interface User {
   email: string;
   company: string;
   role: string;
+  area?: string;
+  functional_role?: string;
   plan: "free" | "pro" | "enterprise";
   avatar?: string;
 }
 
 export interface ChatArtifact {
   id: string;
+  messageId?: string;
   title: string;
   type: "code" | "html" | "markdown" | "document";
   language?: string;
   content: string;
+  // Document-specific fields
+  filename?: string;
+  fileType?: "pdf" | "docx" | "pptx" | "csv" | "json" | "txt" | "file";
+  downloadUrl?: string;
+  timestamp?: string;
 }
 
 interface AppState {
@@ -48,6 +57,7 @@ interface AppState {
   /* Chat */
   currentChatId: string | null;
   sessions: SessionSummary[];
+  messages: ChatMessage[];
 
   /* Models */
   selectedModel: string;
@@ -71,6 +81,14 @@ interface AppState {
 
   setSessions: (
     sessions: SessionSummary[]
+  ) => void;
+
+  setMessages: (
+    messages: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])
+  ) => void;
+
+  updateUser: (
+    user: Partial<User>
   ) => void;
 
   addSession: (
@@ -108,6 +126,13 @@ interface AppState {
   ) => Promise<boolean>;
 
   logout: () => void;
+
+  generateDocumentAndAddArtifact: (
+    filename: string,
+    format: string,
+    content: any,
+    messageId?: string
+  ) => Promise<ChatArtifact | null>;
 }
 
 export const useAppStore = create<AppState>()(
@@ -130,6 +155,7 @@ export const useAppStore = create<AppState>()(
 
       currentChatId: null,
       sessions: [],
+      messages: [],
 
       selectedModel: "qwen2.5:7b",
 
@@ -188,10 +214,28 @@ export const useAppStore = create<AppState>()(
       /* CHAT */
 
       setCurrentChatId: (id) =>
-        set({ currentChatId: id }),
+        set({
+          currentChatId: id,
+          messages: [],
+          activeArtifact: null,
+          artifactsPanelOpen: false,
+        }),
 
       setSessions: (sessions) =>
         set({ sessions }),
+
+      setMessages: (messages) =>
+        set((state) => ({
+          messages: typeof messages === "function" ? messages(state.messages) : messages,
+        })),
+
+      updateUser: (updatedUser) =>
+        set((state) => {
+          if (!state.user) return {};
+          const newUser = { ...state.user, ...updatedUser };
+          localStorage.setItem("user", JSON.stringify(newUser));
+          return { user: newUser };
+        }),
 
       addSession: (session) =>
         set((state) => ({
@@ -274,9 +318,11 @@ export const useAppStore = create<AppState>()(
                 response.user.email,
               company: "Convert-IA",
               role: response.user.role,
-              plan: "pro",
+              area: response.user.area,
+              functional_role:
+                response.user.functional_role,
+              plan: "free",
             },
-
             accessToken:
               response.access_token,
 
@@ -316,6 +362,100 @@ export const useAppStore = create<AppState>()(
           view: "landing",
         });
       },
+
+      generateDocumentAndAddArtifact: async (
+        filename,
+        format,
+        content,
+        messageId
+      ) => {
+        try {
+          const state = get();
+          if (!state.currentChatId) {
+            console.error(
+              "No session ID available"
+            );
+            return null;
+          }
+
+          const response =
+            await documentsApi.generateWithArtifact(
+              filename,
+              format,
+              content,
+              state.currentChatId,
+              messageId
+            );
+
+          if (!response.success) {
+            console.error(
+              "Failed to generate document"
+            );
+            return null;
+          }
+
+          const artifact: ChatArtifact =
+          {
+            id:
+              response.artifact.id,
+            messageId:
+              messageId ||
+              state.messages.filter(
+                (m) =>
+                  m.role ===
+                  "assistant"
+              )[-1]?.id,
+            title:
+              response.artifact
+                .filename,
+            type: "document",
+            filename:
+              response.artifact
+                .filename,
+            fileType: (response.artifact.type as ChatArtifact["fileType"]),
+            content: "",
+            timestamp:
+              response.artifact
+                .created_at,
+          };
+
+          const documentArtifact: DocumentArtifact = {
+            id: response.artifact.id,
+            filename: response.artifact.filename,
+            type: (response.artifact.type as DocumentArtifact["type"]) || "file",
+            content: "",
+            url: undefined,
+          };
+
+          // Add artifact to messages if message_id exists
+          if (artifact.messageId) {
+            set((state) => ({
+              messages: state.messages.map((msg) =>
+                msg.id === artifact.messageId
+                  ? {
+                    ...msg,
+                    artifacts: [...(msg.artifacts || []), documentArtifact],
+                  }
+                  : msg
+              ),
+            }));
+          }
+
+          set({
+            activeArtifact: artifact,
+            artifactsPanelOpen:
+              true,
+          });
+
+          return artifact;
+        } catch (error) {
+          console.error(
+            "Error generating document:",
+            error
+          );
+          return null;
+        }
+      },
     }),
 
     {
@@ -339,3 +479,15 @@ export const useAppStore = create<AppState>()(
     }
   )
 );
+
+setTokenRefreshListener((token) => {
+  useAppStore.setState({ accessToken: token });
+});
+
+/**
+ * Hook selector para obtener todos los artefactos del chat actual
+ */
+export const useCurrentChatArtifacts = () => {
+  const { messages } = useAppStore();
+  return extractAllArtifacts(messages);
+};

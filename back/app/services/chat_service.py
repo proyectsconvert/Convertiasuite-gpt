@@ -2,6 +2,8 @@ from datetime import datetime, UTC
 import logging
 import time
 import uuid
+import json
+import re
 from app.core.model_config import DEFAULT_MODEL_KEY, get_model_config
 from app.domain.entities.message import Message
 from app.domain.contracts import PromptContract
@@ -10,6 +12,7 @@ from app.domain.interfaces.message_repository import IMessageRepository
 from app.security.risk_scorer import risk_scorer
 from app.services.model_router import route_model
 from app.services.document_processing.document_manager import DocumentManager
+from app.services.document_generation.document_generator import DocumentGenerator
 from app.security.exceptions import (
     PolicyViolationException,
     SecurityException,
@@ -27,6 +30,8 @@ from app.services.prompts.response_validator import (
 from app.security.output_guard import (
     OutputValidationAction,
     get_safety_fallback,
+    get_unavailable_fallback,
+    get_timeout_fallback,
     output_validator,
     validate_chunk_realtime,
 )
@@ -39,6 +44,93 @@ MODEL_CONFIG = get_model_config()
 logger = logging.getLogger(__name__)
 
 MAX_STREAM_SECONDS = 300
+
+
+def _extract_document_generation_request(response_text: str) -> tuple[str, dict | None]:
+    try:
+        # Busca patrones como ```json {...} ``` o directamente JSON
+        json_pattern = r'```(?:json)?\s*(\{[\s\S]*?"generate_document"[\s\S]*?\})\s*```'
+        match = re.search(json_pattern, response_text)
+
+        if not match:
+            # Intenta encontrar JSON directamente sin backticks
+            json_pattern = r'(\{[\s\S]*?"generate_document"[\s\S]*?\})'
+            match = re.search(json_pattern, response_text)
+
+        if match:
+            json_str = match.group(1)
+            data = json.loads(json_str)
+
+            if "generate_document" in data:
+                doc_request = data["generate_document"]
+
+                # Extrae el JSON del texto para limpiarlo
+                cleaned_text = response_text.replace(match.group(0), "").strip()
+
+                return cleaned_text, doc_request
+    except (json.JSONDecodeError, AttributeError) as e:
+        logger.debug(f"No document generation request found: {e}")
+
+    return response_text, None
+
+
+async def _generate_and_attach_document(
+    document_request: dict,
+    message: Message,
+    session_id: str,
+    user_id: str,
+) -> bool:
+    try:
+        filename = document_request.get("filename", "documento")
+        format_type = document_request.get("format", "pdf").lower()
+        content = document_request.get("content")
+
+        if not content:
+            logger.warning("Document generation request missing content")
+            return False
+
+        # Genera el documento
+        generator = DocumentGenerator()
+        file_bytes = generator.generate(content, fmt=format_type)
+
+        # Asegura extensión correcta
+        ext_map = {
+            "pdf": ".pdf",
+            "docx": ".docx",
+            "xlsx": ".xlsx",
+            "pptx": ".pptx",
+            "csv": ".csv",
+            "json": ".json",
+            "txt": ".txt",
+            "md": ".md",
+        }
+        ext = ext_map.get(format_type, f".{format_type}")
+        if not filename.endswith(ext):
+            filename = f"{filename}{ext}"
+
+        # Crea el artifact
+        artifact = {
+            "filename": filename,
+            "type": format_type,
+            "url": None,
+            "content": None,  # No incluya contenido binario en artifacts
+        }
+
+        # Añade el artifact al mensaje
+        if not hasattr(message, "artifacts"):
+            message.artifacts = []
+        message.artifacts.append(artifact)
+
+        logger.info(
+            f"Document generated and attached: filename={filename}, format={format_type}",
+            extra={"message_id": message.id, "session_id": session_id},
+        )
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Error generating document: {e}")
+        return False
 
 
 async def _persist_messages(
@@ -186,7 +278,9 @@ async def process_chat(
         if request.extracted_context:
             attachment_name = request.attachment_name or attachment_name
             attachment_type = request.attachment_type or attachment_type
-            is_image = attachment_type.startswith("image") or attachment_type == "vision"
+            is_image = (
+                attachment_type.startswith("image") or attachment_type == "vision"
+            )
 
             # Lightweight attachment metadata without full context content inside history!
             user_attachments.append(
@@ -207,7 +301,7 @@ async def process_chat(
                             tags=[attachment_type],
                             metadata={"upload_source": "chat_inference"},
                         )
-                    
+
                     if hasattr(memory_repo, "save_attachment"):
                         storage_path = f"attachments/{session_id}/{attachment_name}"
                         await memory_repo.save_attachment(
@@ -247,7 +341,9 @@ async def process_chat(
                 )
 
         if not doc_context and request.extracted_context and not is_image:
-            paragraphs = [p.strip() for p in request.extracted_context.split("\n\n") if p.strip()]
+            paragraphs = [
+                p.strip() for p in request.extracted_context.split("\n\n") if p.strip()
+            ]
             query_words = set(clean_input.lower().split())
             scored = []
             for p in paragraphs:
@@ -256,14 +352,17 @@ async def process_chat(
                 score = overlap / len(query_words) if query_words else 0
                 scored.append((score, p))
             scored.sort(key=lambda x: x[0], reverse=True)
-            
+
             top_chunks = []
             for score, p in scored[:3]:
                 if score > 0 or not top_chunks:
                     trimmed = p if len(p) <= 1500 else p[:1500] + "..."
                     top_chunks.append(f"### Fragmento de {attachment_name}:\n{trimmed}")
             if top_chunks:
-                doc_context = "## DOCUMENTOS RELACIONADOS (FALLBACK RETRIEVED CONTEXT):\n\n" + "\n\n".join(top_chunks)
+                doc_context = (
+                    "## DOCUMENTOS RELACIONADOS (FALLBACK RETRIEVED CONTEXT):\n\n"
+                    + "\n\n".join(top_chunks)
+                )
 
         message_content = clean_input
         images_list = []
@@ -272,7 +371,9 @@ async def process_chat(
             if clean_input:
                 message_content = f"[El usuario ha adjuntado la imagen: {attachment_name}]\nPregunta del usuario sobre este archivo: {clean_input}"
             else:
-                message_content = f"[El usuario ha adjuntado la imagen: {attachment_name}]"
+                message_content = (
+                    f"[El usuario ha adjuntado la imagen: {attachment_name}]"
+                )
 
         user_message = Message(
             id=str(uuid.uuid4()),
@@ -347,7 +448,9 @@ async def process_chat(
                     await memory_repo.start_stream(session_id)
 
                 async for chunk in stream:
-                    if hasattr(memory_repo, "should_stop_stream") and await memory_repo.should_stop_stream(session_id):
+                    if hasattr(
+                        memory_repo, "should_stop_stream"
+                    ) and await memory_repo.should_stop_stream(session_id):
                         logger.info(
                             "Stream stopped by user session=%s trace_id=%s",
                             session_id,
@@ -452,12 +555,25 @@ async def process_chat(
                         )
 
                 if full_response.strip():
+                    cleaned_response, document_request = (
+                        _extract_document_generation_request(full_response)
+                    )
+                    full_response = cleaned_response
+
                     assistant_message = Message(
                         id=str(uuid.uuid4()),
                         role="assistant",
                         content=full_response,
                         timestamp=datetime.now(UTC),
                     )
+
+                    if document_request:
+                        await _generate_and_attach_document(
+                            document_request,
+                            assistant_message,
+                            session_id,
+                            user_id,
+                        )
 
                     messages.append(assistant_message)
 
@@ -484,7 +600,7 @@ async def process_chat(
                     trace_id,
                 )
 
-                fallback = get_safety_fallback(request.user_role)
+                fallback = get_timeout_fallback(request.user_role)
 
                 assistant_message = Message(
                     id=str(uuid.uuid4()),
@@ -512,7 +628,7 @@ async def process_chat(
                     trace_id,
                 )
 
-                fallback = get_safety_fallback(request.user_role)
+                fallback = get_unavailable_fallback(request.user_role)
 
                 assistant_message = Message(
                     id=str(uuid.uuid4()),

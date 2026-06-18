@@ -10,12 +10,15 @@ import {
   FileSpreadsheet,
   FileDown,
   Download,
-  Presentation, // 1. Importamos el icono para presentaciones
+  Presentation,
+  Code2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion } from "framer-motion";
 import { ChatMessage, documentsApi } from "@/services/api";
 import remarkGfm from "remark-gfm";
+import { useAppStore } from "@/store/appStore";
+import { filterReasoningFromMessage, isReasoningOnlyMessage } from "@/lib/artifact-utils";
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -25,11 +28,16 @@ interface MessageBubbleProps {
   sessionId?: string;
 }
 
-const getCodeText = (node: any): string => {
+const getCodeText = (children: any): string => {
   try {
-    const firstChild = node?.children?.[0];
-    const codeChild = firstChild?.children?.[0];
-    return codeChild?.value || "";
+    if (!children) return "";
+    if (typeof children === "string") return children;
+    if (typeof children === "number") return String(children);
+    if (Array.isArray(children)) return children.map(getCodeText).join("");
+    if (children.props && children.props.children !== undefined) {
+      return getCodeText(children.props.children);
+    }
+    return "";
   } catch {
     return "";
   }
@@ -91,12 +99,11 @@ export default function MessageBubble({
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  const { setActiveArtifact } = useAppStore();
 
   const isUser = message.role === "user";
   const attachment = message.attachments?.[0];
-
-  console.log("MESSAGE", message);
-  console.log("ATTACHMENT", attachment);
+  const hasModelImages = !isUser && message.images && message.images.length > 0;
 
   const userText = previousMessage?.content?.toLowerCase() || "";
   const assistantText = message.content?.toLowerCase() || "";
@@ -199,7 +206,17 @@ export default function MessageBubble({
     return `¡Listo! Aquí te presento el documento ${formats[0] || "solicitado"}. Puedes descargarlo directamente abajo 👇`;
   };
 
+  // No mostrar si no hay contenido válido y no hay archivos adjuntos
   if (typeof message.content !== "string" && !message.attachments?.length) {
+    return null;
+  }
+
+  // No mostrar si el mensaje es solo razonamiento/thinking
+  if (
+    typeof message.content === "string" &&
+    isReasoningOnlyMessage(message.content) &&
+    !message.attachments?.length
+  ) {
     return null;
   }
 
@@ -421,6 +438,43 @@ export default function MessageBubble({
                         "txt",
                       ].includes(rawLang);
 
+                      const text = getCodeText(children);
+
+                      if (rawLang === "html") {
+                        return (
+                          <div
+                            onClick={() => {
+                              setActiveArtifact({
+                                id: `${message.id}-html`,
+                                messageId: message.id,
+                                title: "Página Web Interactiva (HTML)",
+                                type: "html",
+                                language: "html",
+                                content: text,
+                              });
+                            }}
+                            className="my-4 p-4 rounded-xl border border-border bg-card hover:bg-secondary/30 transition-all shadow-sm cursor-pointer flex items-center justify-between group/artifact"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover/artifact:bg-primary/20 transition-all">
+                                <Code2 className="w-5 h-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-foreground truncate max-w-[200px] sm:max-w-xs">
+                                  Interfaz Web Generada (HTML)
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Haz clic para abrir la vista previa y editar
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-xs text-primary font-semibold group-hover/artifact:underline flex items-center gap-1">
+                              Ver artefacto →
+                            </span>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div className="relative group/code my-3">
                           <pre
@@ -433,7 +487,7 @@ export default function MessageBubble({
                             {isSupportedForDownload && (
                               <button
                                 onClick={() => {
-                                  const text = getCodeText((props as any).node);
+                                  const text = getCodeText(children);
                                   const fileExt =
                                     rawLang === "markdown" ? "md" : rawLang;
                                   handleDownload(
@@ -450,7 +504,7 @@ export default function MessageBubble({
                             )}
                             <button
                               onClick={() => {
-                                const text = getCodeText((props as any).node);
+                                const text = getCodeText(children);
                                 navigator.clipboard.writeText(text);
                               }}
                               className="p-1.5 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white transition-all text-xs"
@@ -589,11 +643,48 @@ export default function MessageBubble({
                     hr: () => <hr className="my-4 border-border" />,
                   }}
                 >
-                  {message.content}
+                  {filterReasoningFromMessage(message.content)}
                 </ReactMarkdown>
+              )}
+              {/* Imágenes generadas por el modelo (solo mensajes del asistente) */}
+              {hasModelImages && (
+                <div className="flex flex-col gap-3 mt-3">
+                  {message.images!.map((imgData, idx) => {
+                    // Detect if it's already a full data URL or raw base64
+                    const src = imgData.startsWith("data:")
+                      ? imgData
+                      : `data:image/png;base64,${imgData}`;
+                    return (
+                      <div
+                        key={idx}
+                        className="rounded-xl overflow-hidden border border-border/40 bg-secondary/20 max-w-sm"
+                      >
+                        <img
+                          src={src}
+                          alt={`Imagen generada ${idx + 1}`}
+                          className="w-full h-auto object-contain rounded-xl"
+                          loading="lazy"
+                        />
+                        <div className="px-3 py-1.5 flex items-center justify-between border-t border-border/30">
+                          <span className="text-[10px] text-muted-foreground">
+                            Imagen generada por el modelo
+                          </span>
+                          <a
+                            href={src}
+                            download={`imagen-ia-${idx + 1}.png`}
+                            className="text-[10px] text-primary hover:underline font-semibold"
+                          >
+                            Descargar
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
 
               {isStreaming && (
+
                 <span className="inline-flex items-center gap-0.5 ml-1">
                   <span className="w-2 h-2 bg-primary rounded-full animate-bounce" />
                   <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:140ms]" />

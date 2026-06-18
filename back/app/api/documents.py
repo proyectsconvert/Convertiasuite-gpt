@@ -159,6 +159,14 @@ class GenerateFileRequest(BaseModel):
     session_id: Optional[str] = None
 
 
+class GenerateAndAddArtifactRequest(BaseModel):
+    filename: str
+    format: str
+    content: Union[DocumentContent, Dict[str, Any], str, Any]
+    session_id: str
+    message_id: Optional[str] = None  # If not provided, will attach to last assistant message
+
+
 _MEDIA_TYPES: dict[str, str] = {
     "pdf": "application/pdf",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -269,3 +277,73 @@ async def generate_document(
         raise HTTPException(
             status_code=500, detail=f"Error al generar el archivo: {str(e)}"
         )
+
+
+@router.post("/generate-with-artifact")
+async def generate_and_add_artifact(
+    request: GenerateAndAddArtifactRequest,
+    current_user: dict = Depends(get_current_user),
+    memory_repo: IMemoryRepository = Depends(get_memory_repo),
+):
+    format_lower = request.format.lower()
+    filename = request.filename
+
+    ext = _EXT_MAP.get(format_lower, f".{format_lower}")
+    if not filename.endswith(ext):
+        filename += ext
+
+    if format_lower not in _MEDIA_TYPES:
+        raise HTTPException(
+            status_code=400, detail=f"Formato no soportado: {request.format}"
+        )
+
+    try:
+        generator = get_document_generator()
+        file_bytes = generator.generate(request.content, fmt=format_lower)
+
+        # Save AI-generated file metadata to database
+        file_id = None
+        download_url = None
+        try:
+            storage_path = f"ai_files/{request.session_id}/{filename}"
+            file_id = await memory_repo.save_ai_file(
+                session_id=request.session_id,
+                user_id=current_user["id"],
+                file_type=format_lower,
+                storage_path=storage_path,
+                file_name=filename,
+                metadata={
+                    "generated_at": datetime.utcnow().isoformat(),
+                    "generator": "DocumentGenerator",
+                    "message_id": request.message_id,
+                },
+            )
+            # File ID can be used to construct download URL if needed
+            logger.info(
+                f"AI file saved: file_id={file_id}, filename={filename}",
+                extra={"session_id": request.session_id},
+            )
+        except Exception as db_err:
+            logger.warning(
+                f"Failed to save AI file metadata: {db_err}",
+                extra={"filename": filename},
+            )
+
+        # Return artifact metadata for frontend to add to message artifacts
+        return {
+            "success": True,
+            "artifact": {
+                "id": file_id or str(datetime.utcnow().timestamp()),
+                "filename": filename,
+                "type": format_lower,
+                "size": len(file_bytes),
+                "created_at": datetime.utcnow().isoformat(),
+            },
+            "message": "Document generated successfully. Use the artifact info to add to message artifacts.",
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error generating document with artifact: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate document")

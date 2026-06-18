@@ -7,6 +7,11 @@ import {
   FileText,
   Mic,
   Square,
+  FileImage,
+  FileJson,
+  FileCode,
+  FileSpreadsheet,
+  File as FileIcon,
 } from "lucide-react";
 
 import { useAppStore } from "@/store/appStore";
@@ -18,9 +23,9 @@ interface ChatInputProps {
   value: string;
   onChange: (val: string) => void;
   onSend: (
-    extractedContext?: string,
-    filename?: string,
-    attachmentType?: string,
+    extractedContexts?: string[],
+    filenames?: string[],
+    attachmentTypes?: string[],
   ) => void;
   isLoading: boolean;
   variant?: "welcome" | "conversation";
@@ -29,9 +34,14 @@ interface ChatInputProps {
 type UploadState = "idle" | "uploading" | "recording";
 
 interface AttachedFileData {
+  id: string;
   name: string;
   context: string;
   type?: string;
+  preview?: string;
+  fileSize?: string;
+  isImage?: boolean;
+  rawFile?: File;
 }
 
 function AudioWaveform() {
@@ -82,6 +92,46 @@ function AudioWaveform() {
   );
 }
 
+// EXTRACT FILE PREVIEW
+async function extractFilePreview(file: File): Promise<{ preview?: string; fileSize: string; isImage: boolean }> {
+  const fileSize = (file.size / 1024).toFixed(1); // KB
+  const extension = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+
+  // Images - convert to data URL for thumbnail
+  if ([".png", ".jpg", ".jpeg", ".webp"].includes(extension)) {
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      return { preview: dataUrl, fileSize: `${fileSize}KB`, isImage: true };
+    } catch {
+      return { fileSize: `${fileSize}KB`, isImage: true };
+    }
+  }
+
+  // Text files - read content and show preview
+  if ([".txt", ".json", ".md", ".csv"].includes(extension)) {
+    try {
+      const text = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsText(file);
+      });
+      const preview = text.substring(0, 200).replace(/\n/g, " ").trim();
+      return { preview: preview || "Archivo vacío", fileSize: `${fileSize}KB`, isImage: false };
+    } catch {
+      return { fileSize: `${fileSize}KB`, isImage: false };
+    }
+  }
+
+  // Other files - just return size
+  return { fileSize: `${fileSize}KB`, isImage: false };
+}
+
 export default function ChatInput({
   value,
   onChange,
@@ -114,9 +164,8 @@ export default function ChatInput({
     transcriptAccumulatedRef.current = transcriptAccumulated;
   }, [transcriptAccumulated]);
 
-  const [attachedFile, setAttachedFile] = useState<AttachedFileData | null>(
-    null,
-  );
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFileData[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -127,12 +176,19 @@ export default function ChatInput({
 
   // SUBMIT
   const handleSubmit = useCallback(() => {
-    const canSend = value.trim() || attachedFile;
+    const canSend = value.trim() || attachedFiles.length > 0;
     if (canSend && !isLoading && uploadState === "idle") {
-      onSend(attachedFile?.context, attachedFile?.name, attachedFile?.type);
-      setAttachedFile(null);
+      const contexts = attachedFiles.map((f) => f.context);
+      const filenames = attachedFiles.map((f) => f.name);
+      const types = attachedFiles.map((f) => f.type || "archivo");
+      onSend(
+        contexts.length > 0 ? contexts : undefined,
+        filenames.length > 0 ? filenames : undefined,
+        types.length > 0 ? types : undefined,
+      );
+      setAttachedFiles([]);
     }
-  }, [value, attachedFile, isLoading, uploadState, onSend]);
+  }, [value, attachedFiles, isLoading, uploadState, onSend]);
 
   // ENTER SEND
   const handleKeyDown = useCallback(
@@ -145,11 +201,8 @@ export default function ChatInput({
     [handleSubmit],
   );
 
-  // FILE UPLOAD
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  // FILE PROCESSING
+  const processFile = async (file: File) => {
     const fileExtension = file.name
       .substring(file.name.lastIndexOf("."))
       .toLowerCase();
@@ -175,18 +228,23 @@ export default function ChatInput({
           "Solo se admiten Excel (.xlsx), CSV, PDF (.pdf), Word (.docx), PowerPoint (.pptx), Texto (.txt), Markdown (.md), JSON (.json) o Imágenes (.png, .jpg, .jpeg, .webp)",
         variant: "destructive",
       });
-      e.target.value = "";
       return;
     }
 
     setUploadState("uploading");
     try {
+      const previewData = await extractFilePreview(file);
       const response = await chatApi.uploadFile(file);
-      setAttachedFile({
+      const newFile: AttachedFileData = {
+        id: Math.random().toString(36).substr(2, 9),
         name: response.filename,
         context: response.extracted_context,
         type: response.attachment_type,
-      });
+        preview: previewData.preview,
+        fileSize: previewData.fileSize,
+        isImage: previewData.isImage,
+      };
+      setAttachedFiles((prev) => [...prev, newFile]);
     } catch (error) {
       console.error(error);
       toast({
@@ -197,7 +255,46 @@ export default function ChatInput({
       });
     } finally {
       setUploadState("idle");
-      e.target.value = "";
+    }
+  };
+
+  // REMOVE FILE
+  const removeFile = (fileId: string) => {
+    setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId));
+  };
+
+  // FILE UPLOAD
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    for (let i = 0; i < files.length; i++) {
+      await processFile(files[i]);
+    }
+    e.target.value = "";
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (uploadState === "idle" && !isLoading) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (uploadState !== "idle" || isLoading) return;
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        await processFile(files[i]);
+      }
     }
   };
 
@@ -413,58 +510,168 @@ export default function ChatInput({
             </div>
           </motion.div>
         ) : (
-          /* ---- NORMAL INPUT UI ---- */
           <motion.div
             key="normal-ui"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
             transition={{ duration: 0.2 }}
-            className="relative rounded-2xl border bg-card shadow-md transition-shadow focus-within:shadow-lg focus-within:border-primary/20 border-border/40"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`relative rounded-2xl border bg-card shadow-md transition-all duration-200 focus-within:shadow-lg focus-within:border-primary/20 border-border/40 overflow-hidden ${
+              isDragging
+                ? "border-[#1aeda1] dark:border-[#bab8ff] ring-2 ring-[#1aeda1]/20 dark:ring-[#bab8ff]/20 scale-[1.01]"
+                : ""
+            }`}
           >
+            {/* DRAG OVERLAY */}
+            <AnimatePresence>
+              {isDragging && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/90 dark:bg-background/95 border-2 border-dashed border-[#1aeda1] dark:border-[#bab8ff] rounded-2xl backdrop-blur-sm pointer-events-none"
+                >
+                  <Paperclip className="w-10 h-10 text-primary animate-bounce mb-2" />
+                  <p className="text-sm font-semibold text-foreground">
+                    Suelta tu archivo aquí
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Excel, CSV, PDF, Word, PowerPoint, Texto, Imágenes...
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
             {/* FILE INPUT */}
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
               accept=".xlsx,.csv,.pdf,.docx,.txt,.md,.json,.png,.jpg,.jpeg,.webp,.pptx"
+              multiple
               className="hidden"
             />
 
-            {/* ATTACHED FILE */}
+            {/* ATTACHED FILES */}
             <AnimatePresence>
-              {attachedFile && (
+              {attachedFiles.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
-                  className="mx-4 mt-3 overflow-hidden rounded-3xl border border-border/60 bg-secondary/80 shadow-sm"
+                  className="mx-4 mt-3 space-y-2 max-h-[200px] overflow-y-auto"
                 >
-                  <div className="flex items-center gap-3 px-4 py-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                      <FileText className="w-5 h-5" />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-foreground truncate">
-                        {attachedFile.name}
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
-                        <span className="rounded-full bg-background/90 px-2 py-0.5 font-medium uppercase">
-                          {attachedFile.type || "archivo"}
-                        </span>
-                        <span>Archivo listo para enviar</span>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setAttachedFile(null)}
-                      className="p-2 rounded-2xl text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+                  {attachedFiles.map((file) => (
+                    <motion.div
+                      key={file.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -8 }}
+                      className="overflow-hidden rounded-2xl border border-border/60 bg-secondary/80 shadow-sm hover:shadow-md transition-shadow"
                     >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+                      {/* IMAGE PREVIEW */}
+                      {file.isImage && file.preview ? (
+                        <div className="flex items-stretch">
+                          <div className="relative w-20 h-20 flex-shrink-0 overflow-hidden rounded-l-xl">
+                            <img
+                              src={file.preview}
+                              alt={file.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="flex-1 flex items-center justify-between px-4 py-2">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-foreground truncate">
+                                {file.name}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground uppercase font-medium">
+                                {file.fileSize} · {file.type || "imagen"}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeFile(file.id)}
+                              className="p-1.5 flex-shrink-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+                              title="Remover archivo"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : file.preview ? (
+                        /* TEXT PREVIEW */
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-3 px-4 py-2">
+                            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
+                              {file.type === "json" ? (
+                                <FileJson className="w-4 h-4" />
+                              ) : file.type === "csv" ? (
+                                <FileSpreadsheet className="w-4 h-4" />
+                              ) : (
+                                <FileCode className="w-4 h-4" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-medium text-foreground truncate">
+                                {file.name}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground uppercase font-medium">
+                                {file.fileSize} · {file.type || "texto"}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeFile(file.id)}
+                              className="p-1.5 flex-shrink-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+                              title="Remover archivo"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div className="px-4 py-2 bg-background/40 text-[12px] text-muted-foreground italic line-clamp-2 border-t border-border/30">
+                            {file.preview}
+                          </div>
+                        </div>
+                      ) : (
+                        /* DEFAULT FILE PREVIEW */
+                        <div className="flex items-center gap-3 px-4 py-2.5">
+                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            {file.type === "pdf" ? (
+                              <FileText className="w-4 h-4 text-red-500" />
+                            ) : file.type === "xlsx" || file.type === "csv" ? (
+                              <FileSpreadsheet className="w-4 h-4 text-green-500" />
+                            ) : file.type === "docx" ? (
+                              <FileText className="w-4 h-4 text-blue-500" />
+                            ) : file.type === "pptx" ? (
+                              <FileText className="w-4 h-4 text-orange-500" />
+                            ) : (
+                              <FileIcon className="w-4 h-4" />
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-foreground truncate">
+                              {file.name}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground uppercase font-medium">
+                              {file.fileSize} · {file.type || "archivo"}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeFile(file.id)}
+                            className="p-1.5 flex-shrink-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+                            title="Remover archivo"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -517,12 +724,12 @@ export default function ChatInput({
               <button
                 onClick={handleSubmit}
                 disabled={
-                  (!value.trim() && !attachedFile) ||
+                  (!value.trim() && attachedFiles.length === 0) ||
                   isLoading ||
                   uploadState !== "idle"
                 }
                 className={`p-2 rounded-xl transition-all duration-100 ${
-                  (value.trim() || attachedFile) &&
+                  (value.trim() || attachedFiles.length > 0) &&
                   !isLoading &&
                   uploadState === "idle"
                     ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"

@@ -7,8 +7,16 @@ import MessageBubble from "@/components/chat/MessageBubble";
 import { chatApi, ChatMessage, documentsApi } from "@/services/api";
 
 export default function ChatView() {
-  const { currentChatId, setCurrentChatId, user, addSession } = useAppStore();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const {
+    currentChatId,
+    setCurrentChatId,
+    user,
+    addSession,
+    messages,
+    setMessages,
+    setActiveArtifact,
+    setArtifactsPanelOpen,
+  } = useAppStore();
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
@@ -22,6 +30,10 @@ export default function ChatView() {
   }, [messages.length, isLoading, streamingContent]);
 
   useEffect(() => {
+    setActiveArtifact(null);
+    setArtifactsPanelOpen(false);
+    setMessages([]);
+
     if (currentChatId) {
       if (skipNextHistoryFetch.current) {
         skipNextHistoryFetch.current = false;
@@ -39,6 +51,7 @@ export default function ChatView() {
                 content: msg.content,
                 timestamp: msg.timestamp,
                 attachments: msg.attachments || [],
+                artifacts: msg.artifacts || [],
                 images: msg.images || [],
               })),
             );
@@ -46,37 +59,56 @@ export default function ChatView() {
         })
         .catch(() => setMessages([]));
     } else {
+      setActiveArtifact(null);
+      setArtifactsPanelOpen(false);
       setMessages([]);
     }
-  }, [currentChatId]);
+  }, [currentChatId, setActiveArtifact, setArtifactsPanelOpen, setMessages]);
 
   const handleSend = async (
-    extractedContext?: string,
-    filename?: string,
-    attachmentType?: string,
+    extractedContexts?: string[],
+    filenames?: string[],
+    attachmentTypes?: string[],
   ) => {
-    const hasContent = input.trim() || extractedContext;
+    const hasAttachments = filenames && filenames.length > 0;
+    const hasContent = input.trim() || hasAttachments;
     if (!hasContent || isLoading) return;
 
-    const messageText =
-      input.trim() || `Analiza el archivo adjunto: ${filename}`;
+    // Build attachments array
+    const attachments: { filename: string; type: string }[] = [];
+    const images: string[] = [];
 
-    const attachment =
-      filename && attachmentType
-        ? { filename, type: attachmentType }
-        : undefined;
+    if (hasAttachments && filenames && attachmentTypes && extractedContexts) {
+      for (let i = 0; i < filenames.length; i++) {
+        attachments.push({
+          filename: filenames[i],
+          type: attachmentTypes[i],
+        });
+
+        // Collect image contexts
+        if (
+          (attachmentTypes[i] === "image" || attachmentTypes[i] === "vision") &&
+          extractedContexts[i]
+        ) {
+          images.push(extractedContexts[i]);
+        }
+      }
+    }
+
+    const sessionTitle =
+      input.trim().length > 0
+        ? input.slice(0, 50)
+        : hasAttachments
+          ? filenames?.[0] || "Nueva Conversación"
+          : "Nueva Conversación";
 
     const userMsg: ChatMessage = {
       id: `${Date.now()}-user`,
       role: "user",
       content: input.trim() || "",
       timestamp: new Date().toISOString(),
-      attachments: attachment ? [attachment] : [],
-      images:
-        (attachmentType === "image" || attachmentType === "vision") &&
-        extractedContext
-          ? [extractedContext]
-          : [],
+      attachments: attachments,
+      images: images,
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -89,11 +121,6 @@ export default function ChatView() {
 
     if (!sid && user?.id) {
       try {
-        const sessionTitle =
-          input.trim().length > 0
-            ? input.slice(0, 50)
-            : filename || "Nueva Conversación";
-
         skipNextHistoryFetch.current = true;
 
         const s = await chatApi.createSession(sessionTitle);
@@ -109,12 +136,20 @@ export default function ChatView() {
     try {
       let fullResponse = "";
 
+      // Combine all contexts for the message
+      const combinedContexts =
+        extractedContexts?.join("\n\n---\n\n") || undefined;
+      const messageType = attachmentTypes?.[0];
+      const firstName = filenames?.[0];
+
       for await (const chunk of chatApi.sendMessageStream({
-        message: messageText,
+        message:
+          input.trim() ||
+          `Analiza los archivos adjuntos: ${filenames?.join(", ")}`,
         session_id: sid || undefined,
-        extracted_context: extractedContext,
-        attachment_type: attachmentType,
-        attachment_name: filename,
+        extracted_context: combinedContexts,
+        attachment_type: messageType,
+        attachment_name: firstName,
       })) {
         if (chunk.type === "chunk" && chunk.content) {
           fullResponse += chunk.content;
@@ -160,7 +195,7 @@ export default function ChatView() {
     <div className="flex-1 flex flex-col h-full min-h-0">
       <ChatHeader />
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-5 lg:px-8 py-3">
+        <div className="mx-auto w-full max-w-4xl px-4 py-3 sm:px-5 lg:px-8">
           {messages.map((m, index) => (
             <MessageBubble
               key={m.id}
@@ -208,7 +243,7 @@ export default function ChatView() {
           <div ref={endRef} />
         </div>
       </div>
-      <div className="px-4 pb-3 pt-1 flex-shrink-0">
+      <div className="px-3 pb-3 pt-1 flex-shrink-0 sm:px-4">
         <ChatInput
           value={input}
           onChange={setInput}

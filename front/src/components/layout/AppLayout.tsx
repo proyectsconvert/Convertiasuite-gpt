@@ -17,7 +17,7 @@ export default function AppLayout() {
   }, [location, setView]);
 
   return (
-    <div className="h-screen flex bg-background overflow-hidden">
+    <div className="h-screen flex flex-col bg-background overflow-hidden md:flex-row">
       {isSettings ? (
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Outlet />
@@ -25,7 +25,7 @@ export default function AppLayout() {
       ) : (
         <>
           <ChatSidebar />
-          <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <main className="flex-1 flex min-w-0 flex-col overflow-hidden">
             <Outlet />
           </main>
           {artifactsPanelOpen && <ArtifactsPanel />}

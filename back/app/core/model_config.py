@@ -115,8 +115,8 @@ MODEL_REGISTRY = {
         "max_tokens": 2048,
     },
     "analysis": {
-        "model": "gemma4-e4b:latest",
-        "preset": "semi-warm",
+        "model": "qwen2.5:7b",
+        "preset": "hot",
         "tier": "semi-warm",
         "capabilities": ["analysis", "tabular", "excel", "csv"],
         "num_ctx": 8192,
@@ -140,7 +140,7 @@ ROUTING_POLICY = {
 
 
 INFERENCE_PRESETS = {
-    "hot": {"temperature": 0.4, "num_ctx": 2048, "max_tokens": 1024},
+    "hot": {"temperature": 0.4, "num_ctx": 8192, "max_tokens": 1024},
     "warm": {"temperature": 0.3, "num_ctx": 8192, "max_tokens": 1024},
     "semi-warm": {"temperature": 0.3, "num_ctx": 4096, "max_tokens": 1024},
     "cold": {"temperature": 0.2, "num_ctx": 1024, "max_tokens": 512},

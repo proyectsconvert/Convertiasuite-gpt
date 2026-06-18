@@ -8,12 +8,21 @@ export interface Attachment {
   type: string;
 }
 
+export interface DocumentArtifact {
+  id?: string;
+  filename: string;
+  type: "pdf" | "docx" | "pptx" | "csv" | "json" | "txt" | "file";
+  content?: string;
+  url?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: string;
   attachments?: Attachment[];
+  artifacts?: DocumentArtifact[];
   images?: string[];
 }
 
@@ -68,6 +77,18 @@ export interface SessionListResponse {
   sessions: SessionSummary[];
 }
 
+export interface GenerateDocumentResponse {
+  success: boolean;
+  artifact: {
+    id: string;
+    filename: string;
+    type: string;
+    size: number;
+    created_at: string;
+  };
+  message?: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
@@ -78,6 +99,8 @@ export interface UserInfo {
   email: string;
   name: string;
   role: string;
+  area?: string;
+  functional_role?: string;
 }
 
 export interface TokenResponse {
@@ -108,6 +131,11 @@ function clearSession(): void {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("user");
+}
+
+let onTokenRefreshed: ((token: string) => void) | null = null;
+export function setTokenRefreshListener(listener: (token: string) => void) {
+  onTokenRefreshed = listener;
 }
 
 // Flag para evitar múltiples intentos de refresh simultáneamente
@@ -141,6 +169,9 @@ async function tryRefreshToken(): Promise<boolean> {
       if (response.ok) {
         const data = await response.json();
         setTokens(data.access_token, data.refresh_token || refreshToken);
+        if (onTokenRefreshed) {
+          onTokenRefreshed(data.access_token);
+        }
         isRefreshing = false;
         return true;
       }
@@ -246,6 +277,22 @@ export const authApi = {
     }
 
     return data;
+  },
+
+  async updateProfile(req: { name?: string; area?: string; functional_role?: string }): Promise<UserInfo> {
+    const response = await apiFetch(`${AUTH_BASE}/profile`, {
+      method: "PUT",
+      body: JSON.stringify(req),
+    });
+    return response.json();
+  },
+
+  async changePassword(req: { current_password: string; new_password: string }): Promise<{ success: boolean }> {
+    const response = await apiFetch(`${AUTH_BASE}/change-password`, {
+      method: "POST",
+      body: JSON.stringify(req),
+    });
+    return response.json();
   },
 };
 
@@ -397,6 +444,20 @@ export const chatApi = {
     });
 
     return response.json();
+  },
+
+  async updateHistory(
+    sessionId: string,
+    messages: ChatMessage[]
+  ): Promise<{ status: string }> {
+    const response = await apiFetch(
+      `${API_BASE}/${sessionId}/messages`,
+      {
+        method: "PUT",
+        body: JSON.stringify(messages),
+      }
+    );
+    return response.json();
   }
 };
 
@@ -411,5 +472,28 @@ export const documentsApi = {
       body: JSON.stringify(payload),
     });
     return response.blob();
+  },
+
+  async generateWithArtifact(
+    filename: string,
+    format: string,
+    content: any,
+    sessionId: string,
+    messageId?: string
+  ): Promise<GenerateDocumentResponse> {
+    const payload: any = { 
+      filename, 
+      format, 
+      content,
+      session_id: sessionId 
+    };
+    if (messageId) {
+      payload.message_id = messageId;
+    }
+    const response = await apiFetch(`${API_URL}/api/documents/generate-with-artifact`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return response.json();
   }
 };

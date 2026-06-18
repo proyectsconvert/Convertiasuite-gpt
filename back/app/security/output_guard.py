@@ -135,5 +135,22 @@ def get_safety_fallback(role: str = "default") -> str:
 
     return FallbackResponseProvider.get_fallback(role, FallbackTemplate.SAFETY_BLOCK)
 
+def get_unavailable_fallback(role: str = "default") -> str:
+    from app.services.prompts.fallback_templates import (
+        FallbackResponseProvider,
+        FallbackTemplate,
+    )
+
+    return FallbackResponseProvider.get_fallback(role, FallbackTemplate.UNAVAILABLE)
+
+
+def get_timeout_fallback(role: str = "default") -> str:
+    from app.services.prompts.fallback_templates import (
+        FallbackResponseProvider,
+        FallbackTemplate,
+    )
+
+    return FallbackResponseProvider.get_fallback(role, FallbackTemplate.TIMEOUT)
+
 
 output_validator = OutputValidator()

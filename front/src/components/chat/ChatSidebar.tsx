@@ -1,14 +1,27 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Plus, Search, MoreHorizontal, PanelLeftClose, PanelLeft,
-  Trash2, Pencil, LogOut, Settings, User, Sun, Moon, Star,
+  Plus,
+  Search,
+  MoreHorizontal,
+  PanelLeftClose,
+  PanelLeft,
+  Trash2,
+  Pencil,
+  LogOut,
+  Settings,
+  User,
+  Sun,
+  Moon,
+  Star,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { chatApi } from "@/services/api";
 
-function groupByDate(sessions: { id: string; title: string; updated_at: string }[]) {
+function groupByDate(
+  sessions: { id: string; title: string; updated_at: string }[],
+) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today.getTime() - 86_400_000);
@@ -37,9 +50,18 @@ function groupByDate(sessions: { id: string; title: string; updated_at: string }
 
 export default function ChatSidebar() {
   const {
-    chatSidebarOpen, toggleChatSidebar, sessions, currentChatId,
-    setCurrentChatId, user, darkMode, toggleDarkMode, logout,
-    deleteSession, renameSession, setSessions,
+    chatSidebarOpen,
+    toggleChatSidebar,
+    sessions,
+    currentChatId,
+    setCurrentChatId,
+    user,
+    darkMode,
+    toggleDarkMode,
+    logout,
+    deleteSession,
+    renameSession,
+    setSessions,
   } = useAppStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,7 +74,8 @@ export default function ChatSidebar() {
 
   useEffect(() => {
     if (user?.id) {
-      chatApi.getSessions()
+      chatApi
+        .getSessions()
         .then((data) => setSessions(data.sessions))
         .catch(() => {});
     }
@@ -62,7 +85,8 @@ export default function ChatSidebar() {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpenId(null);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node))
+        setMenuOpenId(null);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -77,10 +101,13 @@ export default function ChatSidebar() {
     navigate("/app/chat");
   }, [setCurrentChatId, navigate]);
 
-  const handleChatClick = useCallback((chatId: string) => {
-    setCurrentChatId(chatId);
-    navigate("/app/chat");
-  }, [setCurrentChatId, navigate]);
+  const handleChatClick = useCallback(
+    (chatId: string) => {
+      setCurrentChatId(chatId);
+      navigate("/app/chat");
+    },
+    [setCurrentChatId, navigate],
+  );
 
   const handleRename = (id: string) => {
     if (editTitle.trim()) renameSession(id, editTitle.trim());
@@ -105,17 +132,37 @@ export default function ChatSidebar() {
         transition={{ duration: 0.15, ease: "easeInOut" }}
         className="h-full bg-sidebar border-r border-sidebar-border flex flex-col items-center py-3 gap-1.5"
       >
-        <button onClick={toggleChatSidebar} className="p-2 rounded-lg hover:bg-sidebar-accent transition-colors" aria-label="Expandir">
+        <button
+          onClick={toggleChatSidebar}
+          className="p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
+          aria-label="Expandir"
+        >
           <PanelLeft className="w-4 h-4 text-sidebar-foreground" />
         </button>
-        <button onClick={handleNewChat} className="p-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity" aria-label="Nuevo chat">
+        <button
+          onClick={handleNewChat}
+          className="p-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+          aria-label="Nuevo chat"
+        >
           <Plus className="w-4 h-4" />
         </button>
         <div className="flex-1" />
-        <button onClick={toggleDarkMode} className="p-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent transition-colors" aria-label="Tema">
-          {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        <button
+          onClick={toggleDarkMode}
+          className="p-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent transition-colors"
+          aria-label="Tema"
+        >
+          {darkMode ? (
+            <Sun className="w-4 h-4" />
+          ) : (
+            <Moon className="w-4 h-4" />
+          )}
         </button>
-        <button onClick={() => navigate("/app/settings")} className="p-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent transition-colors" aria-label="Configuración">
+        <button
+          onClick={() => navigate("/app/settings")}
+          className="p-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent transition-colors"
+          aria-label="Configuración"
+        >
           <Settings className="w-4 h-4" />
         </button>
       </motion.div>
@@ -129,15 +176,23 @@ export default function ChatSidebar() {
       animate={{ width: 260, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
       transition={{ duration: 0.15, ease: "easeInOut" }}
-      className="h-full bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden"
+      className="fixed inset-y-0 left-0 z-40 h-full w-[88vw] max-w-[260px] bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden md:static md:w-[260px] md:max-w-[260px]"
       style={{ minWidth: 260, maxWidth: 260 }}
     >
       {/* Header */}
       <div className="h-13 px-3 flex items-center justify-between flex-shrink-0 border-b border-sidebar-border/50">
         <div className="flex items-center gap-2">
-          <img src={darkMode ? "/favicon.ico" : "/logo-dark.ico"} className="w-9 h-9 rounded-xl" alt="convert-IA" />    
+          <img
+            src={darkMode ? "/favicon.ico" : "/logo-dark.ico"}
+            className="w-9 h-9 rounded-xl"
+            alt="convert-IA"
+          />
         </div>
-        <button onClick={toggleChatSidebar} className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground" aria-label="Colapsar">
+        <button
+          onClick={toggleChatSidebar}
+          className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground"
+          aria-label="Colapsar"
+        >
           <PanelLeftClose className="w-4 h-4" />
         </button>
       </div>
@@ -157,7 +212,9 @@ export default function ChatSidebar() {
         >
           <Search className="w-3.5 h-3.5" />
           <span>Buscar...</span>
-          <span className="ml-auto text-[10px] bg-secondary/80 px-1.5 py-0.5 rounded font-mono">⌘K</span>
+          <span className="ml-auto text-[10px] bg-secondary/80 px-1.5 py-0.5 rounded font-mono">
+            ⌘K
+          </span>
         </button>
       </div>
 
@@ -166,7 +223,9 @@ export default function ChatSidebar() {
         {grouped.length > 0 ? (
           grouped.map((g) => (
             <div key={g.label} className="mb-2">
-              <div className="text-[10px] text-muted-foreground/70 px-2 py-1 font-semibold uppercase tracking-wider">{g.label}</div>
+              <div className="text-[10px] text-muted-foreground/70 px-2 py-1 font-semibold uppercase tracking-wider">
+                {g.label}
+              </div>
               <div className="space-y-px">
                 {g.items.map((c) => (
                   <div key={c.id} className="relative group">
@@ -189,16 +248,22 @@ export default function ChatSidebar() {
                         <button
                           onClick={() => handleChatClick(c.id)}
                           className={`flex-1 min-w-0 text-left px-2.5 py-1.5 rounded-lg text-[13px] transition-all duration-100 flex items-center gap-1.5 ${
-                            currentChatId === c.id && location.pathname === "/app/chat"
+                            currentChatId === c.id &&
+                            location.pathname === "/app/chat"
                               ? "bg-sidebar-accent text-foreground"
                               : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
                           }`}
                         >
-                          {c.favorite && <Star className="w-3 h-3 text-warning flex-shrink-0 fill-warning" />}
+                          {c.favorite && (
+                            <Star className="w-3 h-3 text-warning flex-shrink-0 fill-warning" />
+                          )}
                           <span className="truncate flex-1">{c.title}</span>
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === c.id ? null : c.id); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpenId(menuOpenId === c.id ? null : c.id);
+                          }}
                           className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-secondary transition-all flex-shrink-0"
                           aria-label="Opciones"
                         >
@@ -218,17 +283,21 @@ export default function ChatSidebar() {
                           className="absolute right-0 top-7 z-50 w-36 rounded-lg border border-border bg-popover p-1 shadow-lg"
                         >
                           <button
-                            onClick={() => { setEditTitle(c.title); setEditingId(c.id); setMenuOpenId(null); }}
+                            onClick={() => {
+                              setEditTitle(c.title);
+                              setEditingId(c.id);
+                              setMenuOpenId(null);
+                            }}
                             className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-md hover:bg-secondary transition-colors text-foreground"
                           >
                             <Pencil className="w-3 h-3" /> Renombrar
                           </button>
                           <button
-                          onClick={() => handleDelete(c.id)}
-                          className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-md hover:bg-destructive/10 transition-colors text-destructive"
-                        >
-                          <Trash2 className="w-3 h-3" /> Eliminar
-                        </button>
+                            onClick={() => handleDelete(c.id)}
+                            className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-md hover:bg-destructive/10 transition-colors text-destructive"
+                          >
+                            <Trash2 className="w-3 h-3" /> Eliminar
+                          </button>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -239,7 +308,9 @@ export default function ChatSidebar() {
           ))
         ) : (
           <div className="text-center py-12 text-xs text-muted-foreground/60 px-4">
-            Sin conversaciones.<br />Crea un nuevo chat para comenzar.
+            Sin conversaciones.
+            <br />
+            Crea un nuevo chat para comenzar.
           </div>
         )}
       </div>
@@ -251,15 +322,33 @@ export default function ChatSidebar() {
             <User className="w-3.5 h-3.5 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[12px] font-medium text-foreground truncate">{user?.name || "Usuario"}</div>
+            <div className="text-[12px] font-medium text-foreground truncate">
+              {user?.name || "Usuario"}
+            </div>
           </div>
-          <button onClick={toggleDarkMode} className="p-1 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground" aria-label="Tema">
-            {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          <button
+            onClick={toggleDarkMode}
+            className="p-1 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground"
+            aria-label="Tema"
+          >
+            {darkMode ? (
+              <Sun className="w-3.5 h-3.5" />
+            ) : (
+              <Moon className="w-3.5 h-3.5" />
+            )}
           </button>
-          <button onClick={() => navigate("/app/settings")} className="p-1 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground" aria-label="Config">
+          <button
+            onClick={() => navigate("/app/settings")}
+            className="p-1 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground"
+            aria-label="Config"
+          >
             <Settings className="w-3.5 h-3.5" />
           </button>
-          <button onClick={logout} className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" aria-label="Salir">
+          <button
+            onClick={logout}
+            className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            aria-label="Salir"
+          >
             <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>

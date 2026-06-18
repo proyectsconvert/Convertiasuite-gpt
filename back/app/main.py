@@ -27,6 +27,7 @@ from app.services.document_processing.document_manager import DocumentManager
 from app.security.rate_limiting import limiter
 from app.api import chat, auth, documents
 from app.infra.clients.ollama_client import OllamaClient
+from app.infra.providers.ollama_provider import OllamaProvider
 
 
 logging.basicConfig(
@@ -74,6 +75,10 @@ async def lifespan(app: FastAPI):
         f"Document processing initialized. Supported types: {processor_factory.supported_types}"
     )
 
+    # Singleton del proveedor LLM — un solo httpx.AsyncClient para todos los requests
+    ollama_client = OllamaClient()
+    app.state.llm_provider = OllamaProvider(ollama_client)
+
     logger.info("Application startup completed")
 
     # iniciar la tarea de precarga de modelos en segundo plano
@@ -81,6 +86,8 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    # Cerrar el cliente HTTP de Ollama de forma limpia
+    await ollama_client.close()
     await close_redis_client()
     logger.info("Application shutdown completed")
 

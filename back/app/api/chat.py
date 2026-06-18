@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 import re
 import uuid
+from typing import List
 
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.memory_repository import IMemoryRepository
@@ -19,17 +20,15 @@ from app.schemas.chat import (
     ChatHistoryResponse,
     SessionListResponse,
     SessionSummary,
+    MessageDTO,
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-def get_llm_provider() -> ILlmProvider:
-    from app.infra.providers.ollama_provider import OllamaProvider
-    from app.infra.clients.ollama_client import OllamaClient
-
-    return OllamaProvider(OllamaClient())
+def get_llm_provider(request: Request) -> ILlmProvider:
+    return request.app.state.llm_provider
 
 
 def get_memory_repo(request: Request) -> IMemoryRepository:
@@ -172,7 +171,7 @@ async def delete_session(
 async def get_chat_history(
     session_id: str,
     current_user: dict = Depends(get_current_user),
-    memory_repo = Depends(get_memory_repo),
+    memory_repo=Depends(get_memory_repo),
 ):
     messages = await memory_repo.get_messages(session_id)
 
@@ -182,41 +181,114 @@ async def get_chat_history(
     formatted_messages = []
     for msg in messages:
         is_dict = isinstance(msg, dict)
-        
-        msg_id = msg.get("id", str(uuid.uuid4())) if is_dict else getattr(msg, "id", str(uuid.uuid4()))
+
+        msg_id = (
+            msg.get("id", str(uuid.uuid4()))
+            if is_dict
+            else getattr(msg, "id", str(uuid.uuid4()))
+        )
         role = msg.get("role", "user") if is_dict else getattr(msg, "role", "user")
         content = msg.get("content", "") if is_dict else getattr(msg, "content", "")
-        
+
         timestamp = msg.get("timestamp") if is_dict else getattr(msg, "timestamp", None)
         if isinstance(timestamp, datetime):
             timestamp = timestamp.isoformat()
         elif not timestamp:
             timestamp = datetime.now().isoformat()
-            
-        raw_attachments = msg.get("attachments", []) if is_dict else getattr(msg, "attachments", [])
-        
+
+        raw_attachments = (
+            msg.get("attachments", []) if is_dict else getattr(msg, "attachments", [])
+        )
+        raw_artifacts = (
+            msg.get("artifacts", []) if is_dict else getattr(msg, "artifacts", [])
+        )
+
         formatted_attachments = []
-        for att in (raw_attachments or []):
-            filename = att.get("filename") or att.get("file_name") or att.get("name") or "archivo"
+        for att in raw_attachments or []:
+            filename = (
+                att.get("filename")
+                or att.get("file_name")
+                or att.get("name")
+                or "archivo"
+            )
             att_type = att.get("type") or att.get("mime_type") or "archivo"
-            formatted_attachments.append({
-                "id": att.get("id") or att.get("attachment_id"),
-                "filename": filename,
-                "type": att_type
-            })
-            
+            formatted_attachments.append(
+                {
+                    "id": att.get("id") or att.get("attachment_id"),
+                    "filename": filename,
+                    "type": att_type,
+                }
+            )
+
+        formatted_artifacts = []
+        for artifact in raw_artifacts or []:
+            formatted_artifacts.append(
+                {
+                    "id": artifact.get("id")
+                    if isinstance(artifact, dict)
+                    else getattr(artifact, "id", None),
+                    "filename": artifact.get("filename")
+                    if isinstance(artifact, dict)
+                    else getattr(artifact, "filename", "archivo"),
+                    "type": artifact.get("type")
+                    if isinstance(artifact, dict)
+                    else getattr(artifact, "type", "file"),
+                    "content": artifact.get("content")
+                    if isinstance(artifact, dict)
+                    else getattr(artifact, "content", None),
+                    "url": artifact.get("url")
+                    if isinstance(artifact, dict)
+                    else getattr(artifact, "url", None),
+                }
+            )
+
         msg_images = msg.get("images", []) if is_dict else getattr(msg, "images", [])
 
-        formatted_messages.append({
-            "id": msg_id,
-            "role": role,
-            "content": content,
-            "timestamp": timestamp,
-            "attachments": formatted_attachments,
-            "images": msg_images
-        })
+        formatted_messages.append(
+            {
+                "id": msg_id,
+                "role": role,
+                "content": content,
+                "timestamp": timestamp,
+                "attachments": formatted_attachments,
+                "artifacts": formatted_artifacts,
+                "images": msg_images,
+            }
+        )
 
     return ChatHistoryResponse(messages=formatted_messages, session_id=session_id)
+
+
+@router.put("/{session_id}/messages")
+async def update_session_messages(
+    session_id: str,
+    messages: List[MessageDTO],
+    current_user: dict = Depends(get_current_user),
+    memory_repo: IMemoryRepository = Depends(get_memory_repo),
+):
+    """
+    Sobrescribe los mensajes de una sesión. Se usa principalmente para
+    persistir ediciones de artefactos realizadas desde el panel de artefactos.
+    """
+    # Verificar que la sesión pertenece al usuario actual
+    session = await memory_repo.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+
+    if session.get("user_id") != current_user["id"]:
+        raise HTTPException(
+            status_code=403, detail="No tienes permiso para modificar esta sesión"
+        )
+
+    try:
+        messages_dicts = [msg.model_dump() for msg in messages]
+        await memory_repo.save_messages(session_id, messages_dicts)
+        return {"status": "ok", "updated": len(messages_dicts)}
+    except Exception as e:
+        logger.error(
+            f"Error updating session messages session_id={session_id} error={e}"
+        )
+        raise HTTPException(status_code=500, detail="Error al guardar los mensajes")
 
 
 @router.post("/upload")
@@ -228,12 +300,10 @@ async def upload_file(
     document_manager: DocumentManager = Depends(get_document_manager),
 ):
     from app.services.upload_service import UploadService
-    
+
     upload_service = UploadService(document_manager, memory_repo)
     return await upload_service.process_upload(
-        file=file,
-        session_id=session_id,
-        user_id=current_user["id"]
+        file=file, session_id=session_id, user_id=current_user["id"]
     )
 
 
@@ -244,15 +314,14 @@ async def upload_audio(
 ):
     try:
         from app.services.transcription_service import transcribe_audio
-        
+
         contents = await file.read()
         transcript = transcribe_audio(contents)
-        
+
         return {"transcript": transcript}
     except Exception as e:
         logger.error(f"Error in upload_audio: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Error al procesar y transcribir el audio: {str(e)}"
+            detail=f"Error al procesar y transcribir el audio: {str(e)}",
         )
-

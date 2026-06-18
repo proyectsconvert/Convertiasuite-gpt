@@ -1,7 +1,11 @@
-from fastapi import (APIRouter, HTTPException, Request, status,)
-from app.schemas.auth import (LoginRequest, TokenResponse,)
+from fastapi import APIRouter, HTTPException, Request, status, Depends
+from app.schemas.auth import (
+    LoginRequest,
+    TokenResponse,
+)
 from app.security.rate_limiting import limiter
 from app.services.auth_service import AuthService
+from app.dependencies.auth import get_current_user
 
 import logging
 
@@ -34,25 +38,16 @@ async def login(
     session = auth_data["session"]
     user = auth_data["user"]
 
-    user_metadata = (
-        user.user_metadata or {}
-    )
+    user_metadata = user.user_metadata or {}
 
-    app_metadata = (
-        user.app_metadata or {}
-    )
+    app_metadata = user.app_metadata or {}
 
     user_data = {
         "id": user.id,
-
         "name": (
-            user_metadata.get("full_name")
-            or user_metadata.get("name")
-            or "Usuario"
+            user_metadata.get("full_name") or user_metadata.get("name") or "Usuario"
         ),
-
         "email": user.email,
-
         "role": (
             app_metadata.get(
                 "role",
@@ -73,3 +68,103 @@ async def login(
         expires_in=session.expires_in,
         user=user_data,
     )
+
+
+@router.put(
+    "/profile",
+    response_model=dict,
+)
+async def update_profile(
+    request: Request,
+    body: dict,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update user profile (name, area, functional_role)"""
+    try:
+        user_id = current_user.get("id")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuario no autenticado",
+            )
+
+        result = await auth_service.update_profile(
+            user_id=user_id,
+            name=body.get("name"),
+            area=body.get("area"),
+            functional_role=body.get("functional_role"),
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Error al actualizar el perfil",
+            )
+
+        logger.info(f"Profile updated for user: {user_id}")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in update_profile: {type(e).__name__}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor",
+        )
+
+
+@router.post(
+    "/change-password",
+    response_model=dict,
+)
+async def change_password(
+    request: Request,
+    body: dict,
+    current_user: dict = Depends(get_current_user),
+):
+    """Change user password with current password verification"""
+    try:
+        user_id = current_user.get("id")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuario no autenticado",
+            )
+
+        current_password = body.get("current_password")
+        new_password = body.get("new_password")
+
+        if not current_password or not new_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Contraseña actual y nueva requeridas",
+            )
+
+        if len(new_password) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La nueva contraseña debe tener al menos 8 caracteres",
+            )
+
+        result = await auth_service.change_password(
+            user_id=user_id,
+            current_password=current_password,
+            new_password=new_password,
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Contraseña actual incorrecta o error al cambiar la contraseña",
+            )
+
+        logger.info(f"Password changed for user: {user_id}")
+        return {"success": True, "message": "Contraseña actualizada con éxito"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in change_password: {type(e).__name__}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor",
+        )

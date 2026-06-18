@@ -203,7 +203,6 @@ class FallbackResponseProvider:
             ),
         },
     }
-
     DEFAULT_FALLBACK = (
         "Tuve un problema técnico procesando tu solicitud. Por favor, intenta de nuevo."
     )
@@ -229,3 +228,4 @@ class FallbackResponseProvider:
                 FallbackTemplate.INVALID_FORMAT: FallbackResponseProvider.DEFAULT_FALLBACK
             },
         )
+    
