@@ -18,7 +18,11 @@ import { motion } from "framer-motion";
 import { ChatMessage, documentsApi } from "@/services/api";
 import remarkGfm from "remark-gfm";
 import { useAppStore } from "@/store/appStore";
-import { filterReasoningFromMessage, isReasoningOnlyMessage } from "@/lib/artifact-utils";
+import {
+  extractArtifactsFromMessage,
+  filterReasoningFromMessage,
+  isReasoningOnlyMessage,
+} from "@/lib/artifact-utils";
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -104,6 +108,15 @@ export default function MessageBubble({
   const isUser = message.role === "user";
   const attachment = message.attachments?.[0];
   const hasModelImages = !isUser && message.images && message.images.length > 0;
+  const renderedMessageContent = filterReasoningFromMessage(
+    message.content || "",
+  );
+  const containsFencedHtmlArtifact =
+    /```(?:html|markup|xml)\s*[\s\S]*?```/i.test(renderedMessageContent);
+  const directHtmlArtifacts = extractArtifactsFromMessage(message).filter(
+    (artifact) => artifact.type === "html",
+  );
+  const previewArtifact = directHtmlArtifacts[0];
 
   const userText = previousMessage?.content?.toLowerCase() || "";
   const assistantText = message.content?.toLowerCase() || "";
@@ -258,7 +271,7 @@ export default function MessageBubble({
         <div
           className={`text-xs font-semibold mb-1.5 ${isUser ? "text-muted-foreground" : "text-foreground"}`}
         >
-          {isUser ? "Tú" : "convert-IA"}
+          {isUser ? "Tú" : "Olivia-IA"}
         </div>
 
         <div
@@ -306,6 +319,32 @@ export default function MessageBubble({
             </div>
           ) : (
             <div className="prose-chat text-[15px] leading-[1.7] text-foreground">
+              {!isStreaming &&
+              previewArtifact &&
+              !containsFencedHtmlArtifact ? (
+                <div
+                  onClick={() => setActiveArtifact(previewArtifact)}
+                  className="my-4 p-4 rounded-xl border border-border bg-card hover:bg-secondary/30 transition-all shadow-sm cursor-pointer flex items-center justify-between group/artifact"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover/artifact:bg-primary/20 transition-all">
+                      <Code2 className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-foreground truncate max-w-[200px] sm:max-w-xs">
+                        Interfaz Web Generada (HTML)
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Haz clic para abrir la vista previa y editar
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-xs text-primary font-semibold group-hover/artifact:underline flex items-center gap-1">
+                    Ver artefacto →
+                  </span>
+                </div>
+              ) : null}
+
               {!isStreaming &&
               (showPdfButton || showWordButton || showPptButton) ? (
                 <div className="flex flex-col gap-3 my-3">
@@ -594,16 +633,40 @@ export default function MessageBubble({
                         {children}
                       </td>
                     ),
-                    a: ({ children, href }) => (
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
-                      >
-                        {children}
-                      </a>
-                    ),
+                    a: ({ children, href }) => {
+                      if (
+                        href &&
+                        (href.startsWith("send:") || href.startsWith("chat:"))
+                      ) {
+                        const messageText = decodeURIComponent(
+                          href.replace(/^(send:|chat:)/, ""),
+                        );
+                        return (
+                          <button
+                            onClick={() => {
+                              window.dispatchEvent(
+                                new CustomEvent("send-chat-message", {
+                                  detail: messageText,
+                                }),
+                              );
+                            }}
+                            className="inline-flex items-center justify-center px-4 py-2 my-1 mr-2 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary text-primary hover:text-primary-foreground text-sm font-semibold transition-all shadow-sm active:scale-95 duration-150 cursor-pointer"
+                          >
+                            {children}
+                          </button>
+                        );
+                      }
+                      return (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          {children}
+                        </a>
+                      );
+                    },
                     ul: ({ children }) => (
                       <ul className="list-disc pl-5 my-2 space-y-1">
                         {children}
@@ -684,7 +747,6 @@ export default function MessageBubble({
               )}
 
               {isStreaming && (
-
                 <span className="inline-flex items-center gap-0.5 ml-1">
                   <span className="w-2 h-2 bg-primary rounded-full animate-bounce" />
                   <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:140ms]" />

@@ -13,6 +13,7 @@ import {
   Sun,
   Moon,
   Star,
+  Shield,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -158,6 +159,15 @@ export default function ChatSidebar() {
             <Moon className="w-4 h-4" />
           )}
         </button>
+        {user?.role?.toLowerCase() === "admin" && (
+          <button
+            onClick={() => navigate("/app/admin")}
+            className="p-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent transition-colors"
+            aria-label="Panel Admin"
+          >
+            <Shield className="w-4 h-4" />
+          </button>
+        )}
         <button
           onClick={() => navigate("/app/settings")}
           className="p-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent transition-colors"
@@ -171,14 +181,22 @@ export default function ChatSidebar() {
 
   /* ─── Expanded ─── */
   return (
-    <motion.div
-      initial={{ width: 0, opacity: 0 }}
-      animate={{ width: 260, opacity: 1 }}
-      exit={{ width: 0, opacity: 0 }}
-      transition={{ duration: 0.15, ease: "easeInOut" }}
-      className="fixed inset-y-0 left-0 z-40 h-full w-[88vw] max-w-[260px] bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden md:static md:w-[260px] md:max-w-[260px]"
-      style={{ minWidth: 260, maxWidth: 260 }}
-    >
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
+        className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm md:hidden"
+        onClick={toggleChatSidebar}
+      />
+      <motion.div
+        initial={{ x: -280, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: -280, opacity: 0 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        className="fixed inset-y-0 left-0 z-40 h-full w-[85vw] max-w-[260px] bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden md:static md:w-[260px]"
+      >
       {/* Header */}
       <div className="h-13 px-3 flex items-center justify-between flex-shrink-0 border-b border-sidebar-border/50">
         <div className="flex items-center gap-2">
@@ -337,6 +355,15 @@ export default function ChatSidebar() {
               <Moon className="w-3.5 h-3.5" />
             )}
           </button>
+          {user?.role?.toLowerCase() === "admin" && (
+            <button
+              onClick={() => navigate("/app/admin")}
+              className="p-1 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground"
+              aria-label="Panel Admin"
+            >
+              <Shield className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             onClick={() => navigate("/app/settings")}
             className="p-1 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground"
@@ -353,6 +380,7 @@ export default function ChatSidebar() {
           </button>
         </div>
       </div>
-    </motion.div>
+      </motion.div>
+    </>
   );
 }

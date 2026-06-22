@@ -29,6 +29,7 @@ interface ChatInputProps {
   ) => void;
   isLoading: boolean;
   variant?: "welcome" | "conversation";
+  onStop?: () => void;
 }
 
 type UploadState = "idle" | "uploading" | "recording";
@@ -138,6 +139,7 @@ export default function ChatInput({
   onSend,
   isLoading,
   variant = "conversation",
+  onStop,
 }: ChatInputProps) {
   const { selectedModel } = useAppStore();
   const { toast } = useToast();
@@ -683,11 +685,12 @@ export default function ChatInput({
               onChange={(e) => onChange(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={1}
+              maxLength={30000}
               disabled={uploadState !== "idle"}
               placeholder={
                 uploadState === "uploading"
                   ? "Procesando..."
-                  : "Envía un mensaje..."
+                  : "Envía un mensaje"
               }
               className="w-full resize-none bg-transparent px-4 pt-3.5 pb-1.5 text-[15px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/50 min-h-[48px] max-h-[200px] disabled:opacity-50"
             />
@@ -720,28 +723,46 @@ export default function ChatInput({
                 </button>
               </div>
 
-              {/* SEND BUTTON */}
-              <button
-                onClick={handleSubmit}
-                disabled={
-                  (!value.trim() && attachedFiles.length === 0) ||
-                  isLoading ||
-                  uploadState !== "idle"
-                }
-                className={`p-2 rounded-xl transition-all duration-100 ${
-                  (value.trim() || attachedFiles.length > 0) &&
-                  !isLoading &&
-                  uploadState === "idle"
-                    ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"
-                    : "bg-secondary text-muted-foreground cursor-not-allowed"
-                }`}
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
+              {/* SEND/STOP BUTTON & CHARACTER COUNT */}
+              <div className="flex items-center gap-2">
+                {value.length > 0 && (
+                  <span className={`text-[11px] font-medium mr-1 ${
+                    value.length > 25000 
+                      ? "text-red-500 animate-pulse font-semibold" 
+                      : "text-muted-foreground/60"
+                  }`}
+                  >
+                    {value.length}/30000
+                  </span>
                 )}
-              </button>
+
+                {isLoading ? (
+                  <button
+                    type="button"
+                    onClick={onStop}
+                    className="p-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-all duration-100 shadow-sm flex items-center justify-center active:scale-95"
+                    title="Detener respuesta"
+                  >
+                    <Square className="w-4 h-4 fill-current text-white" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSubmit}
+                    disabled={
+                      (!value.trim() && attachedFiles.length === 0) ||
+                      uploadState !== "idle"
+                    }
+                    className={`p-2 rounded-xl transition-all duration-100 ${
+                      (value.trim() || attachedFiles.length > 0) &&
+                      uploadState === "idle"
+                        ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"
+                        : "bg-secondary text-muted-foreground cursor-not-allowed"
+                    }`}
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
           </motion.div>
         )}

@@ -8,6 +8,7 @@ import AuthPage from "./components/auth/AuthPage";
 import LandingPage from "./components/landing/LandingPage";
 import ChatView from "./components/chat/ChatView";
 import SettingsView from "./components/settings/SettingsView";
+import AdminDashboard from "./components/admin/AdminDashboard";
 import { useAppStore } from "./store/appStore";
 import { ReactNode } from "react";
 
@@ -16,6 +17,13 @@ const queryClient = new QueryClient();
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAppStore();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: ReactNode }) {
+  const { user } = useAppStore();
+  const isAdmin = user?.role?.toLowerCase() === "admin";
+  if (!isAdmin) return <Navigate to="/app/chat" replace />;
   return <>{children}</>;
 }
 
@@ -39,6 +47,7 @@ const App = () => (
             <Route index element={<Navigate to="chat" replace />} />
             <Route path="chat" element={<ChatView />} />
             <Route path="settings" element={<SettingsView />} />
+            <Route path="admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

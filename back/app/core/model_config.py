@@ -17,7 +17,7 @@ MODEL_REGISTRY = {
         "num_ctx": 2048,
         "max_tokens": 1024,
     },
-    "qwen2.5-coder": {
+    "code": {
         "model": "qwen2.5-coder:7b",
         "preset": "warm",
         "tier": "warm",
@@ -25,15 +25,15 @@ MODEL_REGISTRY = {
         "num_ctx": 2048,
         "max_tokens": 2048,
     },
-    "gemma4-e2b": {
-        "model": "gemma4-e2b:latest",
+    "landing": {
+        "model": "qwen2.5-coder:7b",
         "preset": "warm",
         "tier": "warm",
-        "capabilities": ["general", "embedded"],
-        "num_ctx": 1024,
-        "max_tokens": 512,
+        "capabilities": ["landing", "ui", "html", "tailwind"],
+        "num_ctx": 4096,
+        "max_tokens": 2048,
     },
-    "deepseek-r1": {
+    "reasoning": {
         "model": "deepseek-r1:latest",
         "preset": "warm",
         "tier": "warm",
@@ -41,14 +41,7 @@ MODEL_REGISTRY = {
         "num_ctx": 2048,
         "max_tokens": 1024,
     },
-    "gemma4-e4b": {
-        "model": "gemma4-e4b:latest",
-        "preset": "semi-warm",
-        "tier": "semi-warm",
-        "capabilities": ["analysis", "general"],
-        "num_ctx": 2048,
-        "max_tokens": 1024,
-    },
+    
     "llama3.2-vision": {
         "model": "llama3.2-vision:11b",
         "preset": "cold",
@@ -57,7 +50,7 @@ MODEL_REGISTRY = {
         "num_ctx": 4096,
         "max_tokens": 512,
     },
-    "deepseek-ocr": {
+    "ocr": {
         "model": "deepseek-ocr:latest",
         "preset": "cold",
         "tier": "cold",

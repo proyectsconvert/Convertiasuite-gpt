@@ -26,13 +26,11 @@ import {
   getArtifactTypeLabel,
 } from "@/lib/artifact-utils";
 
-// Lazy-load the heavy syntax highlighter only when needed
 const SyntaxHighlighter = lazy(() =>
   import("react-syntax-highlighter").then((m) => ({ default: m.Prism })),
 );
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
-// ─── helpers ────────────────────────────────────────────────────────────────
 
 const replaceHtmlCodeBlock = (markdown: string, newHtml: string): string => {
   const regex = /(```html\r?\n)([\s\S]*?)(\r?\n```)/;
@@ -80,7 +78,6 @@ const getExt = (lang?: string) => {
   return map[lang] || lang;
 };
 
-// ─── component ──────────────────────────────────────────────────────────────
 
 export default function ArtifactsPanel() {
   const {
@@ -93,7 +90,6 @@ export default function ArtifactsPanel() {
     currentChatId,
   } = useAppStore();
 
-  // Get all artifacts from current chat
   const allArtifacts = useCurrentChatArtifacts();
 
   const [tab, setTab] = useState<"preview" | "code">("preview");
@@ -104,7 +100,6 @@ export default function ArtifactsPanel() {
   const [expanded, setExpanded] = useState(false);
   const [showArtifactsList, setShowArtifactsList] = useState(false);
 
-  // Prefer the most recent relevant artifact when the header panel opens.
   useEffect(() => {
     if (!allArtifacts.length) return;
 
@@ -119,7 +114,6 @@ export default function ArtifactsPanel() {
 
   useEffect(() => {
     setIsEditing(false);
-    // Auto-switch to preview for HTML/markdown/document, to code for everything else
     if (activeArtifact) {
       setTab(
         activeArtifact.type === "html" ||
@@ -133,7 +127,6 @@ export default function ArtifactsPanel() {
 
   if (!artifactsPanelOpen || !allArtifacts.length) return null;
 
-  // ── actions ────────────────────────────────────────────────────────────────
 
   const handleCopy = async () => {
     if (!activeArtifact || activeArtifact.type === "document") return;
@@ -151,14 +144,12 @@ export default function ArtifactsPanel() {
       const filename =
         activeArtifact.filename ||
         `documento.${activeArtifact.fileType || "file"}`;
-      // Si tenemos una URL de descarga directa, usarla
       if (activeArtifact.downloadUrl) {
         const a = document.createElement("a");
         a.href = activeArtifact.downloadUrl;
         a.download = filename;
         a.click();
       } else {
-        // Si no, mostrar un mensaje (los documentos generados necesitan manejo especial en el backend)
         toast.info("El documento debe descargarse desde el mensaje original");
       }
       return;
@@ -176,7 +167,6 @@ export default function ArtifactsPanel() {
   };
 
   const handleStartEdit = () => {
-    // No permitir editar documentos
     if (activeArtifact?.type === "document") return;
     if (activeArtifact) {
       setEditContent(activeArtifact.content);
@@ -213,7 +203,6 @@ export default function ArtifactsPanel() {
     }
   };
 
-  // ── demo / placeholder ────────────────────────────────────────────────────
 
   const demoArtifact: ChatArtifact = activeArtifact || {
     id: "demo",
@@ -226,21 +215,22 @@ export default function ArtifactsPanel() {
   const lang = demoArtifact.language || demoArtifact.type || "txt";
   const langLabel = LANGUAGE_LABELS[lang] ?? lang.toUpperCase();
 
-  // ── width based on expanded state ─────────────────────────────────────────
   const panelWidth = expanded ? 700 : 450;
 
-  // ── render ────────────────────────────────────────────────────────────────
 
   return (
     <AnimatePresence>
       <motion.div
         key="artifacts-panel"
-        initial={{ width: 0, opacity: 0 }}
-        animate={{ width: panelWidth, opacity: 1 }}
-        exit={{ width: 0, opacity: 0 }}
+        initial={{ x: 50, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: 50, opacity: 0 }}
         transition={{ duration: 0.25, ease: "easeInOut" }}
-        className="h-full border-l border-border/40 bg-card/50 flex flex-col overflow-hidden"
-        style={{ minWidth: panelWidth, maxWidth: panelWidth }}
+        className={`fixed inset-0 z-50 bg-card flex flex-col overflow-hidden md:static md:inset-auto md:z-auto md:h-full md:border-l md:border-border/40 md:bg-card/50 ${
+          expanded
+            ? "md:w-[700px] md:min-w-[700px] md:max-w-[700px]"
+            : "md:w-[450px] md:min-w-[450px] md:max-w-[450px]"
+        }`}
       >
         {/* ── Header ── */}
         <div className="h-12 border-b border-border/40 flex items-center justify-between px-4 flex-shrink-0">
@@ -398,8 +388,7 @@ export default function ArtifactsPanel() {
         {/* ── Content ── */}
         <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
           {tab === "preview" ? (
-            // ── PREVIEW ────────────────────────────────────────────────────
-            <div className="flex-1 flex flex-col min-h-0 p-4">
+            <div className="flex-1 flex flex-col min-h-0 p-3 sm:p-4 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.08),_transparent_55%)]">
               {demoArtifact.type === "document" ? (
                 <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
                   <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -422,12 +411,31 @@ export default function ArtifactsPanel() {
                   </button>
                 </div>
               ) : demoArtifact.type === "html" ? (
-                <iframe
-                  srcDoc={demoArtifact.content}
-                  className="w-full flex-1 min-h-[450px] rounded-xl border border-border bg-white shadow-inner"
-                  title="Vista previa HTML"
-                  sandbox="allow-scripts"
-                />
+                <div className="flex-1 min-h-0 overflow-auto rounded-[1.5rem] border border-border/70 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-2 sm:p-3 shadow-[0_24px_70px_rgba(15,23,42,0.25)]">
+                  <div className="mx-auto flex h-full min-h-[620px] max-w-5xl flex-col overflow-hidden rounded-[1.25rem] border border-slate-200/80 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.12)]">
+                    <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
+                        <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                      </div>
+                      <div className="ml-2 flex-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-500">
+                        Vista previa de página
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-auto bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.08),_transparent_55%)] p-2 sm:p-3">
+                      <div className="mx-auto h-full min-h-[560px] overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-inner">
+                        <iframe
+                          srcDoc={demoArtifact.content}
+                          className="h-full w-full min-h-[560px] bg-white"
+                          title="Vista previa HTML"
+                          sandbox="allow-scripts"
+                          style={{ width: "100%", border: 0 }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ) : demoArtifact.type === "markdown" ||
                 lang === "markdown" ||
                 lang === "md" ? (
@@ -437,7 +445,6 @@ export default function ArtifactsPanel() {
                   </ReactMarkdown>
                 </div>
               ) : (
-                // For code types, preview = highlighted read-only code
                 <Suspense
                   fallback={
                     <pre className="text-[13px] text-muted-foreground whitespace-pre-wrap p-4">
@@ -465,7 +472,6 @@ export default function ArtifactsPanel() {
               )}
             </div>
           ) : isEditing ? (
-            // ── EDIT MODE ──────────────────────────────────────────────────
             <div className="flex-1 flex flex-col min-h-0 gap-3 p-4">
               <textarea
                 value={editContent}
@@ -491,7 +497,6 @@ export default function ArtifactsPanel() {
               </div>
             </div>
           ) : (
-            // ── CODE VIEW (READ-ONLY) ──────────────────────────────────────
             <div className="relative group/codeview flex-1 flex flex-col min-h-0">
               <Suspense
                 fallback={
@@ -519,7 +524,6 @@ export default function ArtifactsPanel() {
                 </SyntaxHighlighter>
               </Suspense>
 
-              {/* Edit button on hover */}
               {activeArtifact && activeArtifact.type !== "document" && (
                 <button
                   onClick={handleStartEdit}

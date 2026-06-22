@@ -25,9 +25,10 @@ from app.infra.repositories.supabase.document_repository import (
 )
 from app.services.document_processing.document_manager import DocumentManager
 from app.security.rate_limiting import limiter
-from app.api import chat, auth, documents
+from app.api import chat, auth, documents, admin
 from app.infra.clients.ollama_client import OllamaClient
 from app.infra.providers.ollama_provider import OllamaProvider
+from app.services.intent_classifier import IntentClassifier
 
 
 logging.basicConfig(
@@ -37,7 +38,6 @@ logging.basicConfig(
 logger = logging.getLogger("performance")
 
 
-# trigugger: "model_registry_v1"
 async def preload_ollama_models():
     await asyncio.sleep(2)
     logger.info("Starting background preloading of Ollama models...")
@@ -75,18 +75,17 @@ async def lifespan(app: FastAPI):
         f"Document processing initialized. Supported types: {processor_factory.supported_types}"
     )
 
-    # Singleton del proveedor LLM — un solo httpx.AsyncClient para todos los requests
     ollama_client = OllamaClient()
     app.state.llm_provider = OllamaProvider(ollama_client)
 
+    app.state.intent_classifier = IntentClassifier(ollama_client)
+
     logger.info("Application startup completed")
 
-    # iniciar la tarea de precarga de modelos en segundo plano
     asyncio.create_task(preload_ollama_models())
 
     yield
 
-    # Cerrar el cliente HTTP de Ollama de forma limpia
     await ollama_client.close()
     await close_redis_client()
     logger.info("Application shutdown completed")
@@ -141,3 +140,4 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(documents.router)
+app.include_router(admin.router)

@@ -203,11 +203,8 @@ class RedisCacheRepository(
 
     async def stop_stream(self, session_id: str) -> bool:
         key = f"stream:{session_id}:stopped"
-        exists = await self.redis.exists(key)
-        if exists:
-            await self.redis.set(key, "1", ex=300)
-            return True
-        return False
+        await self.redis.set(key, "1", ex=300)
+        return True
 
     async def should_stop_stream(self, session_id: str) -> bool:
         key = f"stream:{session_id}:stopped"

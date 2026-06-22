@@ -22,6 +22,8 @@ export default function ChatView() {
   const [streamingContent, setStreamingContent] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   const skipNextHistoryFetch = useRef(false);
+  const activeAbortControllerRef = useRef<AbortController | null>(null);
+  const activeRequestIdRef = useRef(0);
 
   const isNewChat = !currentChatId;
 
@@ -69,9 +71,11 @@ export default function ChatView() {
     extractedContexts?: string[],
     filenames?: string[],
     attachmentTypes?: string[],
+    customText?: string,
   ) => {
+    const messageText = customText !== undefined ? customText : input;
     const hasAttachments = filenames && filenames.length > 0;
-    const hasContent = input.trim() || hasAttachments;
+    const hasContent = messageText.trim() || hasAttachments;
     if (!hasContent || isLoading) return;
 
     // Build attachments array
@@ -96,8 +100,8 @@ export default function ChatView() {
     }
 
     const sessionTitle =
-      input.trim().length > 0
-        ? input.slice(0, 50)
+      messageText.trim().length > 0
+        ? messageText.slice(0, 50)
         : hasAttachments
           ? filenames?.[0] || "Nueva Conversación"
           : "Nueva Conversación";
@@ -105,7 +109,7 @@ export default function ChatView() {
     const userMsg: ChatMessage = {
       id: `${Date.now()}-user`,
       role: "user",
-      content: input.trim() || "",
+      content: messageText.trim() || "",
       timestamp: new Date().toISOString(),
       attachments: attachments,
       images: images,
@@ -116,6 +120,13 @@ export default function ChatView() {
     setStreamingContent("");
     setInput("");
     setIsLoading(true);
+
+    const requestId = ++activeRequestIdRef.current;
+    if (activeAbortControllerRef.current) {
+      activeAbortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    activeAbortControllerRef.current = controller;
 
     let sid = currentChatId;
 
@@ -142,35 +153,89 @@ export default function ChatView() {
       const messageType = attachmentTypes?.[0];
       const firstName = filenames?.[0];
 
-      for await (const chunk of chatApi.sendMessageStream({
-        message:
-          input.trim() ||
-          `Analiza los archivos adjuntos: ${filenames?.join(", ")}`,
-        session_id: sid || undefined,
-        extracted_context: combinedContexts,
-        attachment_type: messageType,
-        attachment_name: firstName,
-      })) {
+      for await (const chunk of chatApi.sendMessageStream(
+        {
+          message:
+            messageText.trim() ||
+            `Analiza los archivos adjuntos: ${filenames?.join(", ")}`,
+          session_id: sid || undefined,
+          extracted_context: combinedContexts,
+          attachment_type: messageType,
+          attachment_name: firstName,
+        },
+        { signal: controller.signal },
+      )) {
+        if (controller.signal.aborted) {
+          break;
+        }
+
         if (chunk.type === "chunk" && chunk.content) {
           fullResponse += chunk.content;
           setStreamingContent(fullResponse);
         }
       }
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-assistant`,
-          role: "assistant",
-          content: fullResponse,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+      if (
+        !controller.signal.aborted &&
+        requestId === activeRequestIdRef.current
+      ) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `${Date.now()}-assistant`,
+            role: "assistant",
+            content: fullResponse,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      }
     } catch (e) {
-      console.error("Send error:", e);
+      if (!controller.signal.aborted) {
+        console.error("Send error:", e);
+      }
     } finally {
-      setIsLoading(false);
-      setStreamingContent("");
+      if (requestId === activeRequestIdRef.current) {
+        setIsLoading(false);
+        if (!controller.signal.aborted) {
+          setStreamingContent("");
+        }
+      }
+
+      if (activeAbortControllerRef.current === controller) {
+        activeAbortControllerRef.current = null;
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleCustomSend = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      const text = customEvent.detail;
+      if (text && !isLoading) {
+        handleSend(undefined, undefined, undefined, text);
+      }
+    };
+    window.addEventListener("send-chat-message", handleCustomSend);
+    return () => {
+      window.removeEventListener("send-chat-message", handleCustomSend);
+    };
+  }, [currentChatId, user, isLoading, input]);
+
+  const handleStop = async () => {
+    if (!currentChatId) return;
+
+    if (activeAbortControllerRef.current) {
+      activeAbortControllerRef.current.abort();
+      activeAbortControllerRef.current = null;
+    }
+
+    setIsLoading(false);
+    setStreamingContent("");
+
+    try {
+      await chatApi.stopSessionStream(currentChatId);
+    } catch (e) {
+      console.error("Error stopping stream:", e);
     }
   };
 
@@ -185,6 +250,7 @@ export default function ChatView() {
             onSend={handleSend}
             isLoading={isLoading}
             variant="welcome"
+            onStop={handleStop}
           />
         </div>
       </div>
@@ -250,6 +316,7 @@ export default function ChatView() {
           onSend={handleSend}
           isLoading={isLoading}
           variant="conversation"
+          onStop={handleStop}
         />
       </div>
     </div>

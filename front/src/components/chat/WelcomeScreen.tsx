@@ -70,10 +70,10 @@ export default function WelcomeScreen({ onPromptSelect }: WelcomeScreenProps) {
       variants={container}
       initial="hidden"
       animate="show"
-      className="flex-1 flex flex-col items-center justify-center px-6"
+      className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 overflow-y-auto"
     >
       <motion.div variants={item} className="mb-5">
-        <div className="w-full h-full flex items-center justify-center p-0.5">
+        <div className="w-14 h-14 flex items-center justify-center p-0.5 mx-auto">
             <img
               src="/logo-dark.ico"
               alt="convert-IA"
@@ -87,7 +87,7 @@ export default function WelcomeScreen({ onPromptSelect }: WelcomeScreenProps) {
           </div>
       </motion.div>
 
-      <motion.h1 variants={item} className="text-3xl lg:text-4xl font-semibold text-foreground tracking-tight text-center">
+      <motion.h1 variants={item} className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-foreground tracking-tight text-center">
         {greeting}, {firstName}
       </motion.h1>
 
@@ -95,7 +95,7 @@ export default function WelcomeScreen({ onPromptSelect }: WelcomeScreenProps) {
         ¿En qué puedo ayudarte hoy?
       </motion.p>
 
-      <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-8 w-full max-w-[640px]">
+      <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-6 sm:mt-8 w-full max-w-[640px]">
         {quickActions.map((action) => (
           <button
             key={action.label}

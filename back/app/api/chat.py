@@ -39,6 +39,10 @@ def get_document_manager(request: Request) -> DocumentManager:
     return request.app.state.document_manager
 
 
+def get_intent_classifier(request: Request):
+    return getattr(request.app.state, "intent_classifier", None)
+
+
 async def sse_message(event_type: str, data: dict) -> str:
     return f"data: {json.dumps({'type': event_type, **data})}\n\n"
 
@@ -51,6 +55,7 @@ async def send_message_stream(
     llm_provider: ILlmProvider = Depends(get_llm_provider),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
     document_manager: DocumentManager = Depends(get_document_manager),
+    intent_classifier=Depends(get_intent_classifier),
 ):
 
     user_id = current_user["id"]
@@ -66,6 +71,7 @@ async def send_message_stream(
                 memory_repo,
                 user_id=user_id,
                 document_manager=document_manager,
+                intent_classifier=intent_classifier,
             )
 
             yield await sse_message(
@@ -167,6 +173,29 @@ async def delete_session(
     return {"status": "deleted"}
 
 
+@router.post("/sessions/{session_id}/stop")
+async def stop_session_stream(
+    session_id: str,
+    current_user: dict = Depends(get_current_user),
+    memory_repo: IMemoryRepository = Depends(get_memory_repo),
+):
+    session = await memory_repo.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+
+    if session.get("user_id") != current_user["id"]:
+        raise HTTPException(
+            status_code=403, detail="No tienes permiso para acceder a esta sesión"
+        )
+
+    if hasattr(memory_repo, "stop_stream"):
+        stopped = await memory_repo.stop_stream(session_id)
+    else:
+        stopped = False
+
+    return {"status": "ok", "stopped": stopped}
+
+
 @router.get("/{session_id}", response_model=ChatHistoryResponse)
 async def get_chat_history(
     session_id: str,
@@ -266,11 +295,6 @@ async def update_session_messages(
     current_user: dict = Depends(get_current_user),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
-    """
-    Sobrescribe los mensajes de una sesión. Se usa principalmente para
-    persistir ediciones de artefactos realizadas desde el panel de artefactos.
-    """
-    # Verificar que la sesión pertenece al usuario actual
     session = await memory_repo.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Sesión no encontrada")

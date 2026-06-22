@@ -4,9 +4,10 @@ import { Outlet } from "react-router-dom";
 import { useAppStore } from "@/store/appStore";
 import ChatSidebar from "@/components/chat/ChatSidebar";
 import ArtifactsPanel from "@/components/chat/ArtifactsPanel";
+import { PanelLeft } from "lucide-react";
 
 export default function AppLayout() {
-  const { setView } = useAppStore();
+  const { setView, chatSidebarOpen, toggleChatSidebar } = useAppStore();
   const { artifactsPanelOpen } = useAppStore();
   const location = useLocation();
   const isSettings = location.pathname.startsWith("/app/settings");
@@ -24,7 +25,30 @@ export default function AppLayout() {
         </div>
       ) : (
         <>
-          <ChatSidebar />
+          {/* Mobile top bar - only visible on mobile when sidebar is closed */}
+          <div className="flex items-center h-12 px-3 border-b border-border/40 flex-shrink-0 bg-background md:hidden">
+            <button
+              onClick={toggleChatSidebar}
+              className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground"
+              aria-label="Abrir menú"
+            >
+              <PanelLeft className="w-5 h-5" />
+            </button>
+            <span className="ml-2 text-sm font-medium text-foreground truncate">
+              convert-IA
+            </span>
+          </div>
+
+          {/* Desktop sidebar - always visible on md+ */}
+          <div className="hidden md:flex">
+            <ChatSidebar />
+          </div>
+
+          {/* Mobile sidebar drawer - only when open on mobile */}
+          <div className="md:hidden">
+            {chatSidebarOpen && <ChatSidebar />}
+          </div>
+
           <main className="flex-1 flex min-w-0 flex-col overflow-hidden">
             <Outlet />
           </main>
@@ -34,3 +58,4 @@ export default function AppLayout() {
     </div>
   );
 }
+

@@ -1,39 +1,25 @@
-"""
-Supabase document repository.
-Persistent layer for document storage and retrieval.
-"""
-
 import json
 import logging
 from typing import Optional
 from uuid import UUID
-
 from app.domain.entities.document import Document, DocumentType, ParsedContent
 from app.domain.interfaces.document_repository import IDocumentRepository
 from app.infra.clients.supabase_client import SupabaseClient
+
+
+class MissingDocumentStorageError(Exception):
+    """Raised when the documents table is unavailable in Supabase."""
 
 logger = logging.getLogger(__name__)
 
 
 class SupabaseDocumentRepository(IDocumentRepository):
-    """
-    Repository for persisting documents in Supabase.
-    Handles serialization/deserialization of complex entities.
-    """
-
     def __init__(self, supabase_client: SupabaseClient):
         self.client = supabase_client
         self.table_name = "documents"
 
     async def save(self, document: Document) -> UUID:
-        """
-        Persist document to Supabase.
-
-        Returns:
-            Document ID
-        """
         try:
-            # Serialize ParsedContent
             parsed_content_json = self._serialize_parsed_content(
                 document.parsed_content
             )
@@ -52,18 +38,22 @@ class SupabaseDocumentRepository(IDocumentRepository):
                 "updated_at": document.updated_at.isoformat(),
             }
 
-            response = (
-                self.client.db.table(self.table_name).insert(data).execute()
-            )
+            self.client.db.table(self.table_name).insert(data).execute()
             logger.info(f"Document saved: {document.id}")
             return document.id
 
         except Exception as e:
+            if self._is_missing_document_storage_error(e):
+                logger.warning(
+                    "Documents table is unavailable; skipping document persistence. %s",
+                    str(e),
+                )
+                return document.id
+
             logger.error(f"Error saving document: {str(e)}")
             raise
 
     async def get_by_id(self, document_id: UUID) -> Optional[Document]:
-        """Retrieve document by ID."""
         try:
             response = (
                 self.client.db.table(self.table_name)
@@ -81,7 +71,6 @@ class SupabaseDocumentRepository(IDocumentRepository):
             return None
 
     async def get_by_session(self, session_id: UUID) -> list[Document]:
-        """Get all documents in a session."""
         try:
             response = (
                 self.client.db.table(self.table_name)
@@ -93,11 +82,16 @@ class SupabaseDocumentRepository(IDocumentRepository):
             return [self._row_to_document(row) for row in response.data]
 
         except Exception as e:
+            if self._is_missing_document_storage_error(e):
+                logger.info(
+                    session_id,
+                )
+                return []
+
             logger.error(f"Error retrieving session documents: {str(e)}")
             return []
 
     async def get_by_user(self, user_id: UUID, limit: int = 50) -> list[Document]:
-        """Get user's recent documents."""
         try:
             response = (
                 self.client.db.table(self.table_name)
@@ -111,6 +105,12 @@ class SupabaseDocumentRepository(IDocumentRepository):
             return [self._row_to_document(row) for row in response.data]
 
         except Exception as e:
+            if self._is_missing_document_storage_error(e):
+                logger.info(
+                    user_id,
+                )
+                return []
+
             logger.error(f"Error retrieving user documents: {str(e)}")
             return []
 
@@ -132,11 +132,16 @@ class SupabaseDocumentRepository(IDocumentRepository):
             return [self._row_to_document(row) for row in response.data]
 
         except Exception as e:
+            if self._is_missing_document_storage_error(e):
+                logger.info(
+                    "Documents table is unavailable; returning no documents for type search",
+                )
+                return []
+
             logger.error(f"Error searching documents: {str(e)}")
             return []
 
     async def delete(self, document_id: UUID, user_id: UUID) -> bool:
-        """Delete document with ownership check."""
         try:
             # Verify ownership
             doc = await self.get_by_id(document_id)
@@ -156,7 +161,6 @@ class SupabaseDocumentRepository(IDocumentRepository):
             return False
 
     async def update_embeddings(self, document_id: UUID, embeddings: dict) -> bool:
-        """Update document embeddings."""
         try:
             self.client.db.table(self.table_name).update(
                 {"embeddings": json.dumps(embeddings)}
@@ -170,8 +174,19 @@ class SupabaseDocumentRepository(IDocumentRepository):
             return False
 
     @staticmethod
+    def _is_missing_document_storage_error(error: Exception) -> bool:
+        message = str(error).lower()
+        code = getattr(error, "code", None)
+        return (
+            code in {"PGRST205", "PGRST202", "PGRST116"}
+            or "could not find the table" in message
+            or "relation" in message
+            and "does not exist" in message
+            or "schema cache" in message
+        )
+
+    @staticmethod
     def _serialize_parsed_content(content: ParsedContent) -> str:
-        """Serialize ParsedContent to JSON."""
         content_dict = {
             "text": content.text,
             "sections": [
@@ -209,7 +224,6 @@ class SupabaseDocumentRepository(IDocumentRepository):
 
     @staticmethod
     def _deserialize_parsed_content(json_str: str) -> ParsedContent:
-        """Deserialize ParsedContent from JSON."""
         from app.domain.entities.document import (
             ImageMetadata,
             Section,
@@ -260,7 +274,6 @@ class SupabaseDocumentRepository(IDocumentRepository):
 
     @staticmethod
     def _row_to_document(row: dict) -> Document:
-        """Convert Supabase row to Document entity."""
         from datetime import datetime
 
         return Document(

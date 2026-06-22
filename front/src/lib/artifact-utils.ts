@@ -1,16 +1,15 @@
 import { ChatMessage } from "@/services/api";
 import { ChatArtifact } from "@/store/appStore";
 
-/**
- * Extrae solo documentos adjuntos como artefactos
- * Solo muestra archivos completos, no fragmentos de código
- */
+
 export function extractArtifactsFromMessage(
   message: ChatMessage
 ): ChatArtifact[] {
   const artifacts: ChatArtifact[] = [];
 
   const htmlBlockRegex = /```(?:html|markup|xml)\s*([\s\S]*?)```/gi;
+  const htmlTagRegex = /<(?:!doctype|html|head|body|div|span|p|section|article|main|header|footer|nav|button|form|input|img|svg|canvas|script|style|link|table|tr|td|th|ul|ol|li|a|label|textarea)[^>]*>/i;
+  const likelyHtmlSnippetRegex = /<!DOCTYPE html|<html[\s>]|<body[\s>]|<main[\s>]|<section[\s>]|<header[\s>]|<footer[\s>]/i;
 
   if (typeof message.content === "string") {
     let match: RegExpExecArray | null;
@@ -25,6 +24,24 @@ export function extractArtifactsFromMessage(
         type: "html",
         language: "html",
         content,
+        timestamp: message.timestamp,
+      });
+    }
+
+    const normalizedContent = message.content.trim();
+    if (
+      !artifacts.length &&
+      normalizedContent &&
+      (htmlTagRegex.test(normalizedContent) ||
+        likelyHtmlSnippetRegex.test(normalizedContent))
+    ) {
+      artifacts.push({
+        id: `${message.id}-html-direct`,
+        messageId: message.id,
+        title: "Interfaz Web Generada (HTML)",
+        type: "html",
+        language: "html",
+        content: normalizedContent,
         timestamp: message.timestamp,
       });
     }
@@ -86,10 +103,6 @@ export function extractArtifactsFromMessage(
   return artifacts;
 }
 
-/**
- * Obtiene todos los artefactos de una lista de mensajes
- * Solo extrae documentos adjuntos, no fragmentos de código
- */
 export function extractAllArtifacts(messages: ChatMessage[]): ChatArtifact[] {
   const allArtifacts: ChatArtifact[] = [];
   const seenIds = new Set<string>();
@@ -107,9 +120,7 @@ export function extractAllArtifacts(messages: ChatMessage[]): ChatArtifact[] {
   return allArtifacts;
 }
 
-/**
- * Obtiene el conteo de artefactos (solo documentos)
- */
+
 export function getArtifactCounts(artifacts: ChatArtifact[]): Record<string, number> {
   return {
     documents: artifacts.filter((a) => a.type === "document").length,
@@ -153,14 +164,10 @@ export function filterReasoningFromMessage(content: string): string {
   return filtered.trim();
 }
 
-/**
- * Verifica si un mensaje es solo razonamiento (sin contenido útil)
- */
+//Verifica si un mensaje es solo razonamiento (sin contenido útil)
 export function isReasoningOnlyMessage(content: string): boolean {
   if (!content) return false;
-
   const cleaned = filterReasoningFromMessage(content);
-  // Si después de limpiar el razonamiento no hay contenido, es solo razonamiento
   return cleaned.length < 10;
 }
 

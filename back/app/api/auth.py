@@ -122,7 +122,6 @@ async def change_password(
     body: dict,
     current_user: dict = Depends(get_current_user),
 ):
-    """Change user password with current password verification"""
     try:
         user_id = current_user.get("id")
         if not user_id:
@@ -168,3 +167,47 @@ async def change_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor",
         )
+
+ 
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_token(request: Request):
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Refresh token requerido",
+        )
+
+    refresh_token = auth_header.replace("Bearer ", "")
+
+    auth_data = await auth_service.refresh_token(refresh_token)
+
+    if not auth_data:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token inválido o expirado",
+        )
+
+    session = auth_data["session"]
+    user = auth_data["user"]
+
+    user_metadata = user.user_metadata or {}
+    app_metadata = user.app_metadata or {}
+
+    return TokenResponse(
+        access_token=session.access_token,
+        refresh_token=session.refresh_token,
+        token_type="bearer",
+        expires_in=session.expires_in,
+        user={
+            "id": user.id,
+            "name": (
+                user_metadata.get("full_name")
+                or user_metadata.get("name")
+                or "Usuario"
+            ),
+            "email": user.email,
+            "role": app_metadata.get("role", "authenticated"),
+        },
+    )

@@ -142,6 +142,8 @@ class OllamaClient:
                             if "response" in data and data["response"]:
                                 emitted = True
                                 yield data["response"]
+                            if data.get("done"):
+                                break
                         except json.JSONDecodeError:
                             continue
 
@@ -223,6 +225,8 @@ class OllamaClient:
                                 if content:
                                     emitted = True
                                     yield content
+                            if data.get("done"):
+                                break
                         except json.JSONDecodeError:
                             continue
 
@@ -247,9 +251,6 @@ class OllamaClient:
                 await asyncio.sleep(2**attempt)
 
     async def preload_model(self, model: str) -> bool:
-        """
-        Envia una peticion a /api/chat con keep_alive=-1 para cargar el modelo en VRAM.
-        """
         try:
             payload = {
                 "model": model,

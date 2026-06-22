@@ -10,6 +10,10 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "::",
       port: 8080,
+      watch: {
+        usePolling: true,
+        interval: 100,
+      },
       proxy: {
         "/api": {
           target: env.VITE_API_URL || "http://backend:8000",

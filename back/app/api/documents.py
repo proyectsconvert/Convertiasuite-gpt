@@ -164,7 +164,9 @@ class GenerateAndAddArtifactRequest(BaseModel):
     format: str
     content: Union[DocumentContent, Dict[str, Any], str, Any]
     session_id: str
-    message_id: Optional[str] = None  # If not provided, will attach to last assistant message
+    message_id: Optional[str] = (
+        None
+    )
 
 
 _MEDIA_TYPES: dict[str, str] = {

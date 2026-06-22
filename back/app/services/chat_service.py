@@ -1,4 +1,5 @@
 from datetime import datetime, UTC
+import asyncio
 import logging
 import time
 import uuid
@@ -10,7 +11,8 @@ from app.domain.contracts import PromptContract
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.message_repository import IMessageRepository
 from app.security.risk_scorer import risk_scorer
-from app.services.model_router import route_model
+from app.services.model_router import route_model, build_routing_context
+from app.services.intent_classifier import IntentClassifier
 from app.services.document_processing.document_manager import DocumentManager
 from app.services.document_generation.document_generator import DocumentGenerator
 from app.security.exceptions import (
@@ -43,17 +45,15 @@ from app.security.prompt_injection_guard import (
 MODEL_CONFIG = get_model_config()
 logger = logging.getLogger(__name__)
 
-MAX_STREAM_SECONDS = 300
+MAX_STREAM_SECONDS = 600
 
 
 def _extract_document_generation_request(response_text: str) -> tuple[str, dict | None]:
     try:
-        # Busca patrones como ```json {...} ``` o directamente JSON
         json_pattern = r'```(?:json)?\s*(\{[\s\S]*?"generate_document"[\s\S]*?\})\s*```'
         match = re.search(json_pattern, response_text)
 
         if not match:
-            # Intenta encontrar JSON directamente sin backticks
             json_pattern = r'(\{[\s\S]*?"generate_document"[\s\S]*?\})'
             match = re.search(json_pattern, response_text)
 
@@ -108,15 +108,13 @@ async def _generate_and_attach_document(
         if not filename.endswith(ext):
             filename = f"{filename}{ext}"
 
-        # Crea el artifact
         artifact = {
             "filename": filename,
             "type": format_type,
             "url": None,
-            "content": None,  # No incluya contenido binario en artifacts
+            "content": None,  
         }
 
-        # Añade el artifact al mensaje
         if not hasattr(message, "artifacts"):
             message.artifacts = []
         message.artifacts.append(artifact)
@@ -160,6 +158,7 @@ async def process_chat(
     memory_repo,
     user_id: str,
     document_manager: DocumentManager | None = None,
+    intent_classifier: IntentClassifier | None = None,
 ):
     model_name = None
     request_start = time.perf_counter()
@@ -247,7 +246,7 @@ async def process_chat(
                     try:
                         validate_prompt_safety(
                             msg_obj.content,
-                            risk_level="MEDIUM",  # Less restrictive for history
+                            risk_level="MEDIUM",  
                         )
 
                     except Exception:
@@ -274,7 +273,6 @@ async def process_chat(
         attachment_type = "archivo"
         is_image = False
 
-        # Determine attachment presence based on extracted_context (has_attachment flag deprecated)
         if request.extracted_context:
             attachment_name = request.attachment_name or attachment_name
             attachment_type = request.attachment_type or attachment_type
@@ -282,7 +280,6 @@ async def process_chat(
                 attachment_type.startswith("image") or attachment_type == "vision"
             )
 
-            # Lightweight attachment metadata without full context content inside history!
             user_attachments.append(
                 {
                     "type": attachment_type,
@@ -324,21 +321,35 @@ async def process_chat(
                 session_id,
                 trace_id,
             )
+        async def _get_doc_context() -> str:
+            if document_manager and session_id and not is_image:
+                try:
+                    return await document_manager.get_relevant_context(
+                        session_id=uuid.UUID(session_id),
+                        query=clean_input,
+                        limit_chunks=3,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Contextual retrieval failed session=%s error=%s",
+                        session_id,
+                        str(e),
+                    )
+            return ""
 
-        doc_context = ""
-        if document_manager and session_id and not is_image:
-            try:
-                doc_context = await document_manager.get_relevant_context(
-                    session_id=uuid.UUID(session_id),
-                    query=clean_input,
-                    limit_chunks=3,
-                )
-            except Exception as e:
-                logger.warning(
-                    "Contextual retrieval failed session=%s error=%s",
-                    session_id,
-                    str(e),
-                )
+        async def _classify_intent() -> str:
+            routing_message = build_routing_context(clean_input, sanitized_history)
+            return await route_model(
+                message=routing_message,
+                user_role=request.user_role,
+                attachment_type=request.attachment_type,
+                intent_classifier=intent_classifier,
+            )
+
+        doc_context, model_key = await asyncio.gather(
+            _get_doc_context(),
+            _classify_intent(),
+        )
 
         if not doc_context and request.extracted_context and not is_image:
             paragraphs = [
@@ -411,11 +422,6 @@ async def process_chat(
                     trace_id,
                 )
 
-        model_key = route_model(
-            message=clean_input,
-            user_role=request.user_role,
-            attachment_type=request.attachment_type,
-        )
 
         model_info = MODEL_CONFIG.get(
             model_key,
@@ -582,6 +588,22 @@ async def process_chat(
                         session_id,
                         messages,
                     )
+
+                    # Record usage to the database in background
+                    try:
+                        tokens_in = len(request.message) // 4 if request.message else 0
+                        tokens_out = len(full_response) // 4 if full_response else 0
+                        from app.services.usage_service import record_usage
+                        asyncio.create_task(
+                            record_usage(
+                                user_id=user_id,
+                                model_name=model_name,
+                                tokens_in=tokens_in,
+                                tokens_out=tokens_out
+                            )
+                        )
+                    except Exception as usage_err:
+                        logger.error(f"Error launching usage logging: {usage_err}")
 
                 total_elapsed = time.perf_counter() - stream_start
 

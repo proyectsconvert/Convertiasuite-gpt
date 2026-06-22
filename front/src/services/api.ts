@@ -36,6 +36,10 @@ export interface SendMessageRequest {
   attachment_name?: string;
 }
 
+export interface SendMessageStreamOptions {
+  signal?: AbortSignal;
+}
+
 export interface StreamChunk {
   type: "start" | "chunk" | "done" | "error";
   content?: string;
@@ -120,11 +124,14 @@ function getRefreshToken(): string | null {
   return localStorage.getItem("refreshToken");
 }
 
+let authRedirected = false;
+
 function setTokens(accessToken: string, refreshToken?: string): void {
   localStorage.setItem("accessToken", accessToken);
   if (refreshToken) {
     localStorage.setItem("refreshToken", refreshToken);
   }
+  authRedirected = false;
 }
 
 function clearSession(): void {
@@ -142,10 +149,24 @@ export function setTokenRefreshListener(listener: (token: string) => void) {
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
 
+function handleAuthFailure(): never {
+  if (!authRedirected) {
+    authRedirected = true;
+    clearSession();
+    window.location.assign("/login");
+  }
+
+  throw new Error("Sesión expirada. Inicie sesión nuevamente.");
+}
+
 async function tryRefreshToken(): Promise<boolean> {
+  if (authRedirected) {
+    return false;
+  }
+
   // Si ya estamos refrescando, espera a que termine
-  if (isRefreshing) {
-    return refreshPromise || Promise.resolve(false);
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
   }
 
   isRefreshing = true;
@@ -157,7 +178,6 @@ async function tryRefreshToken(): Promise<boolean> {
         return false;
       }
 
-      // Intentar refrescar el token (asume que el backend tiene endpoint /auth/refresh)
       const response = await fetch(`${AUTH_BASE}/refresh`, {
         method: "POST",
         headers: {
@@ -172,19 +192,16 @@ async function tryRefreshToken(): Promise<boolean> {
         if (onTokenRefreshed) {
           onTokenRefreshed(data.access_token);
         }
-        isRefreshing = false;
         return true;
       }
 
-      // Si el refresh falla, limpiar sesión
-      clearSession();
-      isRefreshing = false;
       return false;
     } catch (error) {
       console.error("Error refrescando token:", error);
-      clearSession();
-      isRefreshing = false;
       return false;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
     }
   })();
 
@@ -206,7 +223,7 @@ function buildHeaders(customHeaders: HeadersInit = {}, isFormData = false): Head
   return { ...headers, ...(customHeaders as Record<string, string>) };
 }
 
-async function apiFetch(
+export async function apiFetch(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
@@ -222,21 +239,16 @@ async function apiFetch(
     const refreshed = await tryRefreshToken();
 
     if (refreshed) {
-      // Reintentar solicitud con token nuevo
       return fetch(url, {
         ...options,
         headers: buildHeaders(options.headers, isFormData),
       }).catch((error) => {
-        clearSession();
-        window.location.href = "/login";
+        handleAuthFailure();
         throw error;
       });
     }
 
-    // Si el refresh falla, redirigir a login
-    clearSession();
-    window.location.href = "/login";
-    return new Promise(() => { }); // Nunca resuelve
+    handleAuthFailure();
   }
 
   if (!response.ok) {
@@ -299,11 +311,13 @@ export const authApi = {
 
 export const chatApi = {
   async *sendMessageStream(
-    req: SendMessageRequest
+    req: SendMessageRequest,
+    options: SendMessageStreamOptions = {}
   ): AsyncGenerator<StreamChunk, void, unknown> {
     const response = await apiFetch(`${API_BASE}/stream`, {
       method: "POST",
       body: JSON.stringify(req),
+      signal: options.signal,
     });
 
     const reader = response.body?.getReader();
@@ -416,6 +430,18 @@ export const chatApi = {
     );
   },
 
+  async stopSessionStream(
+    sessionId: string
+  ): Promise<{ status: string; stopped: boolean }> {
+    const response = await apiFetch(
+      `${API_BASE}/sessions/${sessionId}/stop`,
+      {
+        method: "POST",
+      }
+    );
+    return response.json();
+  },
+
   async uploadFile(
     file: File,
     sessionId?: string
@@ -481,11 +507,11 @@ export const documentsApi = {
     sessionId: string,
     messageId?: string
   ): Promise<GenerateDocumentResponse> {
-    const payload: any = { 
-      filename, 
-      format, 
+    const payload: any = {
+      filename,
+      format,
       content,
-      session_id: sessionId 
+      session_id: sessionId
     };
     if (messageId) {
       payload.message_id = messageId;
@@ -497,3 +523,81 @@ export const documentsApi = {
     return response.json();
   }
 };
+
+const ADMIN_BASE = `${API_URL}/admin`;
+
+export interface ModelMetric {
+  model_name: string;
+  provider: string;
+  requests: number;
+  tokens_input: number;
+  tokens_output: number;
+  total_cost: number;
+  avg_cost_per_request: number;
+}
+
+export interface DepartmentMetric {
+  department_name: string;
+  requests: number;
+  tokens_input: number;
+  tokens_output: number;
+  total_cost: number;
+}
+
+export interface RoleMetric {
+  role_name: string;
+  requests: number;
+  tokens_input: number;
+  tokens_output: number;
+  total_cost: number;
+}
+
+export interface UserMetric {
+  user_id: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+  requests: number;
+  tokens_input: number;
+  tokens_output: number;
+  total_cost: number;
+  last_use: string;
+  most_used_model: string;
+}
+
+export interface TimelineMetric {
+  date: string;
+  requests: number;
+  tokens_input: number;
+  tokens_output: number;
+  total_cost: number;
+}
+
+export interface AdminMetricsResponse {
+  summary: {
+    total_requests: number;
+    total_tokens_input: number;
+    total_tokens_output: number;
+    total_cost: number;
+    active_users: number;
+    avg_tokens_per_request: number;
+    avg_cost_per_request: number;
+    requests_per_minute: number;
+  };
+  by_model: ModelMetric[];
+  by_department: DepartmentMetric[];
+  by_role: RoleMetric[];
+  by_user: UserMetric[];
+  timeline: TimelineMetric[];
+}
+
+export const adminApi = {
+  async getMetrics(): Promise<AdminMetricsResponse> {
+    const response = await apiFetch(`${ADMIN_BASE}/metrics`, {
+      method: "GET",
+    });
+    return response.json();
+  },
+};
+

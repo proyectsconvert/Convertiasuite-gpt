@@ -39,10 +39,10 @@ class AuthService:
 
         except Exception as e:
             logger.warning(
-                "Invalid Supabase JWT: %s",
-                str(e),
+                "Supabase token validation failed type=%s error=%s",
+                type(e).__name__,
+                e,
             )
-
             return None
 
     def get_user_from_token(self, payload: dict) -> dict:
@@ -62,7 +62,7 @@ class AuthService:
 
         return app_metadata.get("role") or "authenticated"
 
-    async def refresh_session(self, refresh_token: str) -> dict | None:
+    async def refresh_token(self, refresh_token: str) -> dict | None:
         try:
             logger.info("Token refresh attempt")
             response = self.supabase.auth.refresh_session(refresh_token)
