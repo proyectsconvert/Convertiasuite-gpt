@@ -141,7 +141,7 @@ export default function ChatInput({
   variant = "conversation",
   onStop,
 }: ChatInputProps) {
-  const { selectedModel } = useAppStore();
+  const { selectedModel, currentChatId } = useAppStore();
   const { toast } = useToast();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -236,7 +236,7 @@ export default function ChatInput({
     setUploadState("uploading");
     try {
       const previewData = await extractFilePreview(file);
-      const response = await chatApi.uploadFile(file);
+      const response = await chatApi.uploadFile(file, currentChatId || undefined);
       const newFile: AttachedFileData = {
         id: Math.random().toString(36).substr(2, 9),
         name: response.filename,

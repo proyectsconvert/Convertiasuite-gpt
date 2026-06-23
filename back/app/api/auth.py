@@ -54,6 +54,8 @@ async def login(
                 "authenticated",
             )
         ),
+        "area": user_metadata.get("area"),
+        "functional_role": user_metadata.get("functional_role"),
     }
 
     logger.info(
@@ -79,7 +81,6 @@ async def update_profile(
     body: dict,
     current_user: dict = Depends(get_current_user),
 ):
-    """Update user profile (name, area, functional_role)"""
     try:
         user_id = current_user.get("id")
         if not user_id:
@@ -209,5 +210,7 @@ async def refresh_token(request: Request):
             ),
             "email": user.email,
             "role": app_metadata.get("role", "authenticated"),
+            "area": user_metadata.get("area"),
+            "functional_role": user_metadata.get("functional_role"),
         },
     )

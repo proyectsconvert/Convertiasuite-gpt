@@ -8,7 +8,7 @@ from app.infra.clients.supabase_client import SupabaseClient
 
 
 class MissingDocumentStorageError(Exception):
-    """Raised when the documents table is unavailable in Supabase."""
+    """Custom exception to indicate that the document storage is unavailable."""
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class SupabaseDocumentRepository(IDocumentRepository):
                 "type": document.type.value,
                 "filename": document.filename,
                 "parsed_content": parsed_content_json,
-                "session_id": str(document.session_id),
+                "session_id": str(document.session_id) if document.session_id else None,
                 "user_id": str(document.user_id),
                 "embeddings": json.dumps(document.embeddings),
                 "tags": document.tags,
@@ -143,7 +143,6 @@ class SupabaseDocumentRepository(IDocumentRepository):
 
     async def delete(self, document_id: UUID, user_id: UUID) -> bool:
         try:
-            # Verify ownership
             doc = await self.get_by_id(document_id)
             if not doc or doc.user_id != user_id:
                 logger.warning(f"Unauthorized delete attempt: {document_id}")
@@ -283,7 +282,7 @@ class SupabaseDocumentRepository(IDocumentRepository):
             parsed_content=SupabaseDocumentRepository._deserialize_parsed_content(
                 row["parsed_content"]
             ),
-            session_id=UUID(row["session_id"]),
+            session_id=UUID(row["session_id"]) if row.get("session_id") else None,
             user_id=UUID(row["user_id"]),
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),

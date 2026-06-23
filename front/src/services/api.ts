@@ -93,6 +93,23 @@ export interface GenerateDocumentResponse {
   message?: string;
 }
 
+export interface DocumentListResponse {
+  count: number;
+  documents: Array<{
+    id: string;
+    filename: string;
+    type: string;
+    word_count: number;
+    created_at: string;
+    updated_at: string;
+    tags: string[];
+    metadata: Record<string, unknown>;
+    preview_text: string;
+    version: number;
+    history: Array<{ version?: number; action?: string; timestamp?: string; summary?: string }>;
+  }>;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
@@ -488,6 +505,52 @@ export const chatApi = {
 };
 
 export const documentsApi = {
+  async uploadFile(file: File, tags: string[] = []): Promise<{ id: string; filename: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    tags.forEach((tag) => formData.append("tags", tag));
+
+    const response = await apiFetch(`${API_URL}/api/documents/upload`, {
+      method: "POST",
+      body: formData,
+    });
+
+    return response.json();
+  },
+
+  async listDocuments(
+    filters?: { search?: string; type?: string; tag?: string; area?: string; user?: string; dateFrom?: string; dateTo?: string }
+  ): Promise<DocumentListResponse> {
+    const params = new URLSearchParams();
+    if (filters?.search) params.set("search", filters.search);
+    if (filters?.type) params.set("type", filters.type);
+    if (filters?.tag) params.set("tag", filters.tag);
+    if (filters?.area) params.set("area", filters.area);
+    if (filters?.user) params.set("user", filters.user);
+    if (filters?.dateFrom) params.set("date_from", filters.dateFrom);
+    if (filters?.dateTo) params.set("date_to", filters.dateTo);
+
+    const response = await apiFetch(`${API_URL}/api/documents/?${params.toString()}`);
+    return response.json();
+  },
+
+  async getById(documentId: string): Promise<any> {
+    const response = await apiFetch(`${API_URL}/api/documents/${documentId}`);
+    return response.json();
+  },
+
+  async download(documentId: string): Promise<Blob> {
+    const response = await apiFetch(`${API_URL}/api/documents/${documentId}/download`);
+    return response.blob();
+  },
+
+  async delete(documentId: string): Promise<{ message: string }> {
+    const response = await apiFetch(`${API_URL}/api/documents/${documentId}`, {
+      method: "DELETE",
+    });
+    return response.json();
+  },
+
   async generateFile(filename: string, format: string, content: any, sessionId?: string): Promise<Blob> {
     const payload: any = { filename, format, content };
     if (sessionId) {
@@ -593,8 +656,11 @@ export interface AdminMetricsResponse {
 }
 
 export const adminApi = {
-  async getMetrics(): Promise<AdminMetricsResponse> {
-    const response = await apiFetch(`${ADMIN_BASE}/metrics`, {
+  async getMetrics(userId?: string): Promise<AdminMetricsResponse> {
+    const params = new URLSearchParams();
+    if (userId) params.set("user_id", userId);
+
+    const response = await apiFetch(`${ADMIN_BASE}/metrics${params.toString() ? `?${params.toString()}` : ""}`, {
       method: "GET",
     });
     return response.json();

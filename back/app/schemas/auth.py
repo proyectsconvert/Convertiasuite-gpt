@@ -6,6 +6,8 @@ class UserInfo(BaseModel):
     email: str
     name: str
     role: str
+    area: str | None = None
+    functional_role: str | None = None
 
 
 class LoginRequest(BaseModel):

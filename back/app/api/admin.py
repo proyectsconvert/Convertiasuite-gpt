@@ -15,12 +15,11 @@ router = APIRouter(
 )
 
 @router.get("/metrics")
-async def get_metrics(current_user: dict = Depends(get_current_user)):
-    """
-    Get aggregated usage metrics for the Admin Dashboard.
-    Requires the current user to have the 'admin' role.
-    """
-    # 1. Authorize: must be admin
+async def get_metrics(
+    user_id: str | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+
     user_role = current_user.get("role", "").lower()
     if user_role != "admin":
         raise HTTPException(
@@ -30,9 +29,62 @@ async def get_metrics(current_user: dict = Depends(get_current_user)):
 
     try:
         supabase = SupabaseClient().db
-        
-        # 2. Retrieve database tables
-        # Since service role client is used, it bypasses RLS
+
+        # Ensure all user profiles from Supabase Auth are synced to the DB tables
+        try:
+            auth_users = supabase.auth.admin.list_users()
+            if auth_users:
+                for u in auth_users:
+                    user_metadata = u.user_metadata or {}
+                    name = user_metadata.get("full_name") or user_metadata.get("name")
+                    area = user_metadata.get("area")
+                    functional_role = user_metadata.get("functional_role")
+                    
+                    # 1. Upsert profiles
+                    p_data = {"user_id": u.id}
+                    if name:
+                        p_data["full_name"] = name
+                    supabase.table("profiles").upsert(p_data).execute()
+                    
+                    # 2. Resolve department_id
+                    dep_id = None
+                    if area:
+                        dep_res = supabase.table("departments").select("department_id").eq("department_name", area).execute()
+                        if dep_res.data:
+                            dep_id = dep_res.data[0]["department_id"]
+                        else:
+                            dep_insert = supabase.table("departments").insert({"department_name": area}).execute()
+                            if dep_insert.data:
+                                dep_id = dep_insert.data[0]["department_id"]
+                                
+                    # 3. Resolve position_id
+                    pos_id = None
+                    if functional_role:
+                        pos_res = supabase.table("positions").select("position_id").eq("position_name", functional_role).execute()
+                        if pos_res.data:
+                            pos_id = pos_res.data[0]["position_id"]
+                        else:
+                            pos_insert = supabase.table("positions").insert({
+                                "position_name": functional_role,
+                                "department_id": dep_id
+                            }).execute()
+                            if pos_insert.data:
+                                pos_id = pos_insert.data[0]["position_id"]
+                                
+                    # 4. Upsert employee_profiles
+                    emp_data = {
+                        "user_id": u.id,
+                        "work_email": u.email
+                    }
+                    if dep_id is not None:
+                        emp_data["department_id"] = dep_id
+                    if pos_id is not None:
+                        emp_data["position_id"] = pos_id
+                        
+                    supabase.table("employee_profiles").upsert(emp_data).execute()
+        except Exception as sync_err:
+            logger.error(f"Error syncing users in admin metrics: {sync_err}", exc_info=True)
+    
         usage_res = supabase.table("usage_tracking").select("*").execute()
         profiles_res = supabase.table("profiles").select("*").execute()
         emp_res = supabase.table("employee_profiles").select("*").execute()
@@ -47,16 +99,16 @@ async def get_metrics(current_user: dict = Depends(get_current_user)):
         departments = deps_res.data or []
         models = models_res.data or []
 
-        # 3. Create dictionaries for fast lookup
         models_dict = {m["model_id"]: m for m in models}
         profiles_dict = {p["user_id"]: p for p in profiles}
         emp_dict = {e["user_id"]: e for e in employee_profiles}
         roles_dict = {r["role_id"]: r["role_name"] for r in roles}
         deps_dict = {d["department_id"]: d["department_name"] for d in departments}
 
-        # 4. Join records
         joined = []
         for row in usage:
+            if user_id and str(row.get("user_id")) != str(user_id):
+                continue
             m_id = row["model_id"]
             u_id = row["user_id"]
             
@@ -64,7 +116,6 @@ async def get_metrics(current_user: dict = Depends(get_current_user)):
             p_info = profiles_dict.get(u_id, {})
             e_info = emp_dict.get(u_id, {})
             
-            # Map role and department
             role_id = e_info.get("role_id")
             role_name = roles_dict.get(role_id, "user")
             
@@ -89,17 +140,21 @@ async def get_metrics(current_user: dict = Depends(get_current_user)):
                 "created_at": row.get("created_at")
             })
 
-        # 5. Compile summaries
         total_requests = len(joined)
         total_tokens_input = sum(r["tokens_input"] for r in joined)
         total_tokens_output = sum(r["tokens_output"] for r in joined)
         total_cost = sum(r["total_cost"] for r in joined)
-        active_users_count = len(set(r["user_id"] for r in joined))
+        
+        active_users_count = 0
+        for p in profiles:
+            u_id = p["user_id"]
+            e_info = emp_dict.get(u_id, {})
+            if e_info.get("status", "active") == "active":
+                active_users_count += 1
         
         avg_tokens_per_request = round((total_tokens_input + total_tokens_output) / total_requests, 2) if total_requests > 0 else 0.0
         avg_cost_per_request = round(total_cost / total_requests, 6) if total_requests > 0 else 0.0
         
-        # Calculate requests per minute (RPM) over the last 15 minutes
         now_utc = datetime.now(timezone.utc)
         recent_15m = now_utc - timedelta(minutes=15)
         recent_reqs = 0
@@ -114,7 +169,6 @@ async def get_metrics(current_user: dict = Depends(get_current_user)):
                 pass
         requests_per_minute = round(recent_reqs / 15.0, 2)
 
-        # 6. Aggregates by Model
         model_aggs = defaultdict(lambda: {
             "model_name": "", "provider": "", "requests": 0, 
             "tokens_input": 0, "tokens_output": 0, "total_cost": 0.0
@@ -132,7 +186,6 @@ async def get_metrics(current_user: dict = Depends(get_current_user)):
             val["avg_cost_per_request"] = round(val["total_cost"] / val["requests"], 6)
             val["total_cost"] = round(val["total_cost"], 6)
 
-        # 7. Aggregates by Department
         dep_aggs = defaultdict(lambda: {
             "department_name": "", "requests": 0, "tokens_input": 0, "tokens_output": 0, "total_cost": 0.0
         })
@@ -147,7 +200,6 @@ async def get_metrics(current_user: dict = Depends(get_current_user)):
         for d_name, val in dep_aggs.items():
             val["total_cost"] = round(val["total_cost"], 6)
 
-        # 8. Aggregates by Role
         role_aggs = defaultdict(lambda: {
             "role_name": "", "requests": 0, "tokens_input": 0, "tokens_output": 0, "total_cost": 0.0
         })
@@ -162,35 +214,64 @@ async def get_metrics(current_user: dict = Depends(get_current_user)):
         for role_n, val in role_aggs.items():
             val["total_cost"] = round(val["total_cost"], 6)
 
-        # 9. Aggregates by User Profile
-        user_aggs = defaultdict(lambda: {
-            "name": "", "email": "", "role": "", "department": "", 
-            "requests": 0, "tokens_input": 0, "tokens_output": 0, 
-            "total_cost": 0.0, "last_use": "", "models_used": defaultdict(int)
-        })
+        user_aggs = {}
+        
+        for p in profiles:
+            u_id = p["user_id"]
+            p_info = p
+            e_info = emp_dict.get(u_id, {})
+            
+            role_id = e_info.get("role_id")
+            role_name = roles_dict.get(role_id, "user")
+            
+            dep_id = e_info.get("department_id")
+            dep_name = deps_dict.get(dep_id, "General")
+            
+            email = e_info.get("work_email") or f"{u_id[:8]}@convert.ia"
+            name = p_info.get("full_name") or (email.split("@")[0].capitalize() if "@" in email else "Usuario")
+            
+            user_aggs[u_id] = {
+                "name": name,
+                "email": email,
+                "role": role_name,
+                "department": dep_name,
+                "requests": 0,
+                "tokens_input": 0,
+                "tokens_output": 0,
+                "total_cost": 0.0,
+                "last_use": "",
+                "models_used": defaultdict(int)
+            }
+            
         for r in joined:
             u_id = r["user_id"]
+            if u_id not in user_aggs:
+                user_aggs[u_id] = {
+                    "name": r["name"],
+                    "email": r["email"],
+                    "role": r["role"],
+                    "department": r["department"],
+                    "requests": 0,
+                    "tokens_input": 0,
+                    "tokens_output": 0,
+                    "total_cost": 0.0,
+                    "last_use": "",
+                    "models_used": defaultdict(int)
+                }
             u_entry = user_aggs[u_id]
-            u_entry["name"] = r["name"]
-            u_entry["email"] = r["email"]
-            u_entry["role"] = r["role"]
-            u_entry["department"] = r["department"]
             u_entry["requests"] += 1
             u_entry["tokens_input"] += r["tokens_input"]
             u_entry["tokens_output"] += r["tokens_output"]
             u_entry["total_cost"] += r["total_cost"]
             
-            # Find last active time
             row_time = r["created_at"]
             if not u_entry["last_use"] or row_time > u_entry["last_use"]:
                 u_entry["last_use"] = row_time
                 
-            # Track model counts
             u_entry["models_used"][r["model_name"]] += 1
             
         by_user_list = []
         for u_id, val in user_aggs.items():
-            # Resolve most used model
             models_used = val["models_used"]
             most_used_model = max(models_used, key=models_used.get) if models_used else "N/A"
             
@@ -208,10 +289,8 @@ async def get_metrics(current_user: dict = Depends(get_current_user)):
                 "most_used_model": most_used_model
             })
             
-        # Sort users by total cost descending
         by_user_list.sort(key=lambda x: x["total_cost"], reverse=True)
 
-        # 10. Daily usage timeline (AreaChart data)
         timeline_aggs = defaultdict(lambda: {
             "date": "", "requests": 0, "tokens_input": 0, "tokens_output": 0, "total_cost": 0.0
         })

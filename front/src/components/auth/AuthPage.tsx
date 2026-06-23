@@ -1,9 +1,6 @@
 import { useState } from "react";
-
 import { motion } from "framer-motion";
-
 import { useNavigate } from "react-router-dom";
-
 import {
   ArrowLeft,
   Eye,
@@ -25,17 +22,15 @@ export default function AuthPage() {
   const { login } = useAppStore();
 
   const [showPassword, setShowPassword] = useState(false);
-
   const [email, setEmail] = useState("");
-
   const [password, setPassword] = useState("");
-
   const [isLoading, setIsLoading] = useState(false);
-
   const [error, setError] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (isLoading) return;
 
     setError("");
     setIsLoading(true);
@@ -45,14 +40,12 @@ export default function AuthPage() {
 
       if (!success) {
         setError("Correo o contraseña incorrectos.");
-
         return;
       }
 
       navigate("/app/chat");
     } catch (err) {
       console.error(err);
-
       setError("No fue posible iniciar sesión.");
     } finally {
       setIsLoading(false);
@@ -62,14 +55,12 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen flex bg-background">
       {/* LEFT PANEL */}
-
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center bg-black p-12">
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
             backgroundImage:
               "linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)",
-
             backgroundSize: "40px 40px",
           }}
         />
@@ -103,8 +94,8 @@ export default function AuthPage() {
           <h1 className="text-4xl font-bold text-white mb-4">Convert-IA</h1>
 
           <p className="text-white/60 leading-relaxed">
-            Plataforma unificada de IA enfocada en automatización, productividad
-            y operaciones empresariales.
+            Plataforma unificada de IA enfocada en automatización,
+            productividad y operaciones empresariales.
           </p>
 
           <div className="mt-10 space-y-4 text-left">
@@ -116,7 +107,6 @@ export default function AuthPage() {
             ].map((item) => (
               <div key={item} className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-cyan-400" />
-
                 <span className="text-white/70 text-sm">{item}</span>
               </div>
             ))}
@@ -156,7 +146,9 @@ export default function AuthPage() {
                 <span className="text-lg font-semibold">Convert-IA</span>
               </div>
 
-              <h2 className="text-3xl font-bold mt-4 mb-2">Iniciar sesión</h2>
+              <h2 className="text-3xl font-bold mt-4 mb-2">
+                Iniciar sesión
+              </h2>
 
               <p className="text-muted-foreground text-sm">
                 Ingresa tus credenciales para acceder a la plataforma.
@@ -164,8 +156,6 @@ export default function AuthPage() {
             </div>
 
             {/* FORM */}
-            <form onSubmit={handleSubmit} className="space-y-4"></form>
-
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -197,6 +187,11 @@ export default function AuthPage() {
 
                 <button
                   type="button"
+                  aria-label={
+                    showPassword
+                      ? "Ocultar contraseña"
+                      : "Mostrar contraseña"
+                  }
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
@@ -240,6 +235,15 @@ export default function AuthPage() {
                     Ingresar
                   </>
                 )}
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 font-medium"
+                onClick={() => navigate("/forgot-password")}
+              >
+                No recuerdo mi contraseña
               </Button>
             </form>
           </motion.div>

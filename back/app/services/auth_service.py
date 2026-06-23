@@ -16,6 +16,12 @@ class AuthService:
             )
             if not response or not response.user or not response.session:
                 return None
+
+            try:
+                self.sync_user_profile_to_db(response.user)
+            except Exception as se:
+                logger.error(f"Authentication profile sync failed: {se}")
+
             return {"session": response.session, "user": response.user}
         except Exception as e:
             logger.error(f"Supabase authentication error: {type(e).__name__}: {e}")
@@ -31,10 +37,14 @@ class AuthService:
 
             user = response.user
 
+            user_metadata = user.user_metadata or {}
             return {
                 "sub": user.id,
                 "email": user.email,
                 "role": self._resolve_role(user),
+                "name": user_metadata.get("full_name") or user_metadata.get("name") or user.email,
+                "area": user_metadata.get("area"),
+                "functional_role": user_metadata.get("functional_role"),
             }
 
         except Exception as e:
@@ -54,6 +64,9 @@ class AuthService:
                 "role",
                 "authenticated",
             ),
+            "name": payload.get("name"),
+            "area": payload.get("area"),
+            "functional_role": payload.get("functional_role"),
         }
 
     def _resolve_role(self, user) -> str:
@@ -73,6 +86,65 @@ class AuthService:
             logger.error(f"Supabase session refresh error: {type(e).__name__}: {e}")
             return None
 
+    def sync_user_profile_to_db(self, user) -> None:
+        try:
+            from app.infra.clients.supabase_client import SupabaseClient
+            admin_client = SupabaseClient().admin
+
+            user_id = user.id
+            email = user.email
+            user_metadata = user.user_metadata or {}
+
+            name = user_metadata.get("full_name") or user_metadata.get("name")
+            area = user_metadata.get("area")
+            functional_role = user_metadata.get("functional_role")
+
+            # 1. Upsert profiles
+            p_data = {"user_id": user_id}
+            if name:
+                p_data["full_name"] = name
+            admin_client.table("profiles").upsert(p_data).execute()
+
+            # 2. Resolve department_id
+            dep_id = None
+            if area:
+                dep_res = admin_client.table("departments").select("department_id").eq("department_name", area).execute()
+                if dep_res.data:
+                    dep_id = dep_res.data[0]["department_id"]
+                else:
+                    dep_insert = admin_client.table("departments").insert({"department_name": area}).execute()
+                    if dep_insert.data:
+                        dep_id = dep_insert.data[0]["department_id"]
+
+            # 3. Resolve position_id
+            pos_id = None
+            if functional_role:
+                pos_res = admin_client.table("positions").select("position_id").eq("position_name", functional_role).execute()
+                if pos_res.data:
+                    pos_id = pos_res.data[0]["position_id"]
+                else:
+                    pos_insert = admin_client.table("positions").insert({
+                        "position_name": functional_role,
+                        "department_id": dep_id
+                    }).execute()
+                    if pos_insert.data:
+                        pos_id = pos_insert.data[0]["position_id"]
+
+            # 4. Upsert employee_profiles
+            emp_data = {
+                "user_id": user_id,
+                "work_email": email
+            }
+            if dep_id is not None:
+                emp_data["department_id"] = dep_id
+            if pos_id is not None:
+                emp_data["position_id"] = pos_id
+
+            admin_client.table("employee_profiles").upsert(emp_data).execute()
+            logger.info(f"Successfully synced user profile to database for: {email}")
+        except Exception as e:
+            logger.error(f"Error in sync_user_profile_to_db for user {user.id}: {e}", exc_info=True)
+
     async def update_profile(
         self,
         user_id: str,
@@ -87,7 +159,6 @@ class AuthService:
 
             attributes = {}
 
-            # Update user metadata (name, area, functional_role)
             current_user = admin_client.auth.admin.get_user_by_id(user_id)
             current_metadata = (
                 current_user.user.user_metadata or {}
@@ -108,7 +179,10 @@ class AuthService:
                 attributes["user_metadata"] = new_metadata
 
             if not attributes:
-                # Still return user data even if nothing changed
+                try:
+                    self.sync_user_profile_to_db(current_user.user)
+                except Exception as se:
+                    logger.error(f"Profile no-op sync failed: {se}")
                 return self._format_user_response(current_user.user)
 
             response = admin_client.auth.admin.update_user_by_id(
@@ -118,12 +192,18 @@ class AuthService:
             if not response or not response.user:
                 return None
 
+            try:
+                self.sync_user_profile_to_db(response.user)
+            except Exception as se:
+                logger.error(f"Profile update sync failed: {se}")
+
             return self._format_user_response(response.user)
         except Exception as e:
             logger.error(
                 f"Error updating user profile user_id={user_id} error={type(e).__name__}: {e}"
             )
             return None
+
 
     async def change_password(
         self,
@@ -132,13 +212,10 @@ class AuthService:
         new_password: str,
     ) -> dict | None:
         try:
-            # First verify the current password by trying to sign in
-            # This requires knowing the user's email
             from app.infra.clients.supabase_client import SupabaseClient
 
             admin_client = SupabaseClient().admin
 
-            # Get user email
             user_response = admin_client.auth.admin.get_user_by_id(user_id)
             if not user_response or not user_response.user:
                 logger.error(f"User not found: {user_id}")
@@ -146,7 +223,6 @@ class AuthService:
 
             user_email = user_response.user.email
 
-            # Try to authenticate with current password
             anon_client = SupabaseClient().anon
             try:
                 auth_response = anon_client.auth.sign_in_with_password(
@@ -161,7 +237,6 @@ class AuthService:
                 )
                 return None
 
-            # Update password
             response = admin_client.auth.admin.update_user_by_id(
                 user_id,
                 {"password": new_password},

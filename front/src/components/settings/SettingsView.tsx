@@ -122,22 +122,26 @@ export default function SettingsView() {
 
   const areas = [
     "Desarrollo e Innovación",
+    "BI",
     "Marketing",
+    "Talento y Cultura",
     "Recursos Humanos",
     "Finanzas",
     "Operaciones",
     "Ventas",
     "Gestión de Proyectos",
+    "IT",
     "Otro",
   ];
 
   const functionalRoles = [
-    "Desarrolladora Backend",
-    "Desarrolladora Frontend",
+    "Desarrollador(a) Backend",
+    "Desarrollador(a) Frontend",
     "Analista BI",
     "Especialista de Reclutamiento y Selección",
     "Especialista en Talento y Cultura",
     "SEO",
+    "SST",
     "Content Manager",
     "Project Manager",
     "Otro",

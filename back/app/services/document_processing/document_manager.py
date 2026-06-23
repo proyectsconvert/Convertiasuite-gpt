@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 class DocumentManager:
-
-    def __init__(self,
-                 processor_factory: DocumentProcessorFactory,
-                 document_repository: SupabaseDocumentRepository,
+    def __init__(
+        self,
+        processor_factory: DocumentProcessorFactory,
+        document_repository: SupabaseDocumentRepository,
     ):
         self.processor_factory = processor_factory
         self.document_repository = document_repository
@@ -23,25 +23,22 @@ class DocumentManager:
         self,
         file_content: bytes,
         filename: str,
-        session_id: UUID,
+        session_id: UUID | None,
         user_id: UUID,
         tags: list[str] | None = None,
         metadata: dict | None = None,
     ) -> Document | None:
         try:
-            # Get processor
             processor = self.processor_factory.get_processor_by_extension(filename)
             if not processor:
                 logger.warning(f"Unsupported file type: {filename}")
                 return None
 
-            # Parse content
             parsed_content = await processor.parse(file_content, filename)
             if not parsed_content:
                 logger.warning(f"Failed to parse: {filename}")
                 return None
 
-            # Create document entity
             document = Document(
                 id=uuid4(),
                 type=processor.supported_type,
@@ -55,7 +52,6 @@ class DocumentManager:
                 metadata=metadata or {},
             )
 
-            # Persist
             await self.document_repository.save(document)
             logger.info(f"Document processed and saved: {document.id}")
             return document
@@ -96,9 +92,6 @@ class DocumentManager:
         query: str,
         limit_chunks: int = 3,
     ) -> str:
-        """
-        Get relevant document chunks for a session based on similarity to query.
-        """
         try:
             documents = await self.document_repository.get_by_session(session_id)
             if not documents:
@@ -127,13 +120,17 @@ class DocumentManager:
             relevant_chunks = []
             for score, filename, chunk in scored_chunks[:limit_chunks]:
                 if score > 0 or not relevant_chunks:
-                    trimmed_chunk = chunk if len(chunk) <= 1500 else chunk[:1500] + "..."
+                    trimmed_chunk = (
+                        chunk if len(chunk) <= 1500 else chunk[:1500] + "..."
+                    )
                     relevant_chunks.append(f"### Archivo: {filename}\n{trimmed_chunk}")
 
             if not relevant_chunks:
                 return ""
 
-            return "## DOCUMENTOS RELACIONADOS (RETRIEVED CONTEXT):\n\n" + "\n\n".join(relevant_chunks)
+            return "## DOCUMENTOS RELACIONADOS (RETRIEVED CONTEXT):\n\n" + "\n\n".join(
+                relevant_chunks
+            )
 
         except Exception as e:
             logger.error(f"Contextual retrieval failed: {str(e)}")

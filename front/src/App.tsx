@@ -9,6 +9,7 @@ import LandingPage from "./components/landing/LandingPage";
 import ChatView from "./components/chat/ChatView";
 import SettingsView from "./components/settings/SettingsView";
 import AdminDashboard from "./components/admin/AdminDashboard";
+import DocumentsView from "./components/documents/DocumentsView";
 import { useAppStore } from "./store/appStore";
 import { ReactNode } from "react";
 
@@ -41,13 +42,42 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<PublicRoute><AuthPage /></PublicRoute>} />
-          <Route path="/register" element={<PublicRoute><AuthPage /></PublicRoute>} />
-          <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+          <Route
+            path="/login"
+            element={
+              <PublicRoute>
+                <AuthPage />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <PublicRoute>
+                <AuthPage />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/app"
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route index element={<Navigate to="chat" replace />} />
             <Route path="chat" element={<ChatView />} />
+            <Route path="documents" element={<DocumentsView />} />
             <Route path="settings" element={<SettingsView />} />
-            <Route path="admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+            <Route
+              path="admin"
+              element={
+                <AdminRoute>
+                  <AdminDashboard />
+                </AdminRoute>
+              }
+            />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -55,21 +55,19 @@ class UploadService:
                 if len(extracted_text) > max_characters:
                     truncated_text += "\n[... Archivo truncado por exceso de tamaño. Use herramientas de resumen o divida en secciones. ...]"
 
-            if session_id:
-                # Save to document store via DocumentManager
-                try:
-                    await self.document_manager.process_document(
-                        file_content=contents,
-                        filename=file.filename,
-                        session_id=UUID(session_id),
-                        user_id=UUID(user_id),
-                        tags=[attachment_type],
-                        metadata={"upload_source": "chat"},
-                    )
-                except Exception as doc_err:
-                    logger.warning(f"Failed to process document in store: {doc_err}")
+            try:
+                await self.document_manager.process_document(
+                    file_content=contents,
+                    filename=file.filename,
+                    session_id=UUID(session_id) if session_id else None,
+                    user_id=UUID(user_id),
+                    tags=[attachment_type],
+                    metadata={"upload_source": "chat"},
+                )
+            except Exception as doc_err:
+                logger.warning(f"Failed to process document in store: {doc_err}")
 
-                # Save attachment to chat_attachments table
+            if session_id:
                 storage_path = f"attachments/{session_id}/{file.filename}"
                 await self.attachment_repo.save_attachment(
                     session_id=session_id,

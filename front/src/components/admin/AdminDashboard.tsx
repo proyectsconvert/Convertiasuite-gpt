@@ -34,12 +34,12 @@ import { adminApi, AdminMetricsResponse, UserMetric } from "@/services/api";
 import { toast } from "sonner";
 
 const COLORS = [
-  "#8f8cff", 
-  "#1aeda1", 
-  "#5bb8b5", 
+  "#8f8cff",
+  "#1aeda1",
+  "#5bb8b5",
   "#7c6cf0",
-  "#69d3cf", 
-  "#2bbfa0", 
+  "#69d3cf",
+  "#2bbfa0",
 ];
 
 const ACCENT = {
@@ -72,6 +72,7 @@ export default function AdminDashboard() {
   const [data, setData] = useState<AdminMetricsResponse | null>(null);
 
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [sortField, setSortField] = useState<keyof UserMetric>("total_cost");
   const [sortAsc, setSortAsc] = useState<boolean>(false);
 
@@ -80,7 +81,7 @@ export default function AdminDashboard() {
     else setLoading(true);
 
     try {
-      const response = await adminApi.getMetrics();
+      const response = await adminApi.getMetrics(selectedUserId || undefined);
       setData(response);
     } catch (error) {
       console.error("Error loading metrics:", error);
@@ -93,7 +94,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchMetrics();
-  }, [days]);
+  }, [days, selectedUserId]);
 
   // Handle table sorting
   const handleSort = (field: keyof UserMetric) => {
@@ -185,6 +186,19 @@ export default function AdminDashboard() {
                 className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`}
               />
             </button>
+
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-border bg-card text-xs text-muted-foreground font-semibold focus:outline-none transition-all cursor-pointer"
+            >
+              <option value="">Todos los usuarios</option>
+              {data?.by_user?.map((user) => (
+                <option key={user.user_id} value={user.user_id}>
+                  {user.name}
+                </option>
+              ))}
+            </select>
 
             <select
               value={days}
@@ -327,7 +341,10 @@ export default function AdminDashboard() {
                     style={{ backgroundColor: ACCENT.deepViolet }}
                   />
                 </span>
-                <TrendingUp className="w-4 h-4" style={{ color: ACCENT.deepViolet }} />
+                <TrendingUp
+                  className="w-4 h-4"
+                  style={{ color: ACCENT.deepViolet }}
+                />
               </div>
             </div>
             <p className="text-2xl font-bold mt-3 tracking-tight">
@@ -562,10 +579,7 @@ export default function AdminDashboard() {
                     data={data.by_department}
                     margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                   >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      strokeOpacity={0.4}
-                    />
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
                     <XAxis
                       dataKey="department_name"
                       fontSize={12}
@@ -751,7 +765,8 @@ export default function AdminDashboard() {
                           user.tokens_input + user.tokens_output
                         ).toLocaleString()}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-semibold font-mono"
+                      <td
+                        className="px-4 py-3.5 text-right font-semibold font-mono"
                         style={{ color: ACCENT.green }}
                       >
                         ${user.total_cost.toFixed(5)}

@@ -2,15 +2,74 @@ import logging
 from uuid import UUID
 import io
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from app.dependencies.auth import get_current_user
 from app.services.document_processing.document_manager import DocumentManager
 from app.services.document_generation.document_generator import DocumentGenerator
 from app.domain.entities.document_content import DocumentContent
 from app.domain.interfaces.memory_repository import IMemoryRepository
+
+
+def matches_document_filters(
+    doc,
+    search=None,
+    type=None,
+    tag=None,
+    area=None,
+    user=None,
+    date_from=None,
+    date_to=None,
+    current_user=None,
+):
+    if search:
+        needle = search.lower()
+        haystack = " ".join(
+            [
+                getattr(doc, "filename", "").lower(),
+                doc.parsed_content.to_searchable_text().lower(),
+                " ".join(getattr(doc, "tags", [])).lower(),
+            ]
+        )
+        if needle not in haystack:
+            return False
+
+    if type and getattr(doc.type, "value", None) != type:
+        return False
+
+    if tag and tag not in {t.lower() for t in getattr(doc, "tags", [])}:
+        return False
+
+    if area:
+        area_value = str(doc.metadata.get("area", "")).lower()
+        current_area = str((current_user or {}).get("area", "")).lower()
+        if area.lower() not in area_value and area.lower() not in current_area:
+            return False
+
+    if user:
+        user_value = str(doc.metadata.get("user", "")).lower()
+        current_name = str((current_user or {}).get("name", "")).lower()
+        if user.lower() not in user_value and user.lower() not in current_name:
+            return False
+
+    if date_from:
+        try:
+            if doc.created_at < datetime.fromisoformat(date_from):
+                return False
+        except ValueError:
+            pass
+
+    if date_to:
+        try:
+            if doc.created_at > datetime.fromisoformat(date_to):
+                return False
+        except ValueError:
+            pass
+
+    return True
+
 
 logger = logging.getLogger(__name__)
 
@@ -38,15 +97,12 @@ def get_memory_repo(request: Request) -> IMemoryRepository:
 @router.post("/upload")
 async def upload_document(
     file: UploadFile = File(...),
-    session_id: str = None,
-    tags: list[str] = None,
+    session_id: Optional[str] = Form(None),
+    tags: Optional[list[str]] = Form(None),
     current_user: dict = Depends(get_current_user),
     document_manager: DocumentManager = Depends(get_document_manager),
 ):
     try:
-        if not session_id:
-            raise HTTPException(status_code=400, detail="session_id is required")
-
         content = await file.read()
         if not content:
             raise HTTPException(status_code=400, detail="File is empty")
@@ -62,13 +118,30 @@ async def upload_document(
                 detail=f"Unsupported file type. Supported: {', '.join(supported)}",
             )
 
+        history = [
+            {
+                "version": 1,
+                "action": "uploaded",
+                "timestamp": datetime.utcnow().isoformat(),
+                "summary": "Archivo cargado desde la interfaz",
+            }
+        ]
+
+        session_uuid = UUID(session_id) if session_id else None
+
         document = await document_manager.process_document(
             file_content=content,
             filename=file.filename,
-            session_id=UUID(session_id),
+            session_id=session_uuid,
             user_id=UUID(current_user["id"]),
             tags=tags or [],
-            metadata={"upload_source": "api"},
+            metadata={
+                "upload_source": "api",
+                "version": 1,
+                "history": history,
+                "area": current_user.get("area") or "",
+                "user": current_user.get("name") or current_user.get("email") or "",
+            },
         )
 
         if not document:
@@ -91,9 +164,72 @@ async def upload_document(
         raise HTTPException(status_code=500, detail="Document processing failed")
 
 
+@router.get("/")
+async def list_user_documents(
+    search: Optional[str] = None,
+    type: Optional[str] = None,
+    tag: Optional[str] = None,
+    area: Optional[str] = None,
+    user: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+    document_manager: DocumentManager = Depends(get_document_manager),
+):
+    try:
+        documents = await document_manager.document_repository.get_by_user(
+            UUID(current_user["id"])
+        )
+
+        filtered = []
+        for doc in documents:
+            if matches_document_filters(
+                doc,
+                search=search,
+                type=type,
+                tag=tag,
+                area=area,
+                user=user,
+                date_from=date_from,
+                date_to=date_to,
+                current_user=current_user,
+            ):
+                filtered.append(doc)
+
+        return {
+            "count": len(filtered),
+            "documents": [
+                {
+                    "id": str(doc.id),
+                    "filename": doc.filename,
+                    "type": doc.type.value,
+                    "word_count": doc.parsed_content.word_count,
+                    "created_at": doc.created_at.isoformat(),
+                    "updated_at": doc.updated_at.isoformat(),
+                    "tags": doc.tags,
+                    "metadata": doc.metadata,
+                    "preview_text": (doc.parsed_content.text or "")[:800],
+                    "version": doc.metadata.get("version", 1),
+                    "history": doc.metadata.get("history", []),
+                }
+                for doc in sorted(filtered, key=lambda d: d.created_at, reverse=True)
+            ],
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving user documents: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve documents")
+
+
 @router.get("/session/{session_id}")
 async def get_session_documents(
     session_id: str,
+    search: Optional[str] = None,
+    type: Optional[str] = None,
+    tag: Optional[str] = None,
+    area: Optional[str] = None,
+    user: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
     document_manager: DocumentManager = Depends(get_document_manager),
 ):
@@ -102,8 +238,23 @@ async def get_session_documents(
             UUID(session_id)
         )
 
+        filtered = []
+        for doc in documents:
+            if matches_document_filters(
+                doc,
+                search=search,
+                type=type,
+                tag=tag,
+                area=area,
+                user=user,
+                date_from=date_from,
+                date_to=date_to,
+                current_user=current_user,
+            ):
+                filtered.append(doc)
+
         return {
-            "count": len(documents),
+            "count": len(filtered),
             "documents": [
                 {
                     "id": str(doc.id),
@@ -111,13 +262,94 @@ async def get_session_documents(
                     "type": doc.type.value,
                     "word_count": doc.parsed_content.word_count,
                     "created_at": doc.created_at.isoformat(),
+                    "updated_at": doc.updated_at.isoformat(),
+                    "tags": doc.tags,
+                    "metadata": doc.metadata,
+                    "preview_text": (doc.parsed_content.text or "")[:800],
+                    "version": doc.metadata.get("version", 1),
+                    "history": doc.metadata.get("history", []),
                 }
-                for doc in documents
+                for doc in sorted(filtered, key=lambda d: d.created_at, reverse=True)
             ],
         }
     except Exception as e:
         logger.error(f"Error retrieving documents: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve documents")
+
+
+@router.get("/{document_id}")
+async def get_document_details(
+    document_id: str,
+    current_user: dict = Depends(get_current_user),
+    document_manager: DocumentManager = Depends(get_document_manager),
+):
+    try:
+        document = await document_manager.document_repository.get_by_id(
+            UUID(document_id)
+        )
+        if not document or document.user_id != UUID(current_user["id"]):
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        return {
+            "id": str(document.id),
+            "filename": document.filename,
+            "type": document.type.value,
+            "word_count": document.parsed_content.word_count,
+            "created_at": document.created_at.isoformat(),
+            "updated_at": document.updated_at.isoformat(),
+            "tags": document.tags,
+            "metadata": document.metadata,
+            "preview_text": (document.parsed_content.text or "")[:2000],
+            "sections": [
+                section.title for section in document.parsed_content.sections[:10]
+            ],
+            "version": document.metadata.get("version", 1),
+            "history": document.metadata.get("history", []),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving document details: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve document")
+
+
+@router.get("/{document_id}/download")
+async def download_document(
+    document_id: str,
+    current_user: dict = Depends(get_current_user),
+    document_manager: DocumentManager = Depends(get_document_manager),
+):
+    try:
+        document = await document_manager.document_repository.get_by_id(
+            UUID(document_id)
+        )
+        if not document or document.user_id != UUID(current_user["id"]):
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        file_name = (
+            document.filename.rsplit(".", 1)[0]
+            if "." in document.filename
+            else document.filename
+        )
+        ext = ".txt"
+        if document.type.value in {"md"}:
+            ext = ".md"
+        elif document.type.value in {"json"}:
+            ext = ".json"
+
+        content = document.parsed_content.to_searchable_text().encode("utf-8")
+        headers = {
+            "Content-Disposition": f'attachment; filename="{file_name}{ext}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        }
+        return StreamingResponse(
+            io.BytesIO(content), media_type="text/plain", headers=headers
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading document: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to download document")
 
 
 @router.delete("/{document_id}")
@@ -164,9 +396,7 @@ class GenerateAndAddArtifactRequest(BaseModel):
     format: str
     content: Union[DocumentContent, Dict[str, Any], str, Any]
     session_id: str
-    message_id: Optional[str] = (
-        None
-    )
+    message_id: Optional[str] = None
 
 
 _MEDIA_TYPES: dict[str, str] = {
@@ -206,6 +436,7 @@ async def generate_document(
     request: GenerateFileRequest,
     current_user: dict = Depends(get_current_user),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
+    document_manager: DocumentManager = Depends(get_document_manager),
 ):
 
     format_lower = request.format.lower()
@@ -225,6 +456,19 @@ async def generate_document(
         generator = get_document_generator()
 
         file_bytes = generator.generate(request.content, fmt=format_lower)
+
+        # Save to document store via DocumentManager for user access and RAG
+        try:
+            await document_manager.process_document(
+                file_content=file_bytes,
+                filename=filename,
+                session_id=UUID(request.session_id) if request.session_id else None,
+                user_id=UUID(current_user["id"]),
+                tags=["generated", format_lower],
+                metadata={"upload_source": "generation"},
+            )
+        except Exception as doc_err:
+            logger.warning(f"Failed to save generated document to store: {doc_err}")
 
         # Save AI-generated file metadata to database if session_id is provided
         file_id = None
@@ -286,6 +530,7 @@ async def generate_and_add_artifact(
     request: GenerateAndAddArtifactRequest,
     current_user: dict = Depends(get_current_user),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
+    document_manager: DocumentManager = Depends(get_document_manager),
 ):
     format_lower = request.format.lower()
     filename = request.filename
@@ -303,9 +548,21 @@ async def generate_and_add_artifact(
         generator = get_document_generator()
         file_bytes = generator.generate(request.content, fmt=format_lower)
 
+        # Save to document store via DocumentManager for user access and RAG
+        try:
+            await document_manager.process_document(
+                file_content=file_bytes,
+                filename=filename,
+                session_id=UUID(request.session_id) if request.session_id else None,
+                user_id=UUID(current_user["id"]),
+                tags=["generated", format_lower],
+                metadata={"upload_source": "generation"},
+            )
+        except Exception as doc_err:
+            logger.warning(f"Failed to save generated document to store: {doc_err}")
+
         # Save AI-generated file metadata to database
         file_id = None
-        download_url = None
         try:
             storage_path = f"ai_files/{request.session_id}/{filename}"
             file_id = await memory_repo.save_ai_file(

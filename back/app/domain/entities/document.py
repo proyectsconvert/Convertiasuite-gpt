@@ -17,7 +17,6 @@ class DocumentType(Enum):
 
 @dataclass
 class ImageMetadata:
-
     name: str
     page_number: Optional[int] = None
     width: Optional[int] = None
@@ -27,7 +26,6 @@ class ImageMetadata:
 
 @dataclass
 class Table:
-
     headers: list[str]
     rows: list[list[str]]
     name: Optional[str] = None
@@ -44,10 +42,9 @@ class Table:
 
 @dataclass
 class Section:
-
     title: str
     content: str
-    level: int = 1  
+    level: int = 1
     metadata: dict = field(default_factory=dict)
     embeddings: Optional[dict] = None
 
@@ -58,7 +55,6 @@ class Section:
 
 @dataclass
 class ParsedContent:
-
     text: str
     sections: list[Section] = field(default_factory=list)
     tables: list[Table] = field(default_factory=list)
@@ -89,7 +85,7 @@ class Document:
     type: DocumentType
     filename: str
     parsed_content: ParsedContent
-    session_id: UUID
+    session_id: UUID | None
     user_id: UUID
     created_at: datetime
     updated_at: datetime
@@ -106,5 +102,5 @@ class Document:
 class DocumentSearchResult:
     document: Document
     matching_sections: list[Section]
-    relevance_score: float  
+    relevance_score: float
     matched_text: str
