@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft,
   Eye,
@@ -94,8 +94,8 @@ export default function AuthPage() {
           <h1 className="text-4xl font-bold text-white mb-4">Convert-IA</h1>
 
           <p className="text-white/60 leading-relaxed">
-            Plataforma unificada de IA enfocada en automatización,
-            productividad y operaciones empresariales.
+            Plataforma unificada de IA enfocada en automatización, productividad
+            y operaciones empresariales.
           </p>
 
           <div className="mt-10 space-y-4 text-left">
@@ -146,9 +146,7 @@ export default function AuthPage() {
                 <span className="text-lg font-semibold">Convert-IA</span>
               </div>
 
-              <h2 className="text-3xl font-bold mt-4 mb-2">
-                Iniciar sesión
-              </h2>
+              <h2 className="text-3xl font-bold mt-4 mb-2">Iniciar sesión</h2>
 
               <p className="text-muted-foreground text-sm">
                 Ingresa tus credenciales para acceder a la plataforma.
@@ -188,9 +186,7 @@ export default function AuthPage() {
                 <button
                   type="button"
                   aria-label={
-                    showPassword
-                      ? "Ocultar contraseña"
-                      : "Mostrar contraseña"
+                    showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
                   }
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
@@ -236,16 +232,15 @@ export default function AuthPage() {
                   </>
                 )}
               </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-11 font-medium"
-                onClick={() => navigate("/forgot-password")}
-              >
-                No recuerdo mi contraseña
-              </Button>
             </form>
+            <div className="text-center pt-2">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm font-medium text-muted-foreground hover:text-cyan-400 transition-colors underline underline-offset-4"
+                >
+                  No recuerdo mi contraseña
+                </Link>
+              </div>
           </motion.div>
         </div>
       </div>

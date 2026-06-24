@@ -17,7 +17,7 @@ def get_model() -> Model:
     if _model is None:
         model_path = os.path.normpath(
             os.path.join(
-                os.path.dirname(__file__), "..", "Vosk", "vosk-model-es-0.42"
+                os.path.dirname(__file__), "..", "vosk_models", "vosk-model-es-0.42"
             )
         )
         logger.info(f"Loading Vosk model from: {model_path}")

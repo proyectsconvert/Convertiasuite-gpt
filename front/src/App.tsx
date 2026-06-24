@@ -12,7 +12,8 @@ import AdminDashboard from "./components/admin/AdminDashboard";
 import DocumentsView from "./components/documents/DocumentsView";
 import { useAppStore } from "./store/appStore";
 import { ReactNode } from "react";
-
+import UpdatePassword from "./components/auth/UpdatePassword";
+import ForgotPassword from "./components/auth/ForgotPassword";
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -80,6 +81,8 @@ const App = () => (
             />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/update-password" element={<UpdatePassword/>} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
