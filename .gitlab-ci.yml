@@ -21,4 +21,4 @@ deploy:
     - export SSHPASS=$SERVER_PASSWORD
     - sshpass -e ssh $SERVER_USER@$SERVER_IP "cd $SERVER_PROJECT_PATH && echo $SSHPASS | sudo -S git pull origin main && echo $SSHPASS | sudo -S docker compose -f docker-compose-prod.yml up -d --build"
   only:
-    - main
+    - master
