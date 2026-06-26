@@ -30,6 +30,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path,
         },
+        "/admin": {
+          target: env.VITE_API_URL || "http://backend:8000",
+          changeOrigin: true,
+          rewrite: (path) => path,
+        },
       },
       hmr: {
         overlay: false,
