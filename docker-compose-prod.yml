@@ -29,6 +29,8 @@ services:
       - "8083:8080"
     depends_on:
       - backend
+    env_file:
+      - ./front/.env
     networks:
       - convertia-net
 
