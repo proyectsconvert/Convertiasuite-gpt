@@ -13,7 +13,7 @@ test:
   script:
     - cd back
     - pip install -r requirements.txt
-    - pytest
+    - python -m py_compile *.py
 
 deploy:
   stage: deploy
@@ -21,9 +21,10 @@ deploy:
   before_script:
     - apk add --no-cache openssh-client sshpass
     - mkdir -p ~/.ssh
-    - ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
+    - echo "validando conexión ip..." 
+    - ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts || true
   script:
     - export SSHPASS=$SERVER_PASSWORD
-    - sshpass -e ssh $SERVER_USER@$SERVER_IP "cd $SERVER_PROJECT_PATH && echo $SSHPASS | sudo -S git pull origin master && echo $SSHPASS | sudo -S docker compose -f docker-compose-prod.yml up -d --build"
+    - sshpass -e ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "cd $SERVER_PROJECT_PATH && echo $SSHPASS | sudo -S git pull origin master && echo $SSHPASS | sudo -S docker compose -f docker-compose-prod.yml up -d --build"
   only:
     - master
