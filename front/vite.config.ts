@@ -18,7 +18,6 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: env.VITE_API_URL || "http://backend:8000",
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, ""),
         },
         "/chat": {
           target: env.VITE_API_URL || "http://backend:8000",
