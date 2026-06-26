@@ -1,6 +1,8 @@
 services:
   backend:
-    image: ${IMAGE_BACKEND}:latest
+    build:
+      context: ./back
+      dockerfile: Dockerfile
     container_name: backend
     restart: unless-stopped
     ports:
@@ -16,7 +18,11 @@ services:
       - convertia-net
 
   frontend:
-    image: ${IMAGE_FRONTEND}:latest
+    build:
+      context: ./front
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://backend:8000
     container_name: frontend
     restart: unless-stopped
     ports:
