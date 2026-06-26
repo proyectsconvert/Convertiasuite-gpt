@@ -15,7 +15,7 @@ test:
     - pip install -r requirements.txt
     - python -m py_compile *.py
 
-deploy:
+ddeploy:
   stage: deploy
   image: alpine:latest
   before_script:
@@ -23,6 +23,15 @@ deploy:
     - curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
     - chmod +x /usr/local/bin/cloudflared
     - mkdir -p ~/.ssh
+    # Debug - ver si las variables llegan
+    - echo "CF_ID length = $(echo -n "$CF_ACCESS_CLIENT_ID" | wc -c)"
+    - echo "CF_SECRET length = $(echo -n "$CF_ACCESS_CLIENT_SECRET" | wc -c)"
+    - echo "SERVER_USER = $SERVER_USER"
+    - echo "PROJECT_PATH = $SERVER_PROJECT_PATH"
+    # Probar cloudflared directamente antes de SSH
+    - cloudflared access ssh --hostname sshserv.testbot.click --id "$CF_ACCESS_CLIENT_ID" --secret "$CF_ACCESS_CLIENT_SECRET" &
+    - sleep 2
+    - kill %1 2>/dev/null || true
     - echo "Host sshserv.testbot.click" >> ~/.ssh/config
     - echo "  ProxyCommand cloudflared access ssh --hostname %h --id $CF_ACCESS_CLIENT_ID --secret $CF_ACCESS_CLIENT_SECRET" >> ~/.ssh/config
   script:
