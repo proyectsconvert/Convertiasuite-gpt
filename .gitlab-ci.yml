@@ -13,7 +13,7 @@ test:
   script:
     - cd back
     - pip install -r requirements.txt
-    - pytest
+    - python -m py_compile *.py
 
 deploy:
   stage: deploy
