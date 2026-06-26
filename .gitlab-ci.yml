@@ -1,0 +1,24 @@
+stages:
+  - test
+  - deploy
+
+test:
+  stage: test
+  image: python:3.11
+  script:
+    - cd back
+    - pip install -r requirements.txt
+    - pytest
+
+deploy:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client sshpass
+    - mkdir -p ~/.ssh
+    - ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
+  script:
+    - export SSHPASS=$SERVER_PASSWORD
+    - sshpass -e ssh $SERVER_USER@$SERVER_IP "cd $SERVER_PROJECT_PATH && echo $SSHPASS | sudo -S git pull origin main && echo $SSHPASS | sudo -S docker compose -f docker-compose-prod.yml up -d --build"
+  only:
+    - main

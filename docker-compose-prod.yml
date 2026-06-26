@@ -1,0 +1,31 @@
+services:
+  backend:
+    image: ${IMAGE_BACKEND}:latest
+    container_name: backend
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    env_file:
+      - ./back/.env
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_URL=redis://redis:6379
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - convertia-net
+
+  frontend:
+    image: ${IMAGE_FRONTEND}:latest
+    container_name: frontend
+    restart: unless-stopped
+    ports:
+      - "8083:8080"
+    depends_on:
+      - backend
+    networks:
+      - convertia-net
+
+networks:
+  convertia-net:
+    external: true
