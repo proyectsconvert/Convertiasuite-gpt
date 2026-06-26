@@ -15,7 +15,7 @@ test:
     - pip install -r requirements.txt
     - python -m py_compile *.py
 
-ddeploy:
+deploy:
   stage: deploy
   image: alpine:latest
   before_script:
