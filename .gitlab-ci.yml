@@ -1,7 +1,15 @@
+spec:
+  inputs:
+    radar:
+      type: boolean
+      default: false
+      description: "Si es true, ejecuta el job tech-debt en este pipeline"
+---
 stages:
   - test
   - security
   - deploy
+  - scheduled-analysis
 
 include:
   - template: Jobs/Secret-Detection.gitlab-ci.yml
@@ -34,4 +42,19 @@ deploy:
          sudo docker compose -f docker-compose-prod.yml up -d --build"
   only:
     - master
-    
+
+tech-debt:
+  stage: scheduled-analysis
+  image: python:3.11-slim
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.radar ]] == true'
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git grep > /dev/null
+    - pip install --quiet radon requests
+    - git fetch --unshallow || true
+  script:
+    - python3 tech_debt_radar.py
+  variables:
+    GIT_DEPTH: 0
+    OLLAMA_HOST: "$OLLAMA_BASE_URL"
+    OLLAMA_MODEL: "qwen2.5:7b"

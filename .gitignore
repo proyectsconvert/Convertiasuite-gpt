@@ -43,3 +43,8 @@ vosk-models/
 .vosk-models/
 .vosk/
 model/
+
+
+#api.ts
+api.ts
+front/src/services/api.ts
