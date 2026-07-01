@@ -1,72 +1,23 @@
-variables:
-  RADAR_ENABLED:
-    value: "false"
-    description: "Activa el job tech-debt (radar de deuda técnica) en pipelines programados"
-  SECURITY_SCAN_ENABLED:
-    value: "false"
-    description: "Activa los jobs de seguridad (pip-audit, npm-audit, container-scan, security-radar) en pipelines programados"
-
+  type: boolean
+      default: false
+      description: "Si es true, ejecuta el job tech-debt en este pipeline"
+    security_scan:
+      type: boolean
+      default: false
+      description: "Si es true, ejecuta el radar de seguridad (pip-audit, npm audit, Trivy) en este pipeline"
+---
 stages:
   - test
-  - security
-  - deploy
-  - scheduled-analysis
-
-include:
-  - template: Jobs/Secret-Detection.gitlab-ci.yml
-  - template: Jobs/SAST.gitlab-ci.yml
-
-test:
-  stage: test
-  image: python:3.11
-  script:
-    - cd back
-    - pip install -r requirements.txt
-    - python -m py_compile *.py
-
-deploy:
-  stage: deploy
-  image: alpine:latest
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"'
-  resource_group: production
-  before_script:
-    - apk add --no-cache openssh-client curl
-    - curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
-    - chmod +x /usr/local/bin/cloudflared
-    - eval $(ssh-agent -s)
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
-    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-    - ssh-keyscan -H deploy.testbot.click >> ~/.ssh/known_hosts
-    - |
-      echo "Host deploy.testbot.click
-        ProxyCommand cloudflared access ssh --hostname %h --id $CF_ACCESS_CLIENT_ID --secret $CF_ACCESS_CLIENT_SECRET" >> ~/.ssh/config
-  script:
-    - ssh "$SERVER_USER@deploy.testbot.click"
-        "cd $SERVER_PROJECT_PATH &&
-         sudo git fetch origin master &&
-         sudo git reset --hard origin/master &&
-         sudo docker compose -f docker-compose-prod.yml up -d --build"
-
-.security_rule: &security_rule
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $SECURITY_SCAN_ENABLED == "true"'
-
-tech-debt:
-  stage: scheduled-analysis
-  image: python:3.11-slim
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $RADAR_ENABLED == "true"'
-  before_script:
-    - apt-get update -qq && apt-get install -y -qq git grep > /dev/null
-    - pip install --quiet radon requests
-    - git fetch --unshallow || true
-  script:
+@@ -56,5 +60,75 @@ tech-debt:
     - python3 tech_debt_radar.py
   variables:
     GIT_DEPTH: 0
     OLLAMA_HOST: "$OLLAMA_BASE_URL"
     OLLAMA_MODEL: "qwen2.5:7b"
+    
+.security_rule: &security_rule
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.security_scan ]] == true'
 
 pip-audit:
   stage: security
@@ -86,8 +37,7 @@ npm-audit:
   image: node:20-slim
   <<: *security_rule
   script:
-    - cd front
-    - npm audit --json > ../npm-audit-report.json || true
+    - npm audit --json > npm-audit-report.json || true
   artifacts:
     when: always
     paths:
