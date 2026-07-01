@@ -27,7 +27,7 @@ class OllamaClient:
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(
                 connect=10.0,
-                read=180.0,
+                read=600.0,  # Aumentado a 10 minutos para prompts gigantes
                 write=10.0,
                 pool=10.0,
             ),
