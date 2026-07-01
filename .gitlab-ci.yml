@@ -1,15 +1,10 @@
-spec:
-  inputs:
-    radar:
-      type: boolean
-      default: false
-    security_scan:
-      type: boolean
-      default: false
-
 variables:
-  RADAR_ENABLED: $[[ inputs.radar ]]
-  SECURITY_SCAN_ENABLED: $[[ inputs.security_scan ]]
+  RADAR_ENABLED:
+    value: "false"
+    description: "Activa el job tech-debt (radar de deuda técnica) en pipelines programados"
+  SECURITY_SCAN_ENABLED:
+    value: "false"
+    description: "Activa los jobs de seguridad (pip-audit, npm-audit, container-scan, security-radar) en pipelines programados"
 
 stages:
   - test
