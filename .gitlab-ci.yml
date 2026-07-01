@@ -1,4 +1,7 @@
-  type: boolean
+spec:
+  inputs:
+    radar:
+      type: boolean
       default: false
       description: "Si es true, ejecuta el job tech-debt en este pipeline"
     security_scan:
@@ -8,7 +11,52 @@
 ---
 stages:
   - test
-@@ -56,5 +60,75 @@ tech-debt:
+  - security
+  - deploy
+  - scheduled-analysis
+
+include:
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+  - template: Jobs/SAST.gitlab-ci.yml
+
+test:
+  stage: test
+  image: python:3.11
+  script:
+    - cd back
+    - pip install -r requirements.txt
+    - python -m py_compile *.py
+
+deploy:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client sshpass curl
+    - curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+    - chmod +x /usr/local/bin/cloudflared
+    - mkdir -p ~/.ssh
+    - echo "Host deploy.testbot.click" >> ~/.ssh/config
+    - echo "  ProxyCommand cloudflared access ssh --hostname %h --id $CF_ACCESS_CLIENT_ID --secret $CF_ACCESS_CLIENT_SECRET" >> ~/.ssh/config
+  script:
+    - sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@deploy.testbot.click"
+        "cd $SERVER_PROJECT_PATH &&
+         sudo git stash &&
+         sudo git pull origin master &&
+         sudo docker compose -f docker-compose-prod.yml down &&
+         sudo docker compose -f docker-compose-prod.yml up -d --build"
+  only:
+    - master
+
+tech-debt:
+  stage: scheduled-analysis
+  image: python:3.11-slim
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.radar ]] == true'
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git grep > /dev/null
+    - pip install --quiet radon requests
+    - git fetch --unshallow || true
+  script:
     - python3 tech_debt_radar.py
   variables:
     GIT_DEPTH: 0
