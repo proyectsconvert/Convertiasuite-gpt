@@ -57,8 +57,25 @@ class PdfBuilder(IDocumentBuilder):
                 has_pil = False
 
             brand = content.brand or "convertia"
-            from app.core.files_config import BRAND_CONFIG
+            from app.core.files_config import BRAND_CONFIG, BASE_DIR
             cfg = BRAND_CONFIG.get(brand, BRAND_CONFIG["convertia"])
+
+            # Registrar fuentes corporativas si existen
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+            font_reg = os.path.join(BASE_DIR, "assets", "fonts", "Inter-Regular.ttf")
+            font_bld = os.path.join(BASE_DIR, "assets", "fonts", "Inter-Bold.ttf")
+            base_font = "Helvetica"
+            bold_font = "Helvetica-Bold"
+            if os.path.exists(font_reg) and os.path.exists(font_bld):
+                try:
+                    pdfmetrics.registerFont(TTFont("Inter", font_reg))
+                    pdfmetrics.registerFont(TTFont("Inter-Bold", font_bld))
+                    pdfmetrics.registerFontFamily("Inter", normal="Inter", bold="Inter-Bold")
+                    base_font = "Inter"
+                    bold_font = "Inter-Bold"
+                except Exception as fe:
+                    logger.warning(f"Error registering Inter font in ReportLab: {fe}")
 
             c_dark    = colors.HexColor("#011E23")
             c_green   = colors.HexColor("#10473F")
@@ -77,19 +94,19 @@ class PdfBuilder(IDocumentBuilder):
             styles = getSampleStyleSheet()
 
             title_s = ParagraphStyle("T1", parent=styles["Title"],
-                fontSize=32, textColor=c_dark, spaceAfter=12, alignment=0)
+                fontName=bold_font, fontSize=32, textColor=c_dark, spaceAfter=12, alignment=0)
             sub_s = ParagraphStyle("Sub", parent=styles["Normal"],
-                fontSize=13, textColor=c_green, spaceAfter=10)
+                fontName=base_font, fontSize=13, textColor=c_green, spaceAfter=10)
             h1_s = ParagraphStyle("H1", parent=styles["Heading1"],
-                fontSize=18, textColor=c_green, spaceBefore=16, spaceAfter=8)
+                fontName=bold_font, fontSize=18, textColor=c_green, spaceBefore=16, spaceAfter=8)
             h2_s = ParagraphStyle("H2", parent=styles["Heading2"],
-                fontSize=14, textColor=c_body, spaceBefore=12, spaceAfter=6)
+                fontName=bold_font, fontSize=14, textColor=c_body, spaceBefore=12, spaceAfter=6)
             h3_s = ParagraphStyle("H3", parent=styles["Heading3"],
-                fontSize=12, textColor=c_body, spaceBefore=10, spaceAfter=4)
+                fontName=bold_font, fontSize=12, textColor=c_body, spaceBefore=10, spaceAfter=4)
             body_s = ParagraphStyle("Body", parent=styles["BodyText"],
-                fontSize=10, textColor=c_body, spaceAfter=6)
+                fontName=base_font, fontSize=10, textColor=c_body, spaceAfter=6)
             bullet_s = ParagraphStyle("Bullet", parent=body_s,
-                leftIndent=15, firstLineIndent=-10, spaceAfter=4)
+                fontName=base_font, leftIndent=15, firstLineIndent=-10, spaceAfter=4)
 
             story = []
 
@@ -164,7 +181,7 @@ class PdfBuilder(IDocumentBuilder):
                                 formatted_text = "".join(formatted_parts)
 
                                 callout_style = ParagraphStyle("CalloutText", parent=styles["Normal"],
-                                    fontName="Helvetica-Bold", fontSize=10.5, textColor=colors.white,
+                                    fontName=bold_font, fontSize=10.5, textColor=colors.white,
                                     alignment=1, spaceAfter=0)
 
                                 callout_p = Paragraph(formatted_text, callout_style)
@@ -187,7 +204,7 @@ class PdfBuilder(IDocumentBuilder):
                 if section.table:
                     story.append(self._build_pdf_table(
                         section.table, doc, body_s,
-                        c_petrol, c_light, c_border
+                        c_petrol, c_light, c_border, bold_font
                     ))
                     story.append(Spacer(1, 10))
 
@@ -196,7 +213,7 @@ class PdfBuilder(IDocumentBuilder):
                 if table.caption:
                     story.append(Paragraph(table.caption, h2_s))
                 story.append(self._build_pdf_table(
-                    table, doc, body_s, c_petrol, c_light, c_border
+                    table, doc, body_s, c_petrol, c_light, c_border, bold_font
                 ))
                 story.append(Spacer(1, 10))
 
@@ -222,7 +239,7 @@ class PdfBuilder(IDocumentBuilder):
 
                 # Draw Footer (Copyright on left, Page number on right)
                 canvas.setFillColor(colors.HexColor("#718096"))
-                canvas.setFont("Helvetica", 8)
+                canvas.setFont(base_font, 8)
                 canvas.drawString(
                     54, 30,
                     "© Intelligence Customer Acquisition — Convertia — Documentación interna"
@@ -239,7 +256,7 @@ class PdfBuilder(IDocumentBuilder):
             raise RuntimeError(f"Error al generar el archivo PDF: {e}") from e
 
     @staticmethod
-    def _build_pdf_table(table, doc, body_s, c_petrol, c_light, c_border):
+    def _build_pdf_table(table, doc, body_s, c_petrol, c_light, c_border, bold_font):
         from reportlab.platypus import Table as PDFTable, TableStyle, Paragraph
         from reportlab.lib import colors
         from reportlab.lib.styles import ParagraphStyle
@@ -249,7 +266,7 @@ class PdfBuilder(IDocumentBuilder):
         header_row = []
         for h in table.headers:
             hs = ParagraphStyle("th", parent=body_s, fontSize=9.5,
-                                textColor=colors.white, fontName="Helvetica-Bold")
+                                textColor=colors.white, fontName=bold_font)
             header_row.append(Paragraph(str(h), hs))
         formatted.append(header_row)
 
@@ -269,7 +286,7 @@ class PdfBuilder(IDocumentBuilder):
             if is_highlight:
                 row_bg = colors.HexColor("#E6FFFA")
                 td_style = ParagraphStyle(f"td_h_{r_idx}", parent=body_s, fontSize=9.5,
-                                          textColor=colors.HexColor("#10473F"), fontName="Helvetica-Bold")
+                                          textColor=colors.HexColor("#10473F"), fontName=bold_font)
             else:
                 row_bg = colors.white if r_idx % 2 == 0 else c_light
                 td_style = ParagraphStyle(f"td_n_{r_idx}", parent=body_s, fontSize=9.5,

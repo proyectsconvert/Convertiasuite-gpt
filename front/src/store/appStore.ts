@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { SessionSummary, authApi, ChatMessage, type DocumentArtifact, setTokenRefreshListener, documentsApi } from "@/services/api";
+import { SessionSummary, authApi, ChatMessage, type DocumentArtifact, setTokenRefreshListener, documentsApi, clearSession } from "@/services/api";
 import { extractAllArtifacts } from "@/lib/artifact-utils";
 
 export type AppView =
@@ -343,24 +343,23 @@ export const useAppStore = create<AppState>()(
       },
 
       logout: () => {
-        localStorage.removeItem(
-          "accessToken"
-        );
-
-        localStorage.removeItem(
-          "user"
-        );
+        // clearSession limpia localStorage Y el snapshot de Zustand persist,
+        // evitando que isAuthenticated se rehidrate como true al recargar.
+        clearSession();
 
         set({
           user: null,
           accessToken: null,
           isAuthenticated: false,
-
           sessions: [],
           currentChatId: null,
-
           view: "landing",
         });
+
+        // Redirigir al login para cortar cualquier bucle de rutas protegidas
+        if (typeof window !== "undefined") {
+          window.location.assign("/login");
+        }
       },
 
       generateDocumentAndAddArtifact: async (

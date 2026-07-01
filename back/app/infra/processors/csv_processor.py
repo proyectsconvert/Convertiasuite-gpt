@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class CsvProcessor(IDocumentProcessor):
-
     def __init__(self, delimiter: Optional[str] = None):
         self.delimiter = delimiter
 
@@ -44,6 +43,13 @@ class CsvProcessor(IDocumentProcessor):
                     delimiter = "\t"
                 else:
                     delimiter = ","
+                    try:
+                        dialect = csv.Sniffer().sniff(
+                            text_content[:4096], delimiters=",;\t|"
+                        )
+                        delimiter = dialect.delimiter
+                    except csv.Error:
+                        pass
 
             csv_file = io.StringIO(text_content)
             reader = csv.reader(csv_file, delimiter=delimiter)

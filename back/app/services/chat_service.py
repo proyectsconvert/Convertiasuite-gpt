@@ -14,6 +14,12 @@ from app.security.risk_scorer import risk_scorer
 from app.services.model_router import route_model, build_routing_context
 from app.services.intent_classifier import IntentClassifier
 from app.services.document_processing.document_manager import DocumentManager
+from app.services.document_processing.chunk_processor import (
+    needs_chunking,
+    split_text_into_chunks,
+    build_partial_prompt,
+    build_synthesis_prompt,
+)
 from app.services.document_generation.document_generator import DocumentGenerator
 from app.security.exceptions import (
     PolicyViolationException,
@@ -352,28 +358,80 @@ async def process_chat(
         )
 
         if not doc_context and request.extracted_context and not is_image:
-            paragraphs = [
-                p.strip() for p in request.extracted_context.split("\n\n") if p.strip()
-            ]
-            query_words = set(clean_input.lower().split())
-            scored = []
-            for p in paragraphs:
-                p_words = set(p.lower().split())
-                overlap = len(query_words.intersection(p_words))
-                score = overlap / len(query_words) if query_words else 0
-                scored.append((score, p))
-            scored.sort(key=lambda x: x[0], reverse=True)
+            is_tabular = request.attachment_type in ("csv", "excel")
+            if is_tabular:
+                raw_text = request.extracted_context
 
-            top_chunks = []
-            for score, p in scored[:3]:
-                if score > 0 or not top_chunks:
-                    trimmed = p if len(p) <= 1500 else p[:1500] + "..."
-                    top_chunks.append(f"### Fragmento de {attachment_name}:\n{trimmed}")
-            if top_chunks:
-                doc_context = (
-                    "## DOCUMENTOS RELACIONADOS (FALLBACK RETRIEVED CONTEXT):\n\n"
-                    + "\n\n".join(top_chunks)
-                )
+                if needs_chunking(raw_text):
+                    # --- Map-Reduce para archivos grandes ---
+                    chunks = split_text_into_chunks(raw_text)
+                    logger.info(
+                        "Tabular file requires chunked processing: %d chunks session=%s trace_id=%s",
+                        len(chunks), session_id, trace_id,
+                    )
+
+                    # Map: analizar cada chunk con el modelo (síncrono en el contexto actual)
+                    # Nota: para archivos muy grandes se puede paralelizar con asyncio.gather
+                    partial_results: list[str] = []
+                    for i, chunk in enumerate(chunks):
+                        partial_prompt = build_partial_prompt(
+                            chunk=chunk,
+                            chunk_index=i,
+                            total_chunks=len(chunks),
+                            filename=attachment_name,
+                            user_question=clean_input,
+                        )
+                        try:
+                            partial_result = await llm_provider.generate_once(
+                                partial_prompt, model_key
+                            )
+                            partial_results.append(partial_result)
+                        except Exception as chunk_err:
+                            logger.warning(
+                                "Chunk %d/%d failed session=%s error=%s",
+                                i + 1, len(chunks), session_id, str(chunk_err),
+                            )
+                            partial_results.append(f"[Fragmento {i+1}: error al procesar]")
+
+                    # Reduce: síntesis final
+                    doc_context = build_synthesis_prompt(
+                        partial_results=partial_results,
+                        user_question=clean_input,
+                        filename=attachment_name,
+                        total_chunks=len(chunks),
+                    )
+                    logger.info(
+                        "Chunked synthesis ready session=%s total_chunks=%d trace_id=%s",
+                        session_id, len(chunks), trace_id,
+                    )
+                else:
+                    # Archivo pequeño: procesar directamente sin chunking
+                    doc_context = (
+                        f"## DOCUMENTO TABULAR COMPLETO:\n\n### Archivo: {attachment_name}\n{raw_text}"
+                    )
+            else:
+                paragraphs = [
+                    p.strip() for p in request.extracted_context.split("\n\n") if p.strip()
+                ]
+                query_words = set(clean_input.lower().split())
+                scored = []
+                for p in paragraphs:
+                    p_words = set(p.lower().split())
+                    overlap = len(query_words.intersection(p_words))
+                    score = overlap / len(query_words) if query_words else 0
+                    scored.append((score, p))
+                scored.sort(key=lambda x: x[0], reverse=True)
+
+                top_chunks = []
+                for score, p in scored[:3]:
+                    if score > 0 or not top_chunks:
+                        trimmed = p if len(p) <= 1500 else p[:1500] + "..."
+                        top_chunks.append(f"### Fragmento de {attachment_name}:\n{trimmed}")
+                if top_chunks:
+                    doc_context = (
+                        "## DOCUMENTOS RELACIONADOS (FALLBACK RETRIEVED CONTEXT):\n\n"
+                        + "\n\n".join(top_chunks)
+                    )
 
         message_content = clean_input
         images_list = []

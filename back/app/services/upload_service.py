@@ -48,12 +48,32 @@ class UploadService:
 
             if attachment_type == "image":
                 truncated_text = extracted_text
+            elif attachment_type in ("csv", "excel"):
+                # Los archivos tabulares se procesan por chunks en chat_service.py.
+                # Aquí pasamos el texto completo sin truncar.
+                # Solo aplicamos un cap de seguridad extremo para evitar OOM en casos anómalos.
+                safety_cap = 500_000  # ~125K tokens — límite de emergencia
+                if len(extracted_text) > safety_cap:
+                    logger.warning(
+                        "Archivo tabular excede el cap de seguridad (%d chars). "
+                        "Truncando a %d chars. Considera dividir el archivo.",
+                        len(extracted_text),
+                        safety_cap,
+                    )
+                    truncated_text = extracted_text[:safety_cap]
+                else:
+                    truncated_text = extracted_text
             else:
-                max_characters = 32000
+                # Documentos no tabulares (PDF, DOCX, TXT, etc.)
+                max_characters = 60_000  # ampliado desde 32K
                 truncated_text = extracted_text[:max_characters]
 
                 if len(extracted_text) > max_characters:
-                    truncated_text += "\n[... Archivo truncado por exceso de tamaño. Use herramientas de resumen o divida en secciones. ...]"
+                    logger.warning(
+                        "Documento '%s' truncado de %d a %d chars.",
+                        file.filename, len(extracted_text), max_characters,
+                    )
+                    truncated_text += "\n[... Documento extenso: solo se procesaron los primeros fragmentos. ...]"
 
             try:
                 await self.document_manager.process_document(

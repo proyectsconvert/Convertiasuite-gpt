@@ -89,3 +89,4 @@ vosk==0.3.45
 docxtpl>=0.16.8
 weasyprint>=62.0
 jinja2>=3.1.4
+pdfplumber

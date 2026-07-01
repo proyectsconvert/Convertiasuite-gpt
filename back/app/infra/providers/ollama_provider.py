@@ -1,6 +1,8 @@
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.core.model_config import get_model_config
 from app.services.prompts.prompt_templates import build_messages
+from app.domain.entities.message import Message
+from datetime import datetime, UTC
 import logging
 
 logger = logging.getLogger(__name__)
@@ -29,6 +31,40 @@ class OllamaProvider(ILlmProvider):
             "OllamaProvider sending model=%s for model_key=%s (chat non-stream)",
             model_info.get("model"),
             model_key,
+        )
+
+        return await self.client.generate_chat(
+            messages=chat_messages,
+            model=model_info["model"],
+            temperature=model_info.get("temperature"),
+            num_ctx=model_info.get("num_ctx"),
+            max_tokens=model_info.get("max_tokens"),
+        )
+
+    async def generate_once(self, prompt: str, model_key: str) -> str:
+        """
+        Inferencia de un único turno con un prompt raw (sin historial de chat).
+        Usado por el pipeline de chunking Map-Reduce para procesar cada fragmento.
+        """
+        models = get_model_config()
+        model_info = models.get(model_key, models["default"])
+
+        system_prompt = (
+            "Eres un analista de datos experto. "
+            "Responde SIEMPRE en español. "
+            "Analiza los datos proporcionados y responde de forma concisa y estructurada."
+        )
+
+        chat_messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+
+        logger.info(
+            "OllamaProvider.generate_once model=%s model_key=%s prompt_chars=%d",
+            model_info.get("model"),
+            model_key,
+            len(prompt),
         )
 
         return await self.client.generate_chat(

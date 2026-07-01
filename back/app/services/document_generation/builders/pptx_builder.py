@@ -41,12 +41,14 @@ class PptxBuilder(IDocumentBuilder):
 
     def __init__(self, engine: TemplateEngine):
         self._engine = engine
-        # Inicializar colores corporativos por defecto
         self._primary_rgb = RGBColor(1, 30, 35)      # #011E23
         self._secondary_rgb = RGBColor(16, 71, 63)   # #10473F
         self._accent_rgb = RGBColor(26, 235, 159)    # #1AEB9F
         self._text_rgb = RGBColor(45, 55, 72)        # #2D3748
         self._zebra_rgb = RGBColor(244, 246, 246)    # #F4F6F6
+        
+        self._title_font = "Arial"
+        self._body_font = "Arial"
 
     @property
     def output_format(self) -> str:
@@ -69,6 +71,10 @@ class PptxBuilder(IDocumentBuilder):
             self._text_rgb = self._hex_to_rgb(brand_colors["text"])
         if "bg_lite" in brand_colors:
             self._zebra_rgb = self._hex_to_rgb(brand_colors["bg_lite"])
+            
+        brand_fonts = brand_cfg.get("fonts", {})
+        self._title_font = brand_fonts.get("title", "Arial")
+        self._body_font = brand_fonts.get("body", "Arial")
 
         try:
             # Si el archivo de plantilla existe, cargarlo. Si no, iniciar una en blanco.
@@ -205,13 +211,13 @@ class PptxBuilder(IDocumentBuilder):
         add_textbox_text(
             slide, Inches(1.0), Inches(6.9), Inches(8.0), Inches(0.3),
             "© Intelligence Customer Acquisition — Convertia — Documentación interna",
-            8.5, RGBColor(113, 128, 150)
+            8.5, RGBColor(113, 128, 150), font_name=self._body_font
         )
 
         # Número de diapositiva
         add_textbox_text(
             slide, Inches(10.33), Inches(6.9), Inches(2.0), Inches(0.3),
-            f"Pág. {slide_idx + 1}", 8.5, RGBColor(113, 128, 150), align=PP_ALIGN.RIGHT
+            f"Pág. {slide_idx + 1}", 8.5, RGBColor(113, 128, 150), align=PP_ALIGN.RIGHT, font_name=self._body_font
         )
 
     def _add_cover_slide(self, prs: Presentation, data: dict, brand_cfg: dict, content: DocumentContent) -> None:
@@ -245,7 +251,7 @@ class PptxBuilder(IDocumentBuilder):
         # Párrafo 1
         p1 = tf.paragraphs[0]
         p1.text = line1
-        p1.font.name = "Arial"
+        p1.font.name = self._title_font
         p1.font.size = Pt(46)
         p1.font.bold = True
         p1.font.color.rgb = RGBColor(255, 255, 255)
@@ -254,7 +260,7 @@ class PptxBuilder(IDocumentBuilder):
         # Párrafo 2
         p2 = tf.add_paragraph()
         p2.text = line2
-        p2.font.name = "Arial"
+        p2.font.name = self._title_font
         p2.font.size = Pt(46)
         p2.font.bold = True
         p2.font.color.rgb = RGBColor(113, 128, 150)
@@ -276,7 +282,7 @@ class PptxBuilder(IDocumentBuilder):
         # Columna Izquierda: Título "Contenido"
         add_textbox_text(
             slide, Inches(1.0), Inches(1.8), Inches(3.5), Inches(1.0),
-            "Contenido", 36, self._primary_rgb, bold=True
+            "Contenido", 36, self._primary_rgb, bold=True, font_name=self._title_font
         )
 
         # Botón redondeado con flecha ->
@@ -292,7 +298,7 @@ class PptxBuilder(IDocumentBuilder):
         p_btn = tf_btn.paragraphs[0]
         p_btn.text = "→"
         p_btn.alignment = PP_ALIGN.CENTER
-        p_btn.font.name = "Arial"
+        p_btn.font.name = self._body_font
         p_btn.font.size = Pt(20)
         p_btn.font.bold = True
         p_btn.font.color.rgb = self._primary_rgb
@@ -314,7 +320,7 @@ class PptxBuilder(IDocumentBuilder):
             p = tf.paragraphs[0] if first else tf.add_paragraph()
             first = False
             p.text = f"{item['number']}. {item['title']}"
-            p.font.name = "Arial"
+            p.font.name = self._title_font
             p.font.size = Pt(14)
             p.font.bold = True
             p.font.color.rgb = self._primary_rgb
@@ -324,7 +330,7 @@ class PptxBuilder(IDocumentBuilder):
             for sub in item.get("subsections", []):
                 p_sub = tf.add_paragraph()
                 p_sub.text = f"    {sub['number']}.  {sub['title']}"
-                p_sub.font.name = "Arial"
+                p_sub.font.name = self._body_font
                 p_sub.font.size = Pt(12)
                 p_sub.font.color.rgb = self._text_rgb
                 p_sub.space_after = Pt(3)
@@ -342,11 +348,11 @@ class PptxBuilder(IDocumentBuilder):
 
         # Número de sección grande verde menta (en el lado izquierdo)
         num = f"{data.get('number', 1):02d}"
-        add_textbox_text(slide, Inches(1.0), Inches(2.4), Inches(11.33), Inches(1.0), num, 68, self._accent_rgb, bold=True)
+        add_textbox_text(slide, Inches(1.0), Inches(2.4), Inches(11.33), Inches(1.0), num, 68, self._accent_rgb, bold=True, font_name=self._title_font)
 
         # Título de sección en blanco
         title = data.get("title", "")
-        add_textbox_text(slide, Inches(1.0), Inches(3.6), Inches(11.33), Inches(1.8), title, 36, RGBColor(255, 255, 255), bold=True)
+        add_textbox_text(slide, Inches(1.0), Inches(3.6), Inches(11.33), Inches(1.8), title, 36, RGBColor(255, 255, 255), bold=True, font_name=self._title_font)
 
         # Línea de acento verde menta abajo del título
         line = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(1.0), Inches(5.4), Inches(1.5), Inches(0.01))
@@ -368,7 +374,7 @@ class PptxBuilder(IDocumentBuilder):
         title = data.get("title", "")
         add_textbox_text(
             slide, Inches(1.0), Inches(1.8), Inches(4.0), Inches(4.5),
-            title, 34, self._primary_rgb, bold=True
+            title, 34, self._primary_rgb, bold=True, font_name=self._title_font
         )
 
         # -------------------------------------------------------------
@@ -389,7 +395,7 @@ class PptxBuilder(IDocumentBuilder):
                     p = tf.paragraphs[0] if first else tf.add_paragraph()
                     first = False
                     p.text = para.strip()
-                    p.font.name = "Arial"
+                    p.font.name = self._body_font
                     p.font.size = Pt(14)
                     p.font.color.rgb = self._text_rgb
                     p.space_after = Pt(12)
@@ -403,7 +409,7 @@ class PptxBuilder(IDocumentBuilder):
                     p = tf.paragraphs[0] if first else tf.add_paragraph()
                     first = False
                     p.text = f"•  {bullet.strip()}"
-                    p.font.name = "Arial"
+                    p.font.name = self._body_font
                     p.font.size = Pt(14)
                     p.font.color.rgb = self._text_rgb
                     p.space_after = Pt(8)
@@ -414,7 +420,7 @@ class PptxBuilder(IDocumentBuilder):
             p_sub = tf.paragraphs[0] if first else tf.add_paragraph()
             first = False
             p_sub.text = sub.get("title", "")
-            p_sub.font.name = "Arial"
+            p_sub.font.name = self._title_font
             p_sub.font.size = Pt(16)
             p_sub.font.bold = True
             p_sub.font.color.rgb = self._secondary_rgb
@@ -427,7 +433,7 @@ class PptxBuilder(IDocumentBuilder):
                     if para.strip():
                         p = tf.add_paragraph()
                         p.text = para.strip()
-                        p.font.name = "Arial"
+                        p.font.name = self._body_font
                         p.font.size = Pt(14)
                         p.font.color.rgb = self._text_rgb
                         p.space_after = Pt(8)
@@ -437,7 +443,7 @@ class PptxBuilder(IDocumentBuilder):
                 if sb.strip():
                     p = tf.add_paragraph()
                     p.text = f"•  {sb.strip()}"
-                    p.font.name = "Arial"
+                    p.font.name = self._body_font
                     p.font.size = Pt(14)
                     p.font.color.rgb = self._text_rgb
                     p.space_after = Pt(6)
@@ -456,7 +462,7 @@ class PptxBuilder(IDocumentBuilder):
 
         # Título
         title = data.get("title", "Datos")
-        add_textbox_text(slide, Inches(1.0), Inches(1.2), Inches(11.33), Inches(0.8), title, 26, self._primary_rgb, bold=True)
+        add_textbox_text(slide, Inches(1.0), Inches(1.2), Inches(11.33), Inches(0.8), title, 26, self._primary_rgb, bold=True, font_name=self._title_font)
 
         # Insertar tabla a pantalla completa
         table_data = data.get("table", {})
@@ -487,8 +493,8 @@ class PptxBuilder(IDocumentBuilder):
         line.line.color.rgb = RGBColor(113, 128, 150)
 
         # Textos de pie
-        add_textbox_text(slide, Inches(1.0), Inches(6.8), Inches(4.0), Inches(0.4), "Straight to growth", 11, RGBColor(113, 128, 150), font_name="Georgia", italic=True)
-        add_textbox_text(slide, Inches(8.33), Inches(6.8), Inches(4.0), Inches(0.4), "www.convertia.com", 11, RGBColor(113, 128, 150), align=PP_ALIGN.RIGHT)
+        add_textbox_text(slide, Inches(1.0), Inches(6.8), Inches(4.0), Inches(0.4), "Straight to growth", 11, RGBColor(113, 128, 150), font_name=self._title_font, italic=True)
+        add_textbox_text(slide, Inches(8.33), Inches(6.8), Inches(4.0), Inches(0.4), "www.convertia.com", 11, RGBColor(113, 128, 150), align=PP_ALIGN.RIGHT, font_name=self._body_font)
 
     def _insert_table(self, slide, table_data: dict, top, height, left, width) -> None:
         """Helper para construir y aplicar estilos corporativos a una tabla en PowerPoint."""
@@ -517,7 +523,7 @@ class PptxBuilder(IDocumentBuilder):
             for para in cell.text_frame.paragraphs:
                 para.alignment = PP_ALIGN.LEFT
                 for run in para.runs:
-                    run.font.name = "Arial"
+                    run.font.name = self._body_font
                     run.font.color.rgb = RGBColor(255, 255, 255)
                     run.font.bold = True
                     run.font.size = Pt(11)
@@ -539,7 +545,7 @@ class PptxBuilder(IDocumentBuilder):
                 for para in cell.text_frame.paragraphs:
                     para.alignment = PP_ALIGN.LEFT
                     for run in para.runs:
-                        run.font.name = "Arial"
+                        run.font.name = self._body_font
                         run.font.color.rgb = self._text_rgb
                         run.font.bold = False
                         run.font.size = Pt(10)

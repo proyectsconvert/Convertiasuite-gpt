@@ -99,29 +99,35 @@ class DocumentManager:
 
             chunks = []
             for doc in documents:
-                text = doc.parsed_content.to_searchable_text()
-                paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-                for p in paragraphs:
-                    chunks.append((doc.filename, p))
+                is_tabular = doc.type in (DocumentType.CSV, DocumentType.EXCEL)
+                if is_tabular:
+                    text = doc.parsed_content.to_searchable_text()
+                    chunks.append((doc.filename, text, True))
+                else:
+                    text = doc.parsed_content.to_searchable_text()
+                    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+                    for p in paragraphs:
+                        chunks.append((doc.filename, p, False))
 
             if not chunks:
                 return ""
 
             query_words = set(query.lower().split())
             scored_chunks = []
-            for filename, chunk in chunks:
+            for filename, chunk, is_tab in chunks:
                 chunk_words = set(chunk.lower().split())
                 overlap = len(query_words.intersection(chunk_words))
                 score = overlap / len(query_words) if query_words else 0
-                scored_chunks.append((score, filename, chunk))
+                scored_chunks.append((score, filename, chunk, is_tab))
 
             scored_chunks.sort(key=lambda x: x[0], reverse=True)
 
             relevant_chunks = []
-            for score, filename, chunk in scored_chunks[:limit_chunks]:
+            for score, filename, chunk, is_tab in scored_chunks[:limit_chunks]:
                 if score > 0 or not relevant_chunks:
+                    max_len = 45000 if is_tab else 1500
                     trimmed_chunk = (
-                        chunk if len(chunk) <= 1500 else chunk[:1500] + "..."
+                        chunk if len(chunk) <= max_len else chunk[:max_len] + "..."
                     )
                     relevant_chunks.append(f"### Archivo: {filename}\n{trimmed_chunk}")
 

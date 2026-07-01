@@ -167,6 +167,9 @@ class DocxBuilder(IDocumentBuilder):
     def build(self, content: DocumentContent) -> bytes:
         brand = content.brand or "convertia"
         cfg = BRAND_CONFIG.get(brand, BRAND_CONFIG["convertia"])
+        brand_fonts = cfg.get("fonts", {})
+        self._title_font = brand_fonts.get("title", "Arial")
+        self._body_font = brand_fonts.get("body", "Arial")
 
         try:
             # Crear documento desde cero
@@ -208,7 +211,7 @@ class DocxBuilder(IDocumentBuilder):
             p_left = cell_left.paragraphs[0]
             format_paragraph(p_left, space_before_pt=0, space_after_pt=0)
             r_left = p_left.add_run("© Intelligence Customer Acquisition — Convertia — Documentación interna")
-            format_run(r_left, font_name="Arial", size_pt=8, color_rgb=RGBColor(113, 128, 150))
+            format_run(r_left, font_name=self._body_font, size_pt=8, color_rgb=RGBColor(113, 128, 150))
 
             cell_right = footer_table.cell(0, 1)
             cell_right.width = Inches(2.0)
@@ -217,7 +220,7 @@ class DocxBuilder(IDocumentBuilder):
             p_right.alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
             r_pfx = p_right.add_run()
-            format_run(r_pfx, font_name="Arial", size_pt=8, color_rgb=RGBColor(113, 128, 150))
+            format_run(r_pfx, font_name=self._body_font, size_pt=8, color_rgb=RGBColor(113, 128, 150))
             add_xml_field_to_run(r_pfx, "PAGE")
 
             # -------------------------------------------------------------
@@ -247,18 +250,18 @@ class DocxBuilder(IDocumentBuilder):
                 part2 = ""
 
             r_title1 = p_title.add_run(part1)
-            format_run(r_title1, font_name="Arial", size_pt=32, color_rgb=RGBColor(1, 30, 35), bold=True)
+            format_run(r_title1, font_name=self._title_font, size_pt=32, color_rgb=RGBColor(1, 30, 35), bold=True)
 
             if part2:
                 r_title2 = p_title.add_run(part2)
-                format_run(r_title2, font_name="Arial", size_pt=32, color_rgb=RGBColor(113, 128, 150), bold=True)
+                format_run(r_title2, font_name=self._title_font, size_pt=32, color_rgb=RGBColor(113, 128, 150), bold=True)
 
             # Subtítulo (color verde corporativo oscuro)
             p_sub = doc.add_paragraph()
             format_paragraph(p_sub, space_before_pt=4, space_after_pt=0)
             if content.subtitle:
                 r_sub = p_sub.add_run(content.subtitle)
-                format_run(r_sub, font_name="Arial", size_pt=13, color_rgb=RGBColor(16, 71, 63))
+                format_run(r_sub, font_name=self._title_font, size_pt=13, color_rgb=RGBColor(16, 71, 63))
 
             # Salto de página para el Índice
             doc.add_page_break()
@@ -288,7 +291,7 @@ class DocxBuilder(IDocumentBuilder):
             p_idx_title = doc.add_paragraph()
             format_paragraph(p_idx_title, space_before_pt=24, space_after_pt=18)
             run_idx_title = p_idx_title.add_run("ÍNDICE")
-            format_run(run_idx_title, font_name="Arial", size_pt=16, color_rgb=RGBColor(1, 30, 35), bold=True)
+            format_run(run_idx_title, font_name=self._title_font, size_pt=16, color_rgb=RGBColor(1, 30, 35), bold=True)
 
             for s_item, num_title, num_str in numbered_sections:
                 p_item = doc.add_paragraph()
@@ -309,7 +312,7 @@ class DocxBuilder(IDocumentBuilder):
 
                 p_num = page_map[id(s_item)]
                 r_item = p_item.add_run(f"{num_title}\t{p_num}")
-                format_run(r_item, font_name="Arial", size_pt=10, color_rgb=RGBColor(45, 55, 72))
+                format_run(r_item, font_name=self._body_font, size_pt=10, color_rgb=RGBColor(45, 55, 72))
 
             # Salto de página tras el índice
             doc.add_page_break()
@@ -327,19 +330,19 @@ class DocxBuilder(IDocumentBuilder):
                     p = doc.add_paragraph()
                     format_paragraph(p, space_before_pt=24, space_after_pt=18, keep_with_next=True)
                     r = p.add_run(numbered_title)
-                    format_run(r, font_name="Arial", size_pt=16, color_rgb=RGBColor(1, 30, 35), bold=True)
+                    format_run(r, font_name=self._title_font, size_pt=16, color_rgb=RGBColor(1, 30, 35), bold=True)
 
                 elif level == 2:
                     p = doc.add_paragraph()
                     format_paragraph(p, space_before_pt=18, space_after_pt=8, keep_with_next=True)
                     r = p.add_run(numbered_title)
-                    format_run(r, font_name="Arial", size_pt=13, color_rgb=RGBColor(1, 30, 35), bold=True)
+                    format_run(r, font_name=self._title_font, size_pt=13, color_rgb=RGBColor(1, 30, 35), bold=True)
 
                 else:
                     p = doc.add_paragraph()
                     format_paragraph(p, space_before_pt=14, space_after_pt=6, keep_with_next=True)
                     r = p.add_run(numbered_title)
-                    format_run(r, font_name="Arial", size_pt=11.5, color_rgb=RGBColor(45, 55, 72), bold=True)
+                    format_run(r, font_name=self._title_font, size_pt=11.5, color_rgb=RGBColor(45, 55, 72), bold=True)
 
                 # Párrafos de texto
                 if section_item.content:
@@ -354,7 +357,7 @@ class DocxBuilder(IDocumentBuilder):
                                 format_paragraph(p_text, space_before_pt=0, space_after_pt=6)
                                 p_text.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
                                 r_text = p_text.add_run(para.strip())
-                                format_run(r_text, font_name="Arial", size_pt=10.5, color_rgb=RGBColor(45, 55, 72))
+                                format_run(r_text, font_name=self._body_font, size_pt=10.5, color_rgb=RGBColor(45, 55, 72))
 
                 # Viñetas
                 if section_item.bullets:
@@ -363,7 +366,7 @@ class DocxBuilder(IDocumentBuilder):
                             p_bullet = doc.add_paragraph(style="List Bullet")
                             format_paragraph(p_bullet, space_before_pt=0, space_after_pt=4)
                             r_bullet = p_bullet.add_run(bullet.strip())
-                            format_run(r_bullet, font_name="Arial", size_pt=10.5, color_rgb=RGBColor(45, 55, 72))
+                            format_run(r_bullet, font_name=self._body_font, size_pt=10.5, color_rgb=RGBColor(45, 55, 72))
 
                 # Tabla inline
                 if section_item.table:
@@ -376,7 +379,7 @@ class DocxBuilder(IDocumentBuilder):
                 format_paragraph(p_table_title, space_before_pt=24, space_after_pt=18)
                 # Título de la sección de tablas
                 r_tab_title = p_table_title.add_run(f"{len(content.sections)+1}. Ejemplo de tabla")
-                format_run(r_tab_title, font_name="Arial", size_pt=16, color_rgb=RGBColor(1, 30, 35), bold=True)
+                format_run(r_tab_title, font_name=self._title_font, size_pt=16, color_rgb=RGBColor(1, 30, 35), bold=True)
 
                 for table in content.tables:
                     self._add_docx_table(doc, table)
@@ -413,10 +416,10 @@ class DocxBuilder(IDocumentBuilder):
         for part in parts:
             if part.startswith('**') and part.endswith('**'):
                 run = p.add_run(part[2:-2])
-                format_run(run, font_name="Arial", size_pt=10.5, color_rgb=RGBColor(26, 235, 159), bold=True)
+                format_run(run, font_name=self._body_font, size_pt=10.5, color_rgb=RGBColor(26, 235, 159), bold=True)
             else:
                 run = p.add_run(part)
-                format_run(run, font_name="Arial", size_pt=10.5, color_rgb=RGBColor(255, 255, 255), bold=True)
+                format_run(run, font_name=self._body_font, size_pt=10.5, color_rgb=RGBColor(255, 255, 255), bold=True)
 
         # Espacio tras la caja
         p_space = doc.add_paragraph()
@@ -434,7 +437,7 @@ class DocxBuilder(IDocumentBuilder):
             p_cap = doc.add_paragraph()
             format_paragraph(p_cap, space_before_pt=12, space_after_pt=4, keep_with_next=True)
             r_cap = p_cap.add_run(caption.upper())
-            format_run(r_cap, font_name="Arial", size_pt=9, color_rgb=RGBColor(113, 128, 150), bold=True)
+            format_run(r_cap, font_name=self._title_font, size_pt=9, color_rgb=RGBColor(113, 128, 150), bold=True)
 
         num_rows = len(rows) + 1
         num_cols = len(headers)
@@ -462,7 +465,7 @@ class DocxBuilder(IDocumentBuilder):
             format_paragraph(p, space_before_pt=2, space_after_pt=2)
             p.alignment = WD_ALIGN_PARAGRAPH.LEFT
             r = p.add_run(str(header))
-            format_run(r, font_name="Arial", size_pt=9.5, color_rgb=RGBColor(255, 255, 255), bold=True)
+            format_run(r, font_name=self._body_font, size_pt=9.5, color_rgb=RGBColor(255, 255, 255), bold=True)
 
         # Escribir Datos (Cebra o Destacado)
         for r_idx, row in enumerate(rows):
@@ -492,7 +495,7 @@ class DocxBuilder(IDocumentBuilder):
                 format_paragraph(p, space_before_pt=2, space_after_pt=2)
                 p.alignment = WD_ALIGN_PARAGRAPH.LEFT
                 r = p.add_run(str(val))
-                format_run(r, font_name="Arial", size_pt=9.5, color_rgb=text_color, bold=is_bold)
+                format_run(r, font_name=self._body_font, size_pt=9.5, color_rgb=text_color, bold=is_bold)
 
         p_space = doc.add_paragraph()
         format_paragraph(p_space, space_before_pt=0, space_after_pt=10)

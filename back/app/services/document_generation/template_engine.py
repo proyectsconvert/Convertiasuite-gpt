@@ -3,6 +3,7 @@ import os
 import re
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List
+import pathlib
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from app.domain.entities.document_content import DocumentContent, Section, TableData
 from app.core.files_config import BRAND_CONFIG, BASE_DIR
@@ -77,10 +78,10 @@ class TemplateEngine:
             return self._render_inline_html(content)
 
         logo_main_path = self._brand_cfg["logos"].get("main", "")
-        logo_main_src = f"file://{logo_main_path}" if logo_main_path and os.path.exists(logo_main_path) else ""
+        logo_main_src = pathlib.Path(logo_main_path).as_uri() if logo_main_path and os.path.exists(logo_main_path) else ""
 
         logo_docs_path = self._brand_cfg["logos"].get("docs", "")
-        logo_docs_src = f"file://{logo_docs_path}" if logo_docs_path and os.path.exists(logo_docs_path) else ""
+        logo_docs_src = pathlib.Path(logo_docs_path).as_uri() if logo_docs_path and os.path.exists(logo_docs_path) else ""
 
         words = content.title.split()
         if len(words) > 1:
@@ -350,7 +351,8 @@ class TemplateEngine:
         logo_path = self._brand_cfg["logos"].get("main", "")
         logo_html = ""
         if logo_path and os.path.exists(logo_path):
-            logo_html = f'<div style="text-align: right; margin-bottom: 80pt;"><img src="file://{logo_path}" style="height: 28px; object-fit: contain;" /></div>'
+            valid_uri = pathlib.Path(logo_path).as_uri()
+            logo_html = f'<div style="text-align: right; margin-bottom: 80pt;"><img src="{valid_uri}" style="height: 28px; object-fit: contain;" /></div>'
 
         return f"""<!DOCTYPE html>
 <html lang="es">

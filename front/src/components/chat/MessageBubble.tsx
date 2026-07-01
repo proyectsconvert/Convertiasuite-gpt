@@ -211,12 +211,12 @@ export default function MessageBubble({
     if (showPptButton) formats.push("PowerPoint");
 
     if (formats.length === 3) {
-      return "¡Listo! Aquí tienes el PDF, documento Word y la presentación de PowerPoint solicitados. Puedes descargarlos abajo 👇";
+      return "¡Listo! OlivIA generó el PDF, documento Word y la presentación de PowerPoint solicitados. Puedes descargarlos abajo 👇";
     }
     if (formats.length === 2) {
-      return `¡Listo! Aquí te presento el ${formats[0]} y ${formats[1]} solicitados. Puedes descargarlos abajo 👇`;
+      return `¡Listo! OlivIA generó el ${formats[0]} y el ${formats[1]} solicitados. Puedes descargarlos abajo 👇`;
     }
-    return `¡Listo! Aquí te presento el documento ${formats[0] || "solicitado"}. Puedes descargarlo directamente abajo 👇`;
+    return `¡Listo! OlivIA generó el documento ${formats[0] || "solicitado"}. Puedes descargarlo directamente abajo 👇`;
   };
 
   // No mostrar si no hay contenido válido y no hay archivos adjuntos
@@ -271,7 +271,7 @@ export default function MessageBubble({
         <div
           className={`text-xs font-semibold mb-1.5 ${isUser ? "text-muted-foreground" : "text-foreground"}`}
         >
-          {isUser ? "Tú" : "Olivia-IA"}
+          {isUser ? "Tú" : "OlivIA"}
         </div>
 
         <div
@@ -367,7 +367,10 @@ export default function MessageBubble({
                           </div>
                           <div className="text-xs text-muted-foreground">
                             Documento PDF listo para descargar
-                          </div>
+                          </div>{" "}
+                          <div className="text-[11px] text-primary font-semibold">
+                            Generado por OlivIA
+                          </div>{" "}
                         </div>
                       </div>
                       <button
@@ -403,7 +406,10 @@ export default function MessageBubble({
                           </div>
                           <div className="text-xs text-muted-foreground">
                             Documento Word listo para descargar
-                          </div>
+                          </div>{" "}
+                          <div className="text-[11px] text-primary font-semibold">
+                            Generado por OlivIA
+                          </div>{" "}
                         </div>
                       </div>
                       <button
@@ -439,7 +445,10 @@ export default function MessageBubble({
                           </div>
                           <div className="text-xs text-muted-foreground">
                             Presentación lista para descargar
-                          </div>
+                          </div>{" "}
+                          <div className="text-[11px] text-primary font-semibold">
+                            Generado por OlivIA
+                          </div>{" "}
                         </div>
                       </div>
                       <button
