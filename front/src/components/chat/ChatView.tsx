@@ -215,11 +215,34 @@ export default function ChatView() {
         handleSend(undefined, undefined, undefined, text);
       }
     };
+    
+    const handleRefreshChat = () => {
+      if (currentChatId) {
+        chatApi.getHistory(currentChatId).then((data) => {
+          if (data.messages && Array.isArray(data.messages)) {
+            setMessages(
+              data.messages.map((msg) => ({
+                id: msg.id,
+                role: msg.role,
+                content: msg.content,
+                timestamp: msg.timestamp,
+                attachments: msg.attachments || [],
+                artifacts: msg.artifacts || [],
+                images: msg.images || [],
+              }))
+            );
+          }
+        }).catch(console.error);
+      }
+    };
+
     window.addEventListener("send-chat-message", handleCustomSend);
+    window.addEventListener("refresh-chat", handleRefreshChat);
     return () => {
       window.removeEventListener("send-chat-message", handleCustomSend);
+      window.removeEventListener("refresh-chat", handleRefreshChat);
     };
-  }, [currentChatId, user, isLoading, input]);
+  }, [currentChatId, user, isLoading, input, setMessages]);
 
   const handleStop = async () => {
     if (!currentChatId) return;

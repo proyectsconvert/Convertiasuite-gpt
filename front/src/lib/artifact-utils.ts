@@ -150,7 +150,9 @@ export function filterReasoningFromMessage(content: string): string {
 
   // Remover etiquetas de thinking/razonamiento
   let filtered = content
-    // Remover <thinking>...</thinking>
+    // Remover <think>...</think> (Qwen)
+    .replace(/<think>[\s\S]*?<\/think>\n*/g, "")
+    // Remover <thinking>...</thinking> (Claude/Others)
     .replace(/<thinking>[\s\S]*?<\/thinking>\n*/g, "")
     // Remover <reasoning>...</reasoning>
     .replace(/<reasoning>[\s\S]*?<\/reasoning>\n*/g, "")

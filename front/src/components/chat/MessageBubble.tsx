@@ -196,6 +196,9 @@ export default function MessageBubble({
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+        
+        // Disparar evento para que la vista principal recargue los mensajes/artefactos
+        window.dispatchEvent(new CustomEvent("refresh-chat"));
       } catch (error) {
         console.error(`Error descargando el archivo ${filename}:`, error);
       }

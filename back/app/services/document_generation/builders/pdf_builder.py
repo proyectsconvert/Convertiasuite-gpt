@@ -31,8 +31,9 @@ class PdfBuilder(IDocumentBuilder):
         from weasyprint import HTML
 
         try:
+            from app.core.files_config import BASE_DIR
             html_str = self._engine.build_html_context(content)
-            pdf_bytes = HTML(string=html_str).write_pdf()
+            pdf_bytes = HTML(string=html_str, base_url=BASE_DIR).write_pdf()
             logger.info(f"PDF generado con WeasyPrint: '{content.title}'")
             return pdf_bytes
         except Exception as e:
