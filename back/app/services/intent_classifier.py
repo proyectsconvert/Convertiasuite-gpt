@@ -4,7 +4,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-_CLASSIFIER_MODEL = "qwen2.5:7b"
+_CLASSIFIER_MODEL = "qwen3.5:4b"
 
 _CLASSIFY_TIMEOUT_S = 2.0
 
