@@ -21,21 +21,16 @@ include:
   - template: Jobs/Secret-Detection.gitlab-ci.yml
   - template: Jobs/SAST.gitlab-ci.yml
 
-# Cache global para acelerar instalaciones.
-# Las rutas son relativas a $CI_PROJECT_DIR (la raíz del repo en el runner).
+
 cache:
   paths:
     - .cache/pip/
     - front/node_modules/
 
 variables:
-  # Ruta absoluta: pip siempre cachea en el mismo sitio, sin importar
-  # si el job hizo `cd back` antes o no.
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
-# ----------------------------------------------------------------------
-# LINT
-# ----------------------------------------------------------------------
+
 lint-backend:
   stage: lint
   image: python:3.11-slim
@@ -52,9 +47,6 @@ lint-frontend:
     - npm ci --silent
     - npm run lint || true
 
-# ----------------------------------------------------------------------
-# TEST
-# ----------------------------------------------------------------------
 backend-test:
   stage: test
   image: python:3.11
@@ -90,9 +82,7 @@ frontend-test:
       - front/dist/
     expire_in: 1 week
 
-# ----------------------------------------------------------------------
-# SECURITY (solo en schedule con security_scan = true)
-# ----------------------------------------------------------------------
+
 .security_rule: &security_rule
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.security_scan ]] == true'
@@ -147,9 +137,6 @@ container-scan:
       - trivy-reports/
     expire_in: 1 week
 
-# ----------------------------------------------------------------------
-# BUILD (validación: confirma que las imágenes compilan en CI)
-# ----------------------------------------------------------------------
 build:
   stage: build
   image: docker:24-cli
@@ -168,9 +155,6 @@ build:
       - docker-images-list.txt
     expire_in: 1 week
 
-# ----------------------------------------------------------------------
-# DEPLOY (SIN CAMBIOS: Cloudflare Access + sshpass, como lo tienes hoy)
-# ----------------------------------------------------------------------
 deploy:
   stage: deploy
   image: alpine:latest
@@ -184,16 +168,16 @@ deploy:
   script:
     - sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@deploy.testbot.click"
         "cd $SERVER_PROJECT_PATH &&
-         sudo git stash &&
-         sudo git pull origin master &&
+         git stash &&
+         git pull origin master &&
          sudo docker compose -f docker-compose-prod.yml down &&
-         sudo docker compose -f docker-compose-prod.yml up -d --build"
+         sudo docker image prune -af &&
+         sudo docker container prune -f &&
+         sudo docker compose -f docker-compose-prod.yml build --no-cache &&
+         sudo docker compose -f docker-compose-prod.yml up -d --force-recreate"
   only:
     - master
 
-# ----------------------------------------------------------------------
-# SCHEDULED ANALYSIS
-# ----------------------------------------------------------------------
 tech-debt:
   stage: scheduled-analysis
   image: python:3.11-slim

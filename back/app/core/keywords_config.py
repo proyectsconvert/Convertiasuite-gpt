@@ -1,72 +1,109 @@
+import re
+from functools import lru_cache
+
+@lru_cache(maxsize=1024)
+def _compile(keyword: str) -> "re.Pattern":
+    if " " in keyword:
+        return re.compile(re.escape(keyword))
+    return re.compile(rf"\b{re.escape(keyword)}\b")
+
+
+def matches_any(text: str, keywords) -> bool:
+    """Reemplaza a `any(k in text for k in keywords)`: matchea por palabra completa."""
+    t = (text or "").lower()
+    return any(_compile(k).search(t) for k in keywords)
+
+
 KEYWORDS_VISION = [
-    "imagen",
-    "foto",
-    "fotografía",
-    "analiza esta",
-    "qué ves",
     "describe la imagen",
+    "describe la foto",
+    "en la imagen",
+    "en la foto",
+    "esta captura",
+    "este screenshot",
+]
+
+# --- OCR -> glm-ocr. Frases explícitas de extracción de texto de un escaneo. ---
+KEYWORDS_OCR = [
+    "extrae el texto",
+    "transcribe",
+    "texto del escaneo",
+    "ocr",
 ]
 
 KEYWORDS_ANALYSIS = [
-    "investiga",
+    "análisis",
+    "analiza los datos",
     "informe",
-    "análisis profundo",
-    "presenta",
     "reporte",
-    "ppt",
-]
-
-KEYWORDS_CODE = [
-    "código",
-    "función",
-    "bug",
-    "error",
-    "script",
-    "programa",
-    "clase",
-    "javascript",
-    "python",
-    "java",
-    "c++",
-]
-
-KEYWORDS_LANDING = [
-    "landing page",
-    "landing-page",
-    "maquetación",
-    "diseña una página web",
-    "crea un sitio web",
-    "diseña una landing",
-    "html",
+    "dashboard",
+    "kpi",
+    "kpis",
+    "métrica",
+    "métricas",
+    "tabla",
+    "excel",
+    "csv",
+    "dataset",
+    "gráfico",
+    "presupuesto",
+    "hoja de cálculo",
+    "power bi",
 ]
 
 KEYWORDS_REASONING = [
     "razona",
     "paso a paso",
     "explica por qué",
+    "por qué",
     "deduce",
-    "lógica",
-    "resuelve",
     "demuestra",
-]
-
-KEYWORDS_OCR = [
-    "extrae el texto",
-    "lee este documento",
-    "transcribe",
-    "escaneo",
-    "pdf con texto",
+    "compara",
 ]
 
 KEYWORDS_MEDICAL = [
     "diagnóstico",
     "síntoma",
+    "síntomas",
     "medicamento",
     "enfermedad",
     "tratamiento",
-    "médico",
-    "clínico",
+    "incapacidad médica",
 ]
+
+KEYWORDS_CODE = [
+    "código",
+    "function",
+    "función",
+    "bug",
+    "error",
+    "traceback",
+    "excepción",
+    "script",
+    "refactor",
+    "endpoint",
+    "rest api",
+    "sql",
+    "docker",
+    "python",
+    "javascript",
+    "typescript",
+    "java",
+    "c++",
+    "regex",
+]
+
+
+KEYWORDS_LANDING = [
+    "landing page",
+    "landing-page",
+    "página de aterrizaje",
+    "diseña una página web",
+    "crea un sitio web",
+    "diseña una landing",
+    "tailwind",
+]
+
 
 ALL_KEYWORDS = {
     "vision": KEYWORDS_VISION,

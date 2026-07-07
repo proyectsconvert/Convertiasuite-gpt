@@ -1,124 +1,33 @@
 from functools import lru_cache
 
+_FAST = "qwen3.5:4b"
+_QUALITY = "qwen3.5:9b"
+_VISION = "gemma4:e4b"       
+_OCR = "glm-ocr"
+_EMBED = "nomic-embed-text"
+
 MODEL_REGISTRY = {
-    "default": {
-        "model": "qwen2.5:7b",
-        "preset": "hot",
-        "tier": "hot",
-        "capabilities": ["general", "text"],
-        "num_ctx": 8192,
-        "max_tokens": 1024,
-    },
-    "nomic-embed-text": {
-        "model": "nomic-embed-text",
-        "preset": "hot",
-        "tier": "hot",
-        "capabilities": ["embedding", "semantic_search"],
-        "num_ctx": 2048,
-        "max_tokens": 1024,
-    },
-    "code": {
-        "model": "qwen2.5:7b",
-        "preset": "warm",
-        "tier": "warm",
-        "capabilities": ["code", "reasoning"],
-        "num_ctx": 2048,
-        "max_tokens": 2048,
-    },
-    "landing": {
-        "model": "qwen2.5-coder:7b",
-        "preset": "warm",
-        "tier": "warm",
-        "capabilities": ["landing", "ui", "html", "tailwind"],
-        "num_ctx": 4096,
-        "max_tokens": 2048,
-    },
-    "reasoning": {
-        "model": "deepseek-r1:latest",
-        "preset": "warm",
-        "tier": "warm",
-        "capabilities": ["reasoning"],
-        "num_ctx": 2048,
-        "max_tokens": 1024,
-    },
-    
-    "llama3.2-vision": {
-        "model": "llama3.2-vision:11b",
-        "preset": "cold",
-        "tier": "cold",
-        "capabilities": ["vision", "image"],
-        "num_ctx": 4096,
-        "max_tokens": 512,
-    },
-    "ocr": {
-        "model": "deepseek-ocr:latest",
-        "preset": "cold",
-        "tier": "cold",
-        "capabilities": ["ocr", "image"],
-        "num_ctx": 2048,
-        "max_tokens": 512,
-        "temperature": 0.2,
-    },
-    "glm-ocr": {
-        "model": "glm-ocr",
-        "preset": "cold",
-        "tier": "cold",
-        "capabilities": ["ocr", "text"],
-        "num_ctx": 2048,
-        "max_tokens": 512,
-    },
-    "gemma4-26b": {
-        "model": "gemma4:26b",
-        "preset": "cold",
-        "tier": "cold",
-        "capabilities": ["general", "large"],
-        "num_ctx": 8192,
-        "max_tokens": 2048,
-    },
-    "glm-4.7-flash": {
-        "model": "glm-4.7-flash:latest",
-        "preset": "cold",
-        "tier": "cold",
-        "capabilities": [""],
-        "num_ctx": 2048,
-        "max_tokens": 1024,
-    },
-    "nemotron-cascade-2": {
-        "model": "nemotron-cascade-2",
-        "preset": "cold",
-        "tier": "cold",
-        "capabilities": ["general"],
-        "num_ctx": 4096,
-        "max_tokens": 1024,
-    },
-    "qwen3.6": {
-        "model": "qwen3.6",
-        "preset": "cold",
-        "tier": "cold",
-        "capabilities": ["general", "text"],
-        "num_ctx": 2048,
-        "max_tokens": 1024,
-    },
-    "vision": {
-        "model": "llama3.2-vision:11b",
-        "preset": "cold",
-        "tier": "cold",
-        "capabilities": ["vision", "image"],
-        "num_ctx": 8192,
-        "max_tokens": 2048,
-    },
-    "analysis": {
-        "model": "qwen2.5:7b",
-        "preset": "hot",
-        "tier": "semi-warm",
-        "capabilities": ["analysis", "tabular", "excel", "csv"],
-        "num_ctx": 8192,
-        "max_tokens": 2048,
-        "temperature": 0.2,
-    },
+
+    "default":   {"model": _FAST, "tier": "hot", "keep_alive": "-1"},
+    "code":      {"model": _FAST, "tier": "hot", "keep_alive": "-1", "max_tokens": 2048},
+    "landing":   {"model": _FAST, "tier": "hot", "keep_alive": "-1", "max_tokens": 2048},
+    "design":    {"model": _FAST, "tier": "hot", "keep_alive": "-1"},
+    "marketing": {"model": _FAST, "tier": "hot", "keep_alive": "-1"},
+    "it":        {"model": _FAST, "tier": "hot", "keep_alive": "-1"},
+    "rh":        {"model": _FAST, "tier": "hot", "keep_alive": "-1"},
+
+    "analysis":  {"model": _QUALITY, "tier": "warm", "keep_alive": "20m", "max_tokens": 2048, "temperature": 0.2},
+    "bi":        {"model": _QUALITY, "tier": "warm", "keep_alive": "20m", "max_tokens": 2048, "temperature": 0.2},
+    "reasoning": {"model": _QUALITY, "tier": "warm", "keep_alive": "20m", "max_tokens": 2048},
+    "medical":   {"model": _QUALITY, "tier": "warm", "keep_alive": "20m"},
+
+    "vision":    {"model": _VISION, "tier": "cold", "keep_alive": "5m", "max_tokens": 1024},
+    "ocr":       {"model": _OCR,    "tier": "cold", "keep_alive": "5m", "max_tokens": 1024, "temperature": 0.2},
+
+    "nomic-embed-text": {"model": _EMBED, "tier": "hot", "keep_alive": "-1", "num_ctx": 2048, "max_tokens": 512},
 }
 
-
+# Adjuntos -> categoría
 ROUTING_POLICY = {
     "attachment_type": {
         "image": "vision",
@@ -131,22 +40,18 @@ ROUTING_POLICY = {
     },
 }
 
-
 INFERENCE_PRESETS = {
-    "hot": {"temperature": 0.4, "num_ctx": 32768, "max_tokens": 1024},
+    "hot":  {"temperature": 0.4, "num_ctx": 8192, "max_tokens": 1024},
     "warm": {"temperature": 0.3, "num_ctx": 8192, "max_tokens": 1024},
-    "semi-warm": {"temperature": 0.3, "num_ctx": 4096, "max_tokens": 1024},
-    "cold": {"temperature": 0.2, "num_ctx": 1024, "max_tokens": 512},
+    "cold": {"temperature": 0.2, "num_ctx": 4096, "max_tokens": 512},
 }
-
 
 DEFAULT_MODEL_KEY = "default"
 ALLOWED_MODELS = list(MODEL_REGISTRY.keys())
 
 
 def _build_model_config_entry(model_key: str, model_definition: dict) -> dict:
-    preset_name = model_definition.get("preset")
-    preset_values = INFERENCE_PRESETS.get(preset_name, {})
+    preset_values = INFERENCE_PRESETS.get(model_definition.get("tier"), {})
     return {**preset_values, **model_definition, "key": model_key}
 
 

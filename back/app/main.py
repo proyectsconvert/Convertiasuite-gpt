@@ -43,7 +43,7 @@ async def preload_ollama_models():
     logger.info("Starting background preloading of Ollama models...")
     client = OllamaClient()
     try:
-        await client.preload_model("qwen2.5:7b")
+        await client.preload_model("qwen3.5:4b")
     except Exception as e:
         logger.error(f"Error in background model preloading task: {e}")
     finally:
