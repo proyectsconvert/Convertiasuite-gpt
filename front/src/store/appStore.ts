@@ -76,7 +76,8 @@ interface AppState {
   setDarkMode: (darkMode: boolean) => void;
 
   setCurrentChatId: (
-    id: string | null
+    id: string | null,
+    clearMessages?: boolean,
   ) => void;
 
   setSessions: (
@@ -213,13 +214,13 @@ export const useAppStore = create<AppState>()(
 
       /* CHAT */
 
-      setCurrentChatId: (id) =>
-        set({
+      setCurrentChatId: (id, clearMessages = true) =>
+        set((state) => ({
           currentChatId: id,
-          messages: [],
-          activeArtifact: null,
-          artifactsPanelOpen: false,
-        }),
+          messages: clearMessages ? [] : state.messages,
+          activeArtifact: clearMessages ? null : state.activeArtifact,
+          artifactsPanelOpen: clearMessages ? false : state.artifactsPanelOpen,
+        })),
 
       setSessions: (sessions) =>
         set({ sessions }),

@@ -37,7 +37,6 @@ KEYWORDS_LANDING = [
     "diseña una página web",
     "crea un sitio web",
     "diseña una landing",
-    "landing",
     "html",
 ]
 

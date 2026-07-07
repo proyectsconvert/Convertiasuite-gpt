@@ -94,6 +94,25 @@ def get_memory_repo(request: Request) -> IMemoryRepository:
     return request.app.state.memory
 
 
+def _remove_system_export_json_blocks(content: Any) -> Any:
+    if not isinstance(content, str):
+        return content
+
+    cleaned = re.sub(
+        r"<<<\s*SYSTEM[_ ]?EXPORT[_ ]?JSON\s*>>>[\s\S]*?<<<\s*END[_ ]?SYSTEM[_ ]?EXPORT[_ ]?JSON\s*>>>",
+        "",
+        content,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"<<<\s*SYSTEM[_ ]?EXPORT[_ ]?JSON\s*>>>[\s\S]*$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    return cleaned.strip()
+
+
 @router.post("/upload")
 async def upload_document(
     file: UploadFile = File(...),
@@ -455,7 +474,8 @@ async def generate_document(
     try:
         generator = get_document_generator()
 
-        file_bytes = generator.generate(request.content, fmt=format_lower)
+        cleaned_content = _remove_system_export_json_blocks(request.content)
+        file_bytes = generator.generate(cleaned_content, fmt=format_lower)
 
         # Save to document store via DocumentManager for user access and RAG
         try:
@@ -546,7 +566,8 @@ async def generate_and_add_artifact(
 
     try:
         generator = get_document_generator()
-        file_bytes = generator.generate(request.content, fmt=format_lower)
+        cleaned_content = _remove_system_export_json_blocks(request.content)
+        file_bytes = generator.generate(cleaned_content, fmt=format_lower)
 
         # Save to document store via DocumentManager for user access and RAG
         try:

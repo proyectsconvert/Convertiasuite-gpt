@@ -12,8 +12,10 @@ services:
     environment:
       - PYTHONPATH=/app
       - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=http://10.130.30.18:11434
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      - "ollama.internal:10.130.30.18"
     networks:
       - convertia-net
 

@@ -6,7 +6,29 @@ logger = logging.getLogger(__name__)
 
 _CLASSIFIER_MODEL = "qwen2.5:7b"
 
-_CLASSIFY_TIMEOUT_S = 3.0
+_CLASSIFY_TIMEOUT_S = 2.0
+
+_GENERIC_CHAT_TERMS = [
+    "hola",
+    "buenos días",
+    "buenas tardes",
+    "buenas noches",
+    "qué tal",
+    "que tal",
+    "cómo estás",
+    "como estas",
+    "quién eres",
+    "quien eres",
+    "quién eres?",
+    "quien eres?",
+    "qué haces",
+    "que haces",
+    "cómo te llamas",
+    "como te llamas",
+    "tu nombre",
+    "quién soy",
+    "quien soy",
+]
 
 VALID_DOMAIN_KEYS = frozenset(
     {
@@ -80,7 +102,7 @@ class IntentClassifier:
                     model=_CLASSIFIER_MODEL,
                     temperature=0.0,
                     num_ctx=512,
-                    max_tokens=8,  
+                    max_tokens=8,
                 ),
                 timeout=_CLASSIFY_TIMEOUT_S,
             )
@@ -125,6 +147,31 @@ class IntentClassifier:
 
         msg_lower = (message or "").lower()
 
+        generic_chat_terms = [
+            "hola",
+            "buenos días",
+            "buenas tardes",
+            "buenas noches",
+            "qué tal",
+            "que tal",
+            "cómo estás",
+            "como estas",
+            "quién eres",
+            "quien eres",
+            "quién eres?",
+            "quien eres?",
+            "qué haces",
+            "que haces",
+            "cómo te llamas",
+            "como te llamas",
+            "tu nombre",
+            "quién soy",
+            "quien soy",
+        ]
+
+        if any(term in msg_lower for term in generic_chat_terms):
+            return None
+
         if any(k in msg_lower for k in KEYWORDS_VISION):
             return "vision"
         if any(k in msg_lower for k in KEYWORDS_ANALYSIS):
@@ -161,10 +208,6 @@ class IntentClassifier:
         return None
 
     async def classify(self, message: str) -> Optional[str]:
-        domain = await self.classify_with_llm(message)
-        if domain is not None:
-            return domain
-
         domain = self.classify_with_keywords(message)
         if domain is not None:
             logger.info(
@@ -174,4 +217,10 @@ class IntentClassifier:
             )
             return domain
 
-        return None
+        if self._client is None:
+            return None
+
+        if not message or len(message.strip()) < 10:
+            return None
+
+        return await self.classify_with_llm(message)

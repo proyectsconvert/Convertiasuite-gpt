@@ -151,14 +151,14 @@ export function filterReasoningFromMessage(content: string): string {
   // Remover etiquetas de thinking/razonamiento
   let filtered = content
     // Remover <think>...</think> (Qwen)
-    .replace(/<think>[\s\S]*?<\/think>\n*/g, "")
+    .replace(/<think>[\s\S]*?<\/think>\n*/gi, "")
     // Remover <thinking>...</thinking> (Claude/Others)
-    .replace(/<thinking>[\s\S]*?<\/thinking>\n*/g, "")
+    .replace(/<thinking>[\s\S]*?<\/thinking>\n*/gi, "")
     // Remover <reasoning>...</reasoning>
-    .replace(/<reasoning>[\s\S]*?<\/reasoning>\n*/g, "")
-    // Remover bloques de razonamiento en markdown
-    .replace(/\*\*Razonamiento[\s\S]*?\*\*\n*/g, "")
-    .replace(/## Razonamiento[\s\S]*?\n\n/g, "");
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>\n*/gi, "")
+    // Remover bloques de razonamiento en markdown con título y contenido hasta el siguiente salto de línea doble o el final
+    .replace(/^\s*\*\*Razonamiento\*\*\s*[\r\n]+[\s\S]*?(?=\r?\n\r?\n|$)/gim, "")
+    .replace(/^\s*##\s*Razonamiento\s*[\r\n]+[\s\S]*?(?=\r?\n\r?\n|$)/gim, "");
 
   // Limpiar múltiples saltos de línea
   filtered = filtered.replace(/\n\n\n+/g, "\n\n");
@@ -169,7 +169,56 @@ export function filterReasoningFromMessage(content: string): string {
 //Verifica si un mensaje es solo razonamiento (sin contenido útil)
 export function isReasoningOnlyMessage(content: string): boolean {
   if (!content) return false;
-  const cleaned = filterReasoningFromMessage(content);
-  return cleaned.length < 10;
+  const originalTrimmed = content.trim();
+  const cleaned = filterReasoningFromMessage(content).trim();
+
+  // Solo ocultar mensajes que son realmente solo razonamiento/etiquetas sin contenido útil.
+  return originalTrimmed.length > 0 && cleaned.length === 0;
+}
+
+export function normalizeChatContent(content: string): string {
+  if (!content) return content;
+
+  const cleaned = content
+    .replace(/[\u200B-\u200F\uFEFF]/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{2,}/g, "\n\n")
+    .replace(/\n/g, " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+
+  const lines = cleaned.split("\n");
+  const meaningfulLines = lines.filter((line) => line.trim().length > 0);
+
+  if (
+    meaningfulLines.length > 1 &&
+    meaningfulLines.every((line) => line.trim().length === 1)
+  ) {
+    return meaningfulLines.map((line) => line.trim()).join("");
+  }
+
+  // Detect space-separated single-letter tokens like "h o l a" and join them
+  const tokens = cleaned.split(/\s+/).filter(Boolean);
+  if (tokens.length > 1 && tokens.length <= 20 && tokens.every((t) => t.length === 1)) {
+    return tokens.join("");
+  }
+
+  return cleaned;
+}
+
+export function removeSystemExportJsonBlocks(content: string): string {
+  if (!content) return content;
+
+  let cleaned = content.replace(
+    /<<<\s*SYSTEM[_ ]?EXPORT[_ ]?JSON\s*>>>[\s\S]*?<<<\s*END[_ ]?SYSTEM[_ ]?EXPORT[_ ]?JSON\s*>>>/gi,
+    "",
+  );
+
+  cleaned = cleaned.replace(
+    /<<<\s*SYSTEM[_ ]?EXPORT[_ ]?JSON\s*>>>[\s\S]*$/gi,
+    "",
+  );
+
+  return cleaned.trim();
 }
 

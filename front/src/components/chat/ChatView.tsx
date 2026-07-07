@@ -5,6 +5,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import ChatHeader from "@/components/chat/ChatHeader";
 import MessageBubble from "@/components/chat/MessageBubble";
 import { chatApi, ChatMessage, documentsApi } from "@/services/api";
+import { normalizeChatContent } from "@/lib/artifact-utils";
 
 export default function ChatView() {
   const {
@@ -25,6 +26,28 @@ export default function ChatView() {
   const activeAbortControllerRef = useRef<AbortController | null>(null);
   const activeRequestIdRef = useRef(0);
 
+  const normalizeUserMessage = (text: string) => {
+    if (!text) return text;
+
+    const cleaned = text
+      .replace(/[\u200B-\u200F\uFEFF]/g, "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/[ \t]{2,}/g, " ");
+
+    const lines = cleaned.split("\n");
+    const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
+
+    if (
+      nonEmptyLines.length > 1 &&
+      nonEmptyLines.every((line) => line.trim().length === 1)
+    ) {
+      return nonEmptyLines.join("");
+    }
+
+    return cleaned.trim();
+  };
+
   const isNewChat = !currentChatId;
 
   useEffect(() => {
@@ -34,7 +57,6 @@ export default function ChatView() {
   useEffect(() => {
     setActiveArtifact(null);
     setArtifactsPanelOpen(false);
-    setMessages([]);
 
     if (currentChatId) {
       if (skipNextHistoryFetch.current) {
@@ -42,6 +64,7 @@ export default function ChatView() {
         return;
       }
 
+      setMessages([]);
       chatApi
         .getHistory(currentChatId)
         .then((data) => {
@@ -50,7 +73,7 @@ export default function ChatView() {
               data.messages.map((msg) => ({
                 id: msg.id,
                 role: msg.role,
-                content: msg.content,
+                content: normalizeChatContent(msg.content || ""),
                 timestamp: msg.timestamp,
                 attachments: msg.attachments || [],
                 artifacts: msg.artifacts || [],
@@ -61,8 +84,6 @@ export default function ChatView() {
         })
         .catch(() => setMessages([]));
     } else {
-      setActiveArtifact(null);
-      setArtifactsPanelOpen(false);
       setMessages([]);
     }
   }, [currentChatId, setActiveArtifact, setArtifactsPanelOpen, setMessages]);
@@ -74,8 +95,9 @@ export default function ChatView() {
     customText?: string,
   ) => {
     const messageText = customText !== undefined ? customText : input;
+    const normalizedMessageText = normalizeUserMessage(messageText);
     const hasAttachments = filenames && filenames.length > 0;
-    const hasContent = messageText.trim() || hasAttachments;
+    const hasContent = normalizedMessageText.trim() || hasAttachments;
     if (!hasContent || isLoading) return;
 
     // Build attachments array
@@ -100,8 +122,8 @@ export default function ChatView() {
     }
 
     const sessionTitle =
-      messageText.trim().length > 0
-        ? messageText.slice(0, 50)
+      normalizedMessageText.trim().length > 0
+        ? normalizedMessageText.slice(0, 50)
         : hasAttachments
           ? filenames?.[0] || "Nueva Conversación"
           : "Nueva Conversación";
@@ -109,13 +131,11 @@ export default function ChatView() {
     const userMsg: ChatMessage = {
       id: `${Date.now()}-user`,
       role: "user",
-      content: messageText.trim() || "",
+      content: normalizedMessageText.trim() || "",
       timestamp: new Date().toISOString(),
       attachments: attachments,
       images: images,
     };
-
-    setMessages((prev) => [...prev, userMsg]);
 
     setStreamingContent("");
     setInput("");
@@ -136,17 +156,21 @@ export default function ChatView() {
 
         const s = await chatApi.createSession(sessionTitle);
         sid = s.id;
-        setCurrentChatId(sid);
+        setCurrentChatId(sid, false);
         addSession(s);
+
+        // Guardar el mensaje del usuario después de crear la sesión
+        setMessages((prev) => [...prev, userMsg]);
       } catch (e) {
         console.error("Session error:", e);
         skipNextHistoryFetch.current = false;
       }
+    } else {
+      setMessages((prev) => [...prev, userMsg]);
     }
 
     try {
       let fullResponse = "";
-
       // Combine all contexts for the message
       const combinedContexts =
         extractedContexts?.join("\n\n---\n\n") || undefined;
@@ -156,7 +180,7 @@ export default function ChatView() {
       for await (const chunk of chatApi.sendMessageStream(
         {
           message:
-            messageText.trim() ||
+            normalizedMessageText.trim() ||
             `Analiza los archivos adjuntos: ${filenames?.join(", ")}`,
           session_id: sid || undefined,
           extracted_context: combinedContexts,
@@ -215,24 +239,27 @@ export default function ChatView() {
         handleSend(undefined, undefined, undefined, text);
       }
     };
-    
+
     const handleRefreshChat = () => {
       if (currentChatId) {
-        chatApi.getHistory(currentChatId).then((data) => {
-          if (data.messages && Array.isArray(data.messages)) {
-            setMessages(
-              data.messages.map((msg) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                timestamp: msg.timestamp,
-                attachments: msg.attachments || [],
-                artifacts: msg.artifacts || [],
-                images: msg.images || [],
-              }))
-            );
-          }
-        }).catch(console.error);
+        chatApi
+          .getHistory(currentChatId)
+          .then((data) => {
+            if (data.messages && Array.isArray(data.messages)) {
+              setMessages(
+                data.messages.map((msg) => ({
+                  id: msg.id,
+                  role: msg.role,
+                  content: msg.content,
+                  timestamp: msg.timestamp,
+                  attachments: msg.attachments || [],
+                  artifacts: msg.artifacts || [],
+                  images: msg.images || [],
+                })),
+              );
+            }
+          })
+          .catch(console.error);
       }
     };
 

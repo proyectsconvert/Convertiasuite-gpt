@@ -29,6 +29,7 @@ services:
  
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      - "ollama.internal:10.130.30.18"
  
     depends_on:
       - redis

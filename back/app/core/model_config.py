@@ -18,7 +18,7 @@ MODEL_REGISTRY = {
         "max_tokens": 1024,
     },
     "code": {
-        "model": "qwen2.5-coder:7b",
+        "model": "qwen2.5:7b",
         "preset": "warm",
         "tier": "warm",
         "capabilities": ["code", "reasoning"],
@@ -133,7 +133,7 @@ ROUTING_POLICY = {
 
 
 INFERENCE_PRESETS = {
-    "hot": {"temperature": 0.4, "num_ctx": 8192, "max_tokens": 1024},
+    "hot": {"temperature": 0.4, "num_ctx": 32768, "max_tokens": 1024},
     "warm": {"temperature": 0.3, "num_ctx": 8192, "max_tokens": 1024},
     "semi-warm": {"temperature": 0.3, "num_ctx": 4096, "max_tokens": 1024},
     "cold": {"temperature": 0.2, "num_ctx": 1024, "max_tokens": 512},

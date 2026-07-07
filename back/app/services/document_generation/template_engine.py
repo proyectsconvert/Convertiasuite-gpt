@@ -7,17 +7,17 @@ import pathlib
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from app.domain.entities.document_content import DocumentContent, Section, TableData
 from app.core.files_config import BRAND_CONFIG, BASE_DIR
+
 if TYPE_CHECKING:
     from docxtpl import DocxTemplate
 
 logger = logging.getLogger(__name__)
 
-# Rutas de recursos
 _TEMPLATES_DIR = os.path.join(BASE_DIR, "assets", "templates")
 _LOGOS_DIR = os.path.join(BASE_DIR, "assets", "logos")
 
-class TemplateEngine:
 
+class TemplateEngine:
     def __init__(self, brand: str = "convertia"):
         self._brand = brand
         self._brand_cfg = BRAND_CONFIG.get(brand, BRAND_CONFIG["convertia"])
@@ -46,42 +46,58 @@ class TemplateEngine:
             logo = None
 
         return {
-            # Metadata del documento
             "title": content.title,
             "subtitle": content.subtitle or "",
             "author": content.author,
             "date": content.get_date(),
             "classification": content.classification,
             "logo": logo,
-
-            # Secciones jerárquicas
             "sections": [self._section_to_dict(s) for s in content.sections],
-            "sections_h1": [self._section_to_dict(s) for s in content.sections_by_level(1)],
-            "sections_h2": [self._section_to_dict(s) for s in content.sections_by_level(2)],
-            "sections_h3": [self._section_to_dict(s) for s in content.sections_by_level(3)],
-
+            "sections_h1": [
+                self._section_to_dict(s) for s in content.sections_by_level(1)
+            ],
+            "sections_h2": [
+                self._section_to_dict(s) for s in content.sections_by_level(2)
+            ],
+            "sections_h3": [
+                self._section_to_dict(s) for s in content.sections_by_level(3)
+            ],
             # Tablas globales
             "tables": [self._table_to_dict(t) for t in content.tables],
-
             # Branding
             "brand_name": self._brand_cfg.get("nametag", "Convertia"),
             "brand_colors": self._brand_cfg.get("colors", {}),
         }
 
-    # PDF — contexto HTML para WeasyPrint
 
     def build_html_context(self, content: DocumentContent) -> str:
         try:
-            template = self._jinja_env.get_template("report_template.html", "word_template.html")
+            template = self._jinja_env.get_template("report_template.html")
         except Exception as e:
-            logger.warning(f"Plantilla HTML no encontrada, usando template inline: {e}")
-            return self._render_inline_html(content)
+            logger.warning(
+                f"Plantilla report_template.html no encontrada: {e}. Intentando word_template.html"
+            )
+            try:
+                template = self._jinja_env.get_template("word_template.html")
+            except Exception as e2:
+                logger.warning(
+                    f"Plantilla word_template.html no encontrada: {e2}. Usando template inline."
+                )
+                return self._render_inline_html(content)
 
         logo_main_path = self._brand_cfg["logos"].get("main", "")
-        logo_main_src = pathlib.Path(logo_main_path).as_uri() if logo_main_path and os.path.exists(logo_main_path) else ""
+        logo_main_src = (
+            pathlib.Path(logo_main_path).as_uri()
+            if logo_main_path and os.path.exists(logo_main_path)
+            else ""
+        )
 
         logo_docs_path = self._brand_cfg["logos"].get("docs", "")
-        logo_docs_src = pathlib.Path(logo_docs_path).as_uri() if logo_docs_path and os.path.exists(logo_docs_path) else ""
+        logo_docs_src = (
+            pathlib.Path(logo_docs_path).as_uri()
+            if logo_docs_path and os.path.exists(logo_docs_path)
+            else ""
+        )
 
         words = content.title.split()
         if len(words) > 1:
@@ -109,54 +125,54 @@ class TemplateEngine:
         }
 
         return template.render(**context)
-    #ppt
+
     def build_pptx_context(self, content: DocumentContent) -> Dict[str, Any]:
-      
+
         slides = []
 
-        # Slide de portada
-        slides.append({
-            "type": "cover",
-            "title": content.title,
-            "subtitle": content.subtitle or content.author,
-            "date": content.get_date(),
-            "classification": content.classification,
-        })
-
+        slides.append(
+            {
+                "type": "cover",
+                "title": content.title,
+                "subtitle": content.subtitle or content.author,
+                "date": content.get_date(),
+                "classification": content.classification,
+            }
+        )
         # Slide de índice / contenido
         index_items = []
         h1_count = 0
         for section in content.sections:
             if section.level == 1:
                 h1_count += 1
-                index_items.append({
-                    "number": f"{h1_count:02d}",
-                    "title": section.title,
-                    "subsections": []
-                })
+                index_items.append(
+                    {
+                        "number": f"{h1_count:02d}",
+                        "title": section.title,
+                        "subsections": [],
+                    }
+                )
             elif section.level == 2 and index_items:
                 sub_count = len(index_items[-1]["subsections"]) + 1
-                index_items[-1]["subsections"].append({
-                    "number": f"{sub_count}",
-                    "title": section.title
-                })
+                index_items[-1]["subsections"].append(
+                    {"number": f"{sub_count}", "title": section.title}
+                )
 
-        slides.append({
-            "type": "index",
-            "items": index_items
-        })
+        slides.append({"type": "index", "items": index_items})
 
         # Slides de contenido por sección
         section_count = 0
         for section in content.sections:
             if section.level == 1:
                 section_count += 1
-                slides.append({
-                    "type": "section",
-                    "number": section_count,
-                    "title": section.title,
-                    "subtitle": section.content[:120] if section.content else "",
-                })
+                slides.append(
+                    {
+                        "type": "section",
+                        "number": section_count,
+                        "title": section.title,
+                        "subtitle": section.content[:120] if section.content else "",
+                    }
+                )
             elif section.level == 2:
                 slide_data: Dict[str, Any] = {
                     "type": "content",
@@ -172,26 +188,32 @@ class TemplateEngine:
                 if slides and slides[-1]["type"] == "content":
                     prev = slides[-1]
                     prev["subheadings"] = prev.get("subheadings", [])
-                    prev["subheadings"].append({
-                        "title": section.title,
-                        "content": section.content,
-                        "bullets": section.bullets or [],
-                    })
+                    prev["subheadings"].append(
+                        {
+                            "title": section.title,
+                            "content": section.content,
+                            "bullets": section.bullets or [],
+                        }
+                    )
                 else:
-                    slides.append({
-                        "type": "content",
-                        "title": section.title,
-                        "content": section.content,
-                        "bullets": section.bullets or [],
-                    })
+                    slides.append(
+                        {
+                            "type": "content",
+                            "title": section.title,
+                            "content": section.content,
+                            "bullets": section.bullets or [],
+                        }
+                    )
 
         # Tablas globales como slides dedicados
         for table in content.tables:
-            slides.append({
-                "type": "table",
-                "title": table.caption or "Datos",
-                "table": self._table_to_dict(table),
-            })
+            slides.append(
+                {
+                    "type": "table",
+                    "title": table.caption or "Datos",
+                    "table": self._table_to_dict(table),
+                }
+            )
 
         # Slide de cierre
         slides.append({"type": "closing"})
@@ -202,34 +224,39 @@ class TemplateEngine:
             "logo_path": self._brand_cfg["logos"].get("white", ""),
         }
 
-  
     def build_excel_context(self, content: DocumentContent) -> Dict[str, Any]:
         sheets = []
 
         for i, table in enumerate(content.tables):
-            sheets.append({
-                "name": table.caption or f"Datos {i + 1}",
-                "headers": table.headers,
-                "rows": table.rows,
-                "summary": table.summary,
-            })
+            sheets.append(
+                {
+                    "name": table.caption or f"Datos {i + 1}",
+                    "headers": table.headers,
+                    "rows": table.rows,
+                    "summary": table.summary,
+                }
+            )
 
         for section in content.sections:
             if section.table:
-                sheets.append({
-                    "name": section.title[:31],  
-                    "headers": section.table.headers,
-                    "rows": section.table.rows,
-                    "summary": section.table.summary,
-                })
+                sheets.append(
+                    {
+                        "name": section.title[:31],
+                        "headers": section.table.headers,
+                        "rows": section.table.rows,
+                        "summary": section.table.summary,
+                    }
+                )
 
         if not sheets:
-            sheets.append({
-                "name": "Resumen",
-                "headers": ["Sección", "Contenido"],
-                "rows": [[s.title, s.content[:500]] for s in content.sections],
-                "summary": None,
-            })
+            sheets.append(
+                {
+                    "name": "Resumen",
+                    "headers": ["Sección", "Contenido"],
+                    "rows": [[s.title, s.content[:500]] for s in content.sections],
+                    "summary": None,
+                }
+            )
 
         return {
             "title": content.title,
@@ -268,8 +295,7 @@ class TemplateEngine:
             "bullets": section.bullets or [],
             "has_bullets": bool(section.bullets),
             "table": (
-                TemplateEngine._table_to_dict(section.table)
-                if section.table else None
+                TemplateEngine._table_to_dict(section.table) if section.table else None
             ),
             "has_table": section.table is not None,
         }
@@ -279,10 +305,9 @@ class TemplateEngine:
         rows_processed = []
         for row in table.rows:
             is_highlight = any(str(val).strip().lower() == "destacado" for val in row)
-            rows_processed.append({
-                "cells": [str(val) for val in row],
-                "is_highlight": is_highlight
-            })
+            rows_processed.append(
+                {"cells": [str(val) for val in row], "is_highlight": is_highlight}
+            )
         return {
             "headers": table.headers,
             "rows": rows_processed,
@@ -290,7 +315,6 @@ class TemplateEngine:
             "row_count": table.row_count,
             "column_count": table.column_count,
         }
-
 
     def _render_inline_html(self, content: DocumentContent) -> str:
         colors = self._brand_cfg.get("colors", {})
@@ -391,7 +415,7 @@ class TemplateEngine:
 <body>
   <div class="cover">
     {logo_html}
-    <h1>{title_part1}{f'<span class="title-highlight">{title_part2}</span>' if title_part2 else ''}</h1>
+    <h1>{title_part1}{f'<span class="title-highlight">{title_part2}</span>' if title_part2 else ""}</h1>
     <div class="subtitle">{content.subtitle or content.author}</div>
     <div class="meta">
       <strong>Fecha:</strong> {content.get_date()}<br>

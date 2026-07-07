@@ -5,9 +5,6 @@ import logging
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
-
-# Semáforos por modelo para controlar concurrencia sin serializar todos los requests.
-# Permite hasta 2 requests simultáneos por modelo (ajustable por env var).
 import os
 _MODEL_CONCURRENCY = int(os.getenv("OLLAMA_MODEL_CONCURRENCY", "2"))
 _model_semaphores: dict[str, asyncio.Semaphore] = {}
@@ -27,7 +24,7 @@ class OllamaClient:
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(
                 connect=10.0,
-                read=600.0,  # Aumentado a 10 minutos para prompts gigantes
+                read=600.0,  
                 write=10.0,
                 pool=10.0,
             ),
@@ -45,8 +42,6 @@ class OllamaClient:
             "model": model,
             "prompt": prompt,
             "stream": stream,
-            # keep_alive=-1 mantiene el modelo en VRAM indefinidamente.
-            # Elimina el cold-start en cada request cuando hay tiempo entre peticiones.
             "keep_alive": -1,
         }
 
@@ -56,7 +51,7 @@ class OllamaClient:
         if num_ctx is not None:
             options["num_ctx"] = num_ctx
         if max_tokens is not None:
-            options["num_predict"] = max_tokens  # Ollama usa num_predict, no max_tokens
+            options["num_predict"] = max_tokens  #
 
         if options:
             payload["options"] = options
@@ -126,7 +121,7 @@ class OllamaClient:
         temperature: float = None,
         num_ctx: int = None,
         max_tokens: int = None,
-        max_retries: int = 3,
+        max_retries: int = 5,
     ):
         semaphore = _get_semaphore(model)
 
@@ -171,10 +166,12 @@ class OllamaClient:
                                 f"Stream vacío para modelo {model}, reintentando..."
                             )
                             if attempt < max_retries - 1:
-                                await asyncio.sleep(2**attempt)
+                                await asyncio.sleep(1 + 2**attempt)
                                 continue
                             else:
-                                raise Exception("Stream vacío después de varios intentos")
+                                raise Exception(
+                                    "Stream vacío después de varios intentos"
+                                )
                         return
             except Exception as e:
                 logger.error(
@@ -229,7 +226,7 @@ class OllamaClient:
                             logger.warning(
                                 f"Ollama rate limit hit (chat), attempt {attempt + 1}/{max_retries}"
                             )
-                            await asyncio.sleep(2**attempt)
+                            await asyncio.sleep(1 + 2**attempt)
                             continue
 
                         response.raise_for_status()
@@ -255,7 +252,7 @@ class OllamaClient:
                                 f"Chat stream vacío para modelo {model}, reintentando..."
                             )
                             if attempt < max_retries - 1:
-                                await asyncio.sleep(2**attempt)
+                                await asyncio.sleep(1 + 2**attempt)
                                 continue
                             else:
                                 raise Exception(
@@ -288,7 +285,9 @@ class OllamaClient:
                 timeout=60.0,
             )
             response.raise_for_status()
-            logger.info(f"Modelo {model} pre-cargado exitosamente en Ollama (keep_alive=-1).")
+            logger.info(
+                f"Modelo {model} pre-cargado exitosamente en Ollama (keep_alive=-1)."
+            )
             return True
         except Exception as e:
             logger.error(f"Error al pre-cargar modelo {model}: {e}")
@@ -296,4 +295,3 @@ class OllamaClient:
 
     async def close(self):
         await self.client.aclose()
-

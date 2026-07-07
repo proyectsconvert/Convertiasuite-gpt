@@ -22,6 +22,8 @@ import {
   extractArtifactsFromMessage,
   filterReasoningFromMessage,
   isReasoningOnlyMessage,
+  normalizeChatContent,
+  removeSystemExportJsonBlocks,
 } from "@/lib/artifact-utils";
 
 interface MessageBubbleProps {
@@ -46,6 +48,7 @@ const getCodeText = (children: any): string => {
     return "";
   }
 };
+
 
 function extractTableData(children: any): string[][] {
   const rows: string[][] = [];
@@ -107,10 +110,9 @@ export default function MessageBubble({
 
   const isUser = message.role === "user";
   const attachment = message.attachments?.[0];
+  const content = message.content ?? "";
   const hasModelImages = !isUser && message.images && message.images.length > 0;
-  const renderedMessageContent = filterReasoningFromMessage(
-    message.content || "",
-  );
+  const renderedMessageContent = filterReasoningFromMessage(content);
   const containsFencedHtmlArtifact =
     /```(?:html|markup|xml)\s*[\s\S]*?```/i.test(renderedMessageContent);
   const directHtmlArtifacts = extractArtifactsFromMessage(message).filter(
@@ -182,10 +184,11 @@ export default function MessageBubble({
   const handleDownload = useCallback(
     async (format: string, filename: string, content: any) => {
       try {
+        const cleanedContent = removeSystemExportJsonBlocks(content ?? "");
         const blob = await documentsApi.generateFile(
           filename,
           format,
-          content,
+          cleanedContent,
           sessionId,
         );
         const url = window.URL.createObjectURL(blob);
@@ -222,17 +225,16 @@ export default function MessageBubble({
     return `¡Listo! OlivIA generó el documento ${formats[0] || "solicitado"}. Puedes descargarlo directamente abajo 👇`;
   };
 
-  // No mostrar si no hay contenido válido y no hay archivos adjuntos
-  if (typeof message.content !== "string" && !message.attachments?.length) {
+  if (
+    !content &&
+    !message.attachments?.length &&
+    !message.images?.length &&
+    !message.artifacts?.length
+  ) {
     return null;
   }
 
-  // No mostrar si el mensaje es solo razonamiento/thinking
-  if (
-    typeof message.content === "string" &&
-    isReasoningOnlyMessage(message.content) &&
-    !message.attachments?.length
-  ) {
+  if (isReasoningOnlyMessage(content) && !message.attachments?.length) {
     return null;
   }
 
@@ -278,10 +280,10 @@ export default function MessageBubble({
         </div>
 
         <div
-          className={`max-w-[90%] min-w-0 ${isUser ? "flex flex-col items-end" : ""}`}
+          className={`w-full ${isUser ? "flex justify-end" : ""}`}
         >
           {isUser ? (
-            <div className="w-fit max-w-full rounded-2xl rounded-tr-md bg-secondary/70 px-4 py-3 text-[15px] leading-relaxed text-foreground">
+            <div className="inline-flex w-fit max-w-[70ch] min-w-0 rounded-2xl rounded-tr-md bg-secondary/70 px-4 py-3 text-[15px] leading-relaxed text-foreground text-left break-words whitespace-pre-wrap break-normal">
               {attachment && (
                 <div className="mb-3 overflow-hidden rounded-2xl border border-border/70 bg-background/90 p-3">
                   {(attachment.type === "image" ||
@@ -315,13 +317,19 @@ export default function MessageBubble({
                 </div>
               )}
               {message.content ? (
-                <div>{message.content}</div>
+                <div className="break-words whitespace-pre-line text-foreground break-normal">
+                  {normalizeChatContent(message.content)}
+                </div>
               ) : (
-                !attachment && <div>{message.content}</div>
+                !attachment && (
+                  <div className="break-words whitespace-pre-wrap text-foreground break-normal">
+                    {normalizeChatContent(message.content)}
+                  </div>
+                )
               )}
             </div>
           ) : (
-            <div className="prose-chat text-[15px] leading-[1.7] text-foreground">
+            <div className="prose-chat text-[15px] leading-[1.7] text-foreground break-words whitespace-pre-wrap">
               {!isStreaming &&
               previewArtifact &&
               !containsFencedHtmlArtifact ? (

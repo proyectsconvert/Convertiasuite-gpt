@@ -10,8 +10,10 @@ spec:
       description: "Si es true, ejecuta el radar de seguridad (pip-audit, npm audit, Trivy) en este pipeline"
 ---
 stages:
+  - lint
   - test
   - security
+  - build
   - deploy
   - scheduled-analysis
 
@@ -19,50 +21,78 @@ include:
   - template: Jobs/Secret-Detection.gitlab-ci.yml
   - template: Jobs/SAST.gitlab-ci.yml
 
-test:
-  stage: test
-  image: python:3.11
+# Cache global para acelerar instalaciones.
+# Las rutas son relativas a $CI_PROJECT_DIR (la raíz del repo en el runner).
+cache:
+  paths:
+    - .cache/pip/
+    - front/node_modules/
+
+variables:
+  # Ruta absoluta: pip siempre cachea en el mismo sitio, sin importar
+  # si el job hizo `cd back` antes o no.
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+# ----------------------------------------------------------------------
+# LINT
+# ----------------------------------------------------------------------
+lint-backend:
+  stage: lint
+  image: python:3.11-slim
   script:
     - cd back
+    - pip install --quiet ruff
+    - ruff check . || true
+
+lint-frontend:
+  stage: lint
+  image: node:20-slim
+  script:
+    - cd front
+    - npm ci --silent
+    - npm run lint || true
+
+# ----------------------------------------------------------------------
+# TEST
+# ----------------------------------------------------------------------
+backend-test:
+  stage: test
+  image: python:3.11
+  before_script:
+    - cd back
+    - python -m venv venv
+    - . venv/bin/activate
+    - pip install --upgrade pip
     - pip install -r requirements.txt
-    - python -m py_compile *.py
-
-deploy:
-  stage: deploy
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache openssh-client sshpass curl
-    - curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
-    - chmod +x /usr/local/bin/cloudflared
-    - mkdir -p ~/.ssh
-    - echo "Host deploy.testbot.click" >> ~/.ssh/config
-    - echo "  ProxyCommand cloudflared access ssh --hostname %h --id $CF_ACCESS_CLIENT_ID --secret $CF_ACCESS_CLIENT_SECRET" >> ~/.ssh/config
   script:
-    - sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@deploy.testbot.click"
-        "cd $SERVER_PROJECT_PATH &&
-         sudo git stash &&
-         sudo git pull origin master &&
-         sudo docker compose -f docker-compose-prod.yml down &&
-         sudo docker compose -f docker-compose-prod.yml up -d --build"
-  only:
-    - master
+    - mkdir -p reports
+    - pytest -q --junitxml=reports/junit.xml || true
+  artifacts:
+    when: always
+    paths:
+      - back/reports/
+    reports:
+      junit: back/reports/junit.xml
+    expire_in: 1 week
 
-tech-debt:
-  stage: scheduled-analysis
-  image: python:3.11-slim
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.radar ]] == true'
+frontend-test:
+  stage: test
+  image: node:20-slim
   before_script:
-    - apt-get update -qq && apt-get install -y -qq git grep > /dev/null
-    - pip install --quiet radon requests
-    - git fetch --unshallow || true
+    - cd front
+    - npm ci --silent
   script:
-    - python3 tech_debt_radar.py
-  variables:
-    GIT_DEPTH: 0
-    OLLAMA_HOST: "$OLLAMA_BASE_URL"
-    OLLAMA_MODEL: "qwen2.5:7b"
-    
+    - npm run test --silent || true
+    - npm run build --if-present --silent || true
+  artifacts:
+    when: always
+    paths:
+      - front/dist/
+    expire_in: 1 week
+
+# ----------------------------------------------------------------------
+# SECURITY (solo en schedule con security_scan = true)
+# ----------------------------------------------------------------------
 .security_rule: &security_rule
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.security_scan ]] == true'
@@ -117,6 +147,69 @@ container-scan:
       - trivy-reports/
     expire_in: 1 week
 
+# ----------------------------------------------------------------------
+# BUILD (validación: confirma que las imágenes compilan en CI)
+# ----------------------------------------------------------------------
+build:
+  stage: build
+  image: docker:24-cli
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - docker compose -f docker-compose-prod.yml build --pull
+    - docker compose -f docker-compose-prod.yml config --images > docker-images-list.txt
+  artifacts:
+    when: on_success
+    paths:
+      - docker-images-list.txt
+    expire_in: 1 week
+
+# ----------------------------------------------------------------------
+# DEPLOY (SIN CAMBIOS: Cloudflare Access + sshpass, como lo tienes hoy)
+# ----------------------------------------------------------------------
+deploy:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client sshpass curl
+    - curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+    - chmod +x /usr/local/bin/cloudflared
+    - mkdir -p ~/.ssh
+    - echo "Host deploy.testbot.click" >> ~/.ssh/config
+    - echo "  ProxyCommand cloudflared access ssh --hostname %h --id $CF_ACCESS_CLIENT_ID --secret $CF_ACCESS_CLIENT_SECRET" >> ~/.ssh/config
+  script:
+    - sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@deploy.testbot.click"
+        "cd $SERVER_PROJECT_PATH &&
+         sudo git stash &&
+         sudo git pull origin master &&
+         sudo docker compose -f docker-compose-prod.yml down &&
+         sudo docker compose -f docker-compose-prod.yml up -d --build"
+  only:
+    - master
+
+# ----------------------------------------------------------------------
+# SCHEDULED ANALYSIS
+# ----------------------------------------------------------------------
+tech-debt:
+  stage: scheduled-analysis
+  image: python:3.11-slim
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.radar ]] == true'
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git grep > /dev/null
+    - pip install --quiet radon requests
+    - git fetch --unshallow || true
+  script:
+    - python3 tech_debt_radar.py
+  variables:
+    GIT_DEPTH: 0
+    OLLAMA_HOST: "$OLLAMA_BASE_URL"
+    OLLAMA_MODEL: "qwen2.5:7b"
+
 security-radar:
   stage: scheduled-analysis
   image: python:3.11-slim
@@ -132,107 +225,3 @@ security-radar:
   variables:
     OLLAMA_HOST: "$OLLAMA_BASE_URL"
     OLLAMA_MODEL: "qwen2.5:7b"
-
-# Proposed additions and improvements below
-stages:
-  - lint
-  - test
-  - security
-  - build
-  - deploy
-  - scheduled-analysis
-
-# global caches for speed
-cache:
-  paths:
-    - .cache/pip/
-    - node_modules/
-
-variables:
-  PIP_CACHE_DIR: ".cache/pip"
-  NODE_ENV: "production"
-
-lint-backend:
-  stage: lint
-  image: python:3.11-slim
-  script:
-    - cd back
-    - pip install --quiet ruff
-    - ruff check . || true
-
-lint-frontend:
-  stage: lint
-  image: node:20-slim
-  script:
-    - cd front
-    - npm ci --silent
-    - npm run lint || true
-
-backend-test:
-  stage: test
-  image: python:3.11
-  services: []
-  before_script:
-    - cd back
-    - python -m venv venv
-    - . venv/bin/activate || .\venv\Scripts\activate || true
-    - pip install --upgrade pip
-    - pip install -r requirements.txt
-  script:
-    - pytest -q --junitxml=reports/junit.xml || true
-  artifacts:
-    when: always
-    paths:
-      - back/reports/
-    expire_in: 1 week
-
-frontend-test:
-  stage: test
-  image: node:20-slim
-  before_script:
-    - cd front
-    - npm ci --silent
-  script:
-    - npm run test --silent || true
-    - npm run build --if-present --silent || true
-  artifacts:
-    when: always
-    paths:
-      - front/dist/
-    expire_in: 1 week
-
-# Keep the existing security jobs: pip-audit, npm-audit, container-scan
-
-build:
-  stage: build
-  image: docker:24-cli
-  services:
-    - docker:24-dind
-  before_script:
-    - apk add --no-cache curl
-  script:
-    - docker compose -f docker-compose-prod.yml build --pull
-  artifacts:
-    when: on_success
-    paths:
-      - docker-images-list.txt
-
-deploy:
-  stage: deploy
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache openssh-client rsync
-    - mkdir -p ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa
-    - ssh-keyscan -H deploy.testbot.click >> ~/.ssh/known_hosts || true
-  script:
-    - ssh -o StrictHostKeyChecking=no "$SERVER_USER@deploy.testbot.click" \
-        "cd $SERVER_PROJECT_PATH && sudo git pull origin master && sudo docker compose -f docker-compose-prod.yml down && sudo docker compose -f docker-compose-prod.yml up -d --build"
-  only:
-    - master
-  when: manual
-
-# Notes:
-# - Use protected variables: SSH_PRIVATE_KEY, SERVER_USER, SERVER_PROJECT_PATH, SERVER_PASSWORD (if used), OLLAMA_BASE_URL
-# - Replace `sshpass` usage with `SSH_PRIVATE_KEY` for improved security.

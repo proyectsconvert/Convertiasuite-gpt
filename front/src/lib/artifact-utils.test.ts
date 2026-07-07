@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractArtifactsFromMessage } from "./artifact-utils";
+import { extractArtifactsFromMessage, isReasoningOnlyMessage, removeSystemExportJsonBlocks } from "./artifact-utils";
 
 describe("extractArtifactsFromMessage", () => {
     it("detects HTML content even when it is not wrapped in a fenced code block", () => {
@@ -15,5 +15,17 @@ describe("extractArtifactsFromMessage", () => {
         expect(artifacts).toHaveLength(1);
         expect(artifacts[0].type).toBe("html");
         expect(artifacts[0].content).toContain("<h1>Hola</h1>");
+    });
+});
+
+describe("isReasoningOnlyMessage", () => {
+    it("returns false for short user content that is not reasoning", () => {
+        expect(isReasoningOnlyMessage("Hola")).toBe(false);
+        expect(isReasoningOnlyMessage("Sí")).toBe(false);
+    });
+
+    it("returns true only when all content is reasoning metadata or tags", () => {
+        expect(isReasoningOnlyMessage("<think>Procesando...</think>")).toBe(true);
+        expect(isReasoningOnlyMessage("**Razonamiento**\n¿Por qué?\n")).toBe(true);
     });
 });
