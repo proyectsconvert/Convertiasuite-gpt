@@ -39,6 +39,7 @@ class OllamaProvider(ILlmProvider):
             temperature=model_info.get("temperature"),
             num_ctx=model_info.get("num_ctx"),
             max_tokens=model_info.get("max_tokens"),
+            think=model_info.get("think", False),  # <-- NUEVO
         )
 
     async def generate_once(self, prompt: str, model_key: str) -> str:
@@ -73,6 +74,7 @@ class OllamaProvider(ILlmProvider):
             temperature=model_info.get("temperature"),
             num_ctx=model_info.get("num_ctx"),
             max_tokens=model_info.get("max_tokens"),
+            think=model_info.get("think", False),  # <-- NUEVO
         )
 
     async def generate_stream(self, messages: list, model_key: str):
@@ -106,5 +108,6 @@ class OllamaProvider(ILlmProvider):
             temperature=model_info.get("temperature"),
             num_ctx=model_info.get("num_ctx"),
             max_tokens=model_info.get("max_tokens"),
+            think=model_info.get("think", False),  # <-- NUEVO
         ):
             yield chunk

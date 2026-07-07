@@ -24,7 +24,7 @@ class OllamaClient:
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(
                 connect=10.0,
-                read=600.0,  
+                read=600.0,
                 write=10.0,
                 pool=10.0,
             ),
@@ -51,7 +51,7 @@ class OllamaClient:
         if num_ctx is not None:
             options["num_ctx"] = num_ctx
         if max_tokens is not None:
-            options["num_predict"] = max_tokens  #
+            options["num_predict"] = max_tokens
 
         if options:
             payload["options"] = options
@@ -86,6 +86,7 @@ class OllamaClient:
         temperature: float = None,
         num_ctx: int = None,
         max_tokens: int = None,
+        think: bool = None,  # <-- NUEVO
     ) -> str:
         payload = {
             "model": model,
@@ -93,6 +94,8 @@ class OllamaClient:
             "stream": False,
             "keep_alive": -1,
         }
+        if think is not None:  # <-- NUEVO
+            payload["think"] = think
 
         options = {}
         if temperature is not None:
@@ -188,6 +191,7 @@ class OllamaClient:
         temperature: float = None,
         num_ctx: int = None,
         max_tokens: int = None,
+        think: bool = None,  # <-- NUEVO
         max_retries: int = 3,
     ):
         semaphore = _get_semaphore(model)
@@ -199,6 +203,8 @@ class OllamaClient:
                 "stream": True,
                 "keep_alive": -1,
             }
+            if think is not None:  # <-- NUEVO
+                payload["think"] = think
 
             options = {}
             if temperature is not None:
@@ -268,16 +274,13 @@ class OllamaClient:
                 await asyncio.sleep(2**attempt)
 
     async def preload_model(self, model: str) -> bool:
-        """
-        Pre-carga el modelo en VRAM con keep_alive=-1.
-        Llamado al arrancar la app para eliminar cold-start en el primer request.
-        """
+
         try:
             payload = {
                 "model": model,
                 "messages": [],
                 "stream": False,
-                "keep_alive": -1,  # Mantener en VRAM indefinidamente
+                "keep_alive": -1,  # Mantener cargado indefinidamente
             }
             response = await self.client.post(
                 f"{self.base_url}/api/chat",
