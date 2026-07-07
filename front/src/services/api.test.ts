@@ -6,6 +6,11 @@ describe("apiFetch auth recovery", () => {
         localStorage.clear();
         localStorage.setItem("refreshToken", "refresh-token");
         vi.restoreAllMocks();
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     it("does not keep retrying refresh after the first expired-session failure", async () => {
@@ -40,6 +45,9 @@ describe("apiFetch auth recovery", () => {
 
         await expect(apiFetch("/chat/test")).rejects.toThrow();
         await expect(apiFetch("/chat/test-2")).rejects.toThrow();
+
+        // Avanzar temporizadores para permitir la redirección diferida en handleAuthFailure
+        vi.runAllTimers();
 
         const refreshCalls = fetchMock.mock.calls.filter(([input]) => {
             const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
