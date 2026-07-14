@@ -166,17 +166,17 @@ deploy:
     - echo "Host deploy.testbot.click" >> ~/.ssh/config
     - echo "  ProxyCommand cloudflared access ssh --hostname %h --id $CF_ACCESS_CLIENT_ID --secret $CF_ACCESS_CLIENT_SECRET" >> ~/.ssh/config
   script:
-    - sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@deploy.testbot.click"
+    - sshpass -p "$SERVER_PASSWORD" ssh -tt -o StrictHostKeyChecking=no "$SERVER_USER@deploy.testbot.click"
         "SAFE_PATH=\$(echo $SERVER_PROJECT_PATH | sed 's:/*\$::') &&
          git config --global --add safe.directory \$SAFE_PATH &&
          cd \$SAFE_PATH &&
-         git stash &&
-         git pull origin master &&
-         sudo docker compose -f docker-compose-prod.yml down &&
-         sudo docker image prune -af &&
-         sudo docker container prune -f &&
-         sudo docker compose -f docker-compose-prod.yml build --no-cache &&
-         sudo docker compose -f docker-compose-prod.yml up -d --force-recreate"
+         echo '>>> STASH' && git stash &&
+         echo '>>> PULL' && git pull origin master &&
+         echo '>>> DOWN' && sudo docker compose -f docker-compose-prod.yml down &&
+         echo '>>> PRUNE IMG' && sudo docker image prune -af &&
+         echo '>>> PRUNE CONTAINER' && sudo docker container prune -f &&
+         echo '>>> BUILD' && sudo docker compose -f docker-compose-prod.yml build --no-cache &&
+         echo '>>> UP' && sudo docker compose -f docker-compose-prod.yml up -d --force-recreate"
   only:
     - master
 
