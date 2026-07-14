@@ -168,10 +168,10 @@ deploy:
   script:
     - sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@deploy.testbot.click"
         "SAFE_PATH=\$(echo $SERVER_PROJECT_PATH | sed 's:/*\$::') &&
-         git config --global --add safe.directory \$SAFE_PATH &&
+         sudo git -C \$SAFE_PATH config --global --add safe.directory \$SAFE_PATH &&
+         sudo git -C \$SAFE_PATH fetch origin &&
+         sudo git -C \$SAFE_PATH reset --hard origin/master &&
          cd \$SAFE_PATH &&
-         git stash &&
-         git pull origin master &&
          sudo docker compose -f docker-compose-prod.yml down &&
          sudo docker image prune -af &&
          sudo docker container prune -f &&
