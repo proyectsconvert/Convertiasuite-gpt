@@ -13,12 +13,10 @@ from app.domain.interfaces.message_repository import IMessageRepository
 from app.security.risk_scorer import risk_scorer
 from app.services.model_router import route_model, build_routing_context
 from app.services.intent_classifier import IntentClassifier
+from app.services.storage_service import upload_file_to_supabase
 from app.services.document_processing.document_manager import DocumentManager
 from app.services.document_processing.chunk_processor import (
     needs_chunking,
-    split_text_into_chunks,
-    build_partial_prompt,
-    build_synthesis_prompt,
 )
 from app.services.document_generation.document_generator import DocumentGenerator
 from app.security.exceptions import (
@@ -34,6 +32,8 @@ from app.security.input_sanitizer import (
 from app.services.prompts.response_validator import (
     ResponseValidator,
 )
+
+from app.services.prompts.prompt_templates import render_landing_wrapper
 
 from app.security.output_guard import (
     OutputValidationAction,
@@ -85,6 +85,8 @@ async def _generate_and_attach_document(
     message: Message,
     session_id: str,
     user_id: str,
+    memory_repo,
+    document_manager: DocumentManager | None = None,
 ) -> bool:
     try:
         filename = document_request.get("filename", "documento")
@@ -118,8 +120,38 @@ async def _generate_and_attach_document(
             "filename": filename,
             "type": format_type,
             "url": None,
-            "content": None,  
+            "content": None,
         }
+
+        file_id = None
+        storage_path = None
+
+        # Try to store file bytes in Supabase storage if available, then save metadata
+        try:
+            if session_id and memory_repo:
+                content_type = f"application/{format_type}"
+                public_url = await upload_file_to_supabase(
+                    memory_repo, session_id, filename, file_bytes, content_type
+                )
+                if public_url:
+                    storage_path = f"ai_files/{session_id}/{filename}"
+                    file_id = await memory_repo.save_ai_file(
+                        session_id=session_id,
+                        user_id=user_id,
+                        file_type=format_type,
+                        storage_path=storage_path,
+                        file_name=filename,
+                        metadata={
+                            "generated_at": datetime.now(UTC).isoformat(),
+                            "generator": "chat_service",
+                        },
+                    )
+
+                if file_id:
+                    artifact["url"] = f"/api/documents/ai-file/{file_id}/download"
+
+        except Exception as e:
+            logger.warning(f"Error storing/generated artifact metadata: {e}")
 
         if not hasattr(message, "artifacts"):
             message.artifacts = []
@@ -240,7 +272,8 @@ async def process_chat(
 
         history = await memory_repo.get_messages(session_id) or []
 
-        history = truncate_history_by_tokens(history, max_tokens=2000)
+        # Optimización CPU: Reducir historial de 2000 a 500 tokens para bajar el TTFT drásticamente
+        history = truncate_history_by_tokens(history, max_tokens=500)
 
         sanitized_history = []
 
@@ -252,7 +285,7 @@ async def process_chat(
                     try:
                         validate_prompt_safety(
                             msg_obj.content,
-                            risk_level="MEDIUM",  
+                            risk_level="MEDIUM",
                         )
 
                     except Exception:
@@ -327,6 +360,7 @@ async def process_chat(
                 session_id,
                 trace_id,
             )
+
         async def _get_doc_context() -> str:
             if document_manager and session_id and not is_image:
                 try:
@@ -363,55 +397,27 @@ async def process_chat(
                 raw_text = request.extracted_context
 
                 if needs_chunking(raw_text):
-                    # --- Map-Reduce para archivos grandes ---
-                    chunks = split_text_into_chunks(raw_text)
-                    logger.info(
-                        "Tabular file requires chunked processing: %d chunks session=%s trace_id=%s",
-                        len(chunks), session_id, trace_id,
-                    )
-
-                    # Map: analizar cada chunk con el modelo (síncrono en el contexto actual)
-                    # Nota: para archivos muy grandes se puede paralelizar con asyncio.gather
-                    partial_results: list[str] = []
-                    for i, chunk in enumerate(chunks):
-                        partial_prompt = build_partial_prompt(
-                            chunk=chunk,
-                            chunk_index=i,
-                            total_chunks=len(chunks),
-                            filename=attachment_name,
-                            user_question=clean_input,
-                        )
-                        try:
-                            partial_result = await llm_provider.generate_once(
-                                partial_prompt, model_key
-                            )
-                            partial_results.append(partial_result)
-                        except Exception as chunk_err:
-                            logger.warning(
-                                "Chunk %d/%d failed session=%s error=%s",
-                                i + 1, len(chunks), session_id, str(chunk_err),
-                            )
-                            partial_results.append(f"[Fragmento {i+1}: error al procesar]")
-
-                    # Reduce: síntesis final
-                    doc_context = build_synthesis_prompt(
-                        partial_results=partial_results,
-                        user_question=clean_input,
-                        filename=attachment_name,
-                        total_chunks=len(chunks),
+                    # --- Muestreo estático para archivos grandes (Optimización CPU) ---
+                    lines = raw_text.splitlines()
+                    head = "\n".join(lines[:60])  # Extraer cabecera y primeras filas
+                    doc_context = (
+                        f"## DOCUMENTO TABULAR (MUESTRA):\n\n### Archivo: {attachment_name}\n"
+                        f"{head}\n\n"
+                        f"... (El archivo original es muy grande y contiene {len(lines)} líneas en total. "
+                        f"Por restricciones de rendimiento, solo se visualiza esta porción) ..."
                     )
                     logger.info(
-                        "Chunked synthesis ready session=%s total_chunks=%d trace_id=%s",
-                        session_id, len(chunks), trace_id,
+                        "Tabular file chunking bypassed for CPU optimization session=%s",
+                        session_id,
                     )
                 else:
                     # Archivo pequeño: procesar directamente sin chunking
-                    doc_context = (
-                        f"## DOCUMENTO TABULAR COMPLETO:\n\n### Archivo: {attachment_name}\n{raw_text}"
-                    )
+                    doc_context = f"## DOCUMENTO TABULAR COMPLETO:\n\n### Archivo: {attachment_name}\n{raw_text}"
             else:
                 paragraphs = [
-                    p.strip() for p in request.extracted_context.split("\n\n") if p.strip()
+                    p.strip()
+                    for p in request.extracted_context.split("\n\n")
+                    if p.strip()
                 ]
                 query_words = set(clean_input.lower().split())
                 scored = []
@@ -426,7 +432,9 @@ async def process_chat(
                 for score, p in scored[:3]:
                     if score > 0 or not top_chunks:
                         trimmed = p if len(p) <= 1500 else p[:1500] + "..."
-                        top_chunks.append(f"### Fragmento de {attachment_name}:\n{trimmed}")
+                        top_chunks.append(
+                            f"### Fragmento de {attachment_name}:\n{trimmed}"
+                        )
                 if top_chunks:
                     doc_context = (
                         "## DOCUMENTOS RELACIONADOS (FALLBACK RETRIEVED CONTEXT):\n\n"
@@ -479,7 +487,6 @@ async def process_chat(
                     len(doc_context),
                     trace_id,
                 )
-
 
         model_info = MODEL_CONFIG.get(
             model_key,
@@ -631,12 +638,157 @@ async def process_chat(
                         timestamp=datetime.now(UTC),
                     )
 
+                    # If this exchange was routed to the `landing` model, ensure we
+                    # attach a downloadable HTML artifact instead of leaving a long
+                    # HTML blob as plain text in the chat. This improves frontend
+                    # rendering so the file appears as an artifact.
+                    if model_key == "landing":
+                        try:
+                            # Try to extract clean HTML from code blocks or directly from response
+                            import re
+                            html_content = None
+                            
+                            # Match ```html ... ``` or ```xml ... ``` or similar code blocks
+                            code_block_match = re.search(
+                                r"```(?:html|xml|markup)?\s*([\s\S]*?)```",
+                                full_response,
+                                re.IGNORECASE
+                            )
+                            if code_block_match:
+                                candidate = code_block_match.group(1).strip()
+                                if "<html" in candidate.lower() or "<!doctype" in candidate.lower():
+                                    html_content = candidate
+                                    
+                            if not html_content and ("<html" in full_response.lower() or "<!doctype" in full_response.lower()):
+                                # Clean any text before <!DOCTYPE html> or <html
+                                html_match = re.search(
+                                    r"((?:<!DOCTYPE html>|<html[\s>])[\s\S]*)",
+                                    full_response,
+                                    re.IGNORECASE
+                                )
+                                if html_match:
+                                    html_content = html_match.group(1).strip()
+                            
+                            # Fallback if no valid HTML was found in response
+                            if not html_content:
+                                html_content = render_landing_wrapper(
+                                    full_response, title=request.message
+                                )
+
+                            # Replace any source.unsplash.com links with working Unsplash image links
+                            if html_content:
+                                working_images = [
+                                    "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=800&q=80",
+                                    "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=800&q=80",
+                                    "https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&w=800&q=80",
+                                    "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
+                                    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80",
+                                    "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=150&h=150&q=80",
+                                ]
+                                unsplash_matches = re.findall(
+                                    r'https?://source\.unsplash\.com/[^\s"\'>]+',
+                                    html_content
+                                )
+                                # Ensure Tailwind CDN script is present in the head
+                                if "cdn.tailwindcss.com" not in html_content:
+                                    if "</head>" in html_content:
+                                        html_content = html_content.replace(
+                                            "</head>",
+                                            '    <script src="https://cdn.tailwindcss.com"></script>\n</head>'
+                                        )
+                                    elif "<head>" in html_content:
+                                        html_content = html_content.replace(
+                                            "<head>",
+                                            '<head>\n    <script src="https://cdn.tailwindcss.com"></script>'
+                                        )
+
+                                for idx, match_url in enumerate(unsplash_matches):
+                                    html_content = html_content.replace(match_url, working_images[idx % len(working_images)])
+
+                                # Replace any placeholder or non-HTTP image src values (e.g. src="Customer", src="avatar.png", etc.)
+                                src_matches = re.findall(r'src=["\']([^"\']+)["\']', html_content)
+                                avatar_idx = 0
+                                image_idx = 0
+                                for src_val in src_matches:
+                                    src_lower = src_val.lower()
+                                    is_placeholder = any(k in src_lower for k in ["customer", "avatar", "person", "logo", "hero", "image", "placeholder", "img"]) or not src_val.startswith("http")
+                                    if is_placeholder:
+                                        if any(k in src_lower for k in ["customer", "avatar", "person"]):
+                                            replacement = working_images[4 + (avatar_idx % 2)]
+                                            avatar_idx += 1
+                                        else:
+                                            replacement = working_images[image_idx % 4]
+                                            image_idx += 1
+                                        html_content = html_content.replace(f'src="{src_val}"', f'src="{replacement}"')
+                                        html_content = html_content.replace(f"src='{src_val}'", f"src='{replacement}'")
+
+                                # Replace any images.unsplash.com photo IDs with guaranteed working ones
+                                # We match up to the '?' so we can replace the base URL but keep the query parameters if needed, 
+                                # or we just replace the whole thing if it's broken.
+                                unsplash_photo_matches = re.findall(
+                                    r'https?://images\.unsplash\.com/photo-[0-9a-zA-Z_-]+(?:[^"\'\s>]+)?',
+                                    html_content
+                                )
+                                for idx, photo_url in enumerate(unsplash_photo_matches):
+                                    if any(img.split('?')[0] in photo_url for img in working_images):
+                                        continue
+                                    replacement = working_images[idx % len(working_images)]
+                                    html_content = html_content.replace(photo_url, replacement)
+
+                            file_bytes = html_content.encode("utf-8")
+                            filename = f"landing-{int(time.time())}.html"
+                            storage_path = f"ai_files/{session_id}/{filename}"
+                            
+                            public_url = await upload_file_to_supabase(
+                                memory_repo, session_id, filename, file_bytes, "text/html"
+                            )
+                            file_id = None
+                            if public_url:
+                                try:
+                                    file_id = await memory_repo.save_ai_file(
+                                        session_id=session_id,
+                                        user_id=user_id,
+                                        file_type="html",
+                                        storage_path=storage_path,
+                                        file_name=filename,
+                                        metadata={
+                                            "generated_at": datetime.now(UTC).isoformat(),
+                                            "generator": "landing_wrapper",
+                                        },
+                                    )
+                                except Exception as e:
+                                    logger.warning(
+                                        f"Failed to save landing ai_file metadata: {e}"
+                                    )
+
+                            artifact = {
+                                "filename": filename,
+                                "type": "html",
+                                "url": None,
+                                "content": html_content,
+                            }
+                            if file_id:
+                                artifact["url"] = (
+                                    f"/api/documents/ai-file/{file_id}/download"
+                                )
+
+                            if not hasattr(assistant_message, "artifacts"):
+                                assistant_message.artifacts = []
+                            assistant_message.artifacts.append(artifact)
+
+                            # Replace content with a short note so the frontend doesn't render raw HTML
+                            assistant_message.content = "He generado la landing. Descárgala en el archivo adjunto."
+
+                        except Exception as e:
+                            logger.warning(f"Landing artifact creation failed: {e}")
                     if document_request:
                         await _generate_and_attach_document(
                             document_request,
                             assistant_message,
                             session_id,
                             user_id,
+                            memory_repo,
+                            document_manager,
                         )
 
                     messages.append(assistant_message)
@@ -652,12 +804,13 @@ async def process_chat(
                         tokens_in = len(request.message) // 4 if request.message else 0
                         tokens_out = len(full_response) // 4 if full_response else 0
                         from app.services.usage_service import record_usage
+
                         asyncio.create_task(
                             record_usage(
                                 user_id=user_id,
                                 model_name=model_name,
                                 tokens_in=tokens_in,
-                                tokens_out=tokens_out
+                                tokens_out=tokens_out,
                             )
                         )
                     except Exception as usage_err:

@@ -63,11 +63,11 @@ class JsonProcessor(IDocumentProcessor):
                 "is_valid": True,
                 "bytes": len(file_content),
                 "keys": len(json_content) if isinstance(json_content, dict) else 0,
-                "type": "dict"
-                if isinstance(json_content, dict)
-                else "array"
-                if isinstance(json_content, list)
-                else "other",
+                "type": (
+                    "dict"
+                    if isinstance(json_content, dict)
+                    else "array" if isinstance(json_content, list) else "other"
+                ),
             }
         except Exception as e:
             logger.error(f"JSON metadata extraction error: {str(e)}")

@@ -6,12 +6,19 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 import os
-_MODEL_CONCURRENCY = int(os.getenv("OLLAMA_MODEL_CONCURRENCY", "2"))
+
+DEFAULT_HTTP_TIMEOUT = httpx.Timeout(
+    connect=10.0,
+    read=120.0,
+    write=10.0,
+    pool=10.0,
+)
+
+_MODEL_CONCURRENCY = int(os.getenv("OLLAMA_MODEL_CONCURRENCY", "1"))
 _model_semaphores: dict[str, asyncio.Semaphore] = {}
 
 
 def _get_semaphore(model: str) -> asyncio.Semaphore:
-    """Obtiene o crea un semáforo de concurrencia para el modelo dado."""
     if model not in _model_semaphores:
         _model_semaphores[model] = asyncio.Semaphore(_MODEL_CONCURRENCY)
     return _model_semaphores[model]
@@ -74,6 +81,7 @@ class OllamaClient:
             response = await self.client.post(
                 f"{self.base_url}/api/generate",
                 json=payload,
+                timeout=DEFAULT_HTTP_TIMEOUT,
             )
 
         response.raise_for_status()
@@ -87,6 +95,7 @@ class OllamaClient:
         num_ctx: int = None,
         max_tokens: int = None,
         think: bool = None,  # <-- NUEVO
+        extra_options: dict | None = None,
     ) -> str:
         payload = {
             "model": model,
@@ -104,6 +113,8 @@ class OllamaClient:
             options["num_ctx"] = num_ctx
         if max_tokens is not None:
             options["num_predict"] = max_tokens
+        if extra_options:
+            options.update(extra_options)
 
         if options:
             payload["options"] = options
@@ -112,6 +123,7 @@ class OllamaClient:
             response = await self.client.post(
                 f"{self.base_url}/api/chat",
                 json=payload,
+                timeout=DEFAULT_HTTP_TIMEOUT,
             )
 
         response.raise_for_status()
@@ -192,6 +204,7 @@ class OllamaClient:
         num_ctx: int = None,
         max_tokens: int = None,
         think: bool = None,  # <-- NUEVO
+        extra_options: dict | None = None,
         max_retries: int = 3,
     ):
         semaphore = _get_semaphore(model)
@@ -213,6 +226,8 @@ class OllamaClient:
                 options["num_ctx"] = num_ctx
             if max_tokens is not None:
                 options["num_predict"] = max_tokens
+            if extra_options:
+                options.update(extra_options)
 
             if options:
                 payload["options"] = options
@@ -273,28 +288,76 @@ class OllamaClient:
                     raise
                 await asyncio.sleep(2**attempt)
 
-    async def preload_model(self, model: str) -> bool:
+    async def preload_model(self, model: str, max_retries: int = 5) -> bool:
+        # Usar timeout más generoso para precalentamiento (15 min de lectura)
+        warmup_timeout = httpx.Timeout(
+            connect=10.0,
+            read=900.0,  # 15 minutos para precalentamiento
+            write=10.0,
+            pool=10.0,
+        )
 
-        try:
-            payload = {
-                "model": model,
-                "messages": [],
-                "stream": False,
-                "keep_alive": -1,  # Mantener cargado indefinidamente
-            }
-            response = await self.client.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-                timeout=60.0,
-            )
-            response.raise_for_status()
-            logger.info(
-                f"Modelo {model} pre-cargado exitosamente en Ollama (keep_alive=-1)."
-            )
-            return True
-        except Exception as e:
-            logger.error(f"Error al pre-cargar modelo {model}: {e}")
-            return False
+        # Consulta simple para calentar el modelo
+        warmup_prompt = "Responde 'OK'"
+
+        for attempt in range(max_retries):
+            try:
+                logger.info(
+                    f"Precalentando modelo {model} (intento {attempt + 1}/{max_retries})..."
+                )
+
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": "Eres un asistente útil."},
+                        {"role": "user", "content": warmup_prompt},
+                    ],
+                    "stream": False,
+                    "keep_alive": -1,  # Mantener cargado indefinidamente
+                }
+
+                response = await self.client.post(
+                    f"{self.base_url}/api/chat",
+                    json=payload,
+                    timeout=warmup_timeout,
+                )
+                response.raise_for_status()
+
+                result = response.json()
+                if "message" in result and "content" in result["message"]:
+                    content = result["message"]["content"]
+                    logger.info(
+                        f"✓ Modelo {model} precalentado exitosamente en Ollama "
+                        f"(keep_alive=-1, respuesta_chars={len(content)})"
+                    )
+                    return True
+                else:
+                    logger.warning(f"Respuesta inválida del modelo {model}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(2**attempt)
+                        continue
+                    return False
+
+            except asyncio.TimeoutError as e:
+                logger.warning(
+                    f"Timeout precalentando {model} (intento {attempt + 1}/{max_retries}): {e}"
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(5 * (attempt + 1))  # Espera progresiva
+                    continue
+
+            except Exception as e:
+                logger.error(
+                    f"Error precalentando {model} (intento {attempt + 1}/{max_retries}): {e}"
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2**attempt)
+                    continue
+
+        logger.error(
+            f"✗ No se pudo precalentar modelo {model} después de {max_retries} intentos"
+        )
+        return False
 
     async def close(self):
         await self.client.aclose()

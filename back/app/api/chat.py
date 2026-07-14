@@ -253,25 +253,54 @@ async def get_chat_history(
         for artifact in raw_artifacts or []:
             formatted_artifacts.append(
                 {
-                    "id": artifact.get("id")
-                    if isinstance(artifact, dict)
-                    else getattr(artifact, "id", None),
-                    "filename": artifact.get("filename")
-                    if isinstance(artifact, dict)
-                    else getattr(artifact, "filename", "archivo"),
-                    "type": artifact.get("type")
-                    if isinstance(artifact, dict)
-                    else getattr(artifact, "type", "file"),
-                    "content": artifact.get("content")
-                    if isinstance(artifact, dict)
-                    else getattr(artifact, "content", None),
-                    "url": artifact.get("url")
-                    if isinstance(artifact, dict)
-                    else getattr(artifact, "url", None),
+                    "id": (
+                        artifact.get("id")
+                        if isinstance(artifact, dict)
+                        else getattr(artifact, "id", None)
+                    ),
+                    "filename": (
+                        artifact.get("filename")
+                        if isinstance(artifact, dict)
+                        else getattr(artifact, "filename", "archivo")
+                    ),
+                    "type": (
+                        artifact.get("type")
+                        if isinstance(artifact, dict)
+                        else getattr(artifact, "type", "file")
+                    ),
+                    "content": (
+                        artifact.get("content")
+                        if isinstance(artifact, dict)
+                        else getattr(artifact, "content", None)
+                    ),
+                    "url": (
+                        artifact.get("url")
+                        if isinstance(artifact, dict)
+                        else getattr(artifact, "url", None)
+                    ),
                 }
             )
 
         msg_images = msg.get("images", []) if is_dict else getattr(msg, "images", [])
+
+        if not formatted_artifacts and role == "assistant" and isinstance(content, str):
+            content_str = content.strip()
+            if content_str and (
+                "<html" in content_str.lower()
+                or "<!doctype" in content_str.lower()
+                or content_str.startswith("<section")
+                or content_str.startswith("<main")
+                or content_str.startswith("<header")
+            ):
+                formatted_artifacts.append(
+                    {
+                        "id": f"{msg_id}-html-fallback",
+                        "filename": "landing.html",
+                        "type": "html",
+                        "content": content_str,
+                        "url": None,
+                    }
+                )
 
         formatted_messages.append(
             {

@@ -54,6 +54,41 @@ export default function ChatView() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, isLoading, streamingContent]);
 
+  const buildMessageWithArtifacts = (msg: any) => {
+    const content = msg.content || "";
+    const artifacts = msg.artifacts || [];
+
+    const hasHtmlContent =
+      msg.role === "assistant" &&
+      typeof content === "string" &&
+      /<html|<!doctype|<body|<main|<section|<header|<footer|<div|<nav|<article/i.test(
+        content,
+      );
+
+    return {
+      id: msg.id,
+      role: msg.role,
+      content: msg.role === "user" ? normalizeChatContent(content) : content,
+      timestamp: msg.timestamp,
+      attachments: msg.attachments || [],
+      artifacts:
+        artifacts.length > 0
+          ? artifacts
+          : hasHtmlContent
+            ? [
+                {
+                  id: `${msg.id}-html-fallback`,
+                  filename: "landing.html",
+                  type: "html",
+                  content,
+                  url: undefined,
+                },
+              ]
+            : [],
+      images: msg.images || [],
+    };
+  };
+
   useEffect(() => {
     setActiveArtifact(null);
     setArtifactsPanelOpen(false);
@@ -69,17 +104,7 @@ export default function ChatView() {
         .getHistory(currentChatId)
         .then((data) => {
           if (data.messages && Array.isArray(data.messages)) {
-            setMessages(
-              data.messages.map((msg) => ({
-                id: msg.id,
-                role: msg.role,
-                content: normalizeChatContent(msg.content || ""),
-                timestamp: msg.timestamp,
-                attachments: msg.attachments || [],
-                artifacts: msg.artifacts || [],
-                images: msg.images || [],
-              })),
-            );
+            setMessages(data.messages.map(buildMessageWithArtifacts));
           }
         })
         .catch(() => setMessages([]));
@@ -203,15 +228,45 @@ export default function ChatView() {
         !controller.signal.aborted &&
         requestId === activeRequestIdRef.current
       ) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `${Date.now()}-assistant`,
-            role: "assistant",
-            content: fullResponse,
-            timestamp: new Date().toISOString(),
-          },
-        ]);
+        if (sid) {
+          try {
+            const history = await chatApi.getHistory(sid);
+            if (history.messages && Array.isArray(history.messages)) {
+              setMessages(history.messages.map(buildMessageWithArtifacts));
+            } else {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: `${Date.now()}-assistant`,
+                  role: "assistant",
+                  content: fullResponse,
+                  timestamp: new Date().toISOString(),
+                },
+              ]);
+            }
+          } catch (historyError) {
+            console.error("Error loading refreshed history:", historyError);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `${Date.now()}-assistant`,
+                role: "assistant",
+                content: fullResponse,
+                timestamp: new Date().toISOString(),
+              },
+            ]);
+          }
+        } else {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `${Date.now()}-assistant`,
+              role: "assistant",
+              content: fullResponse,
+              timestamp: new Date().toISOString(),
+            },
+          ]);
+        }
       }
     } catch (e) {
       if (!controller.signal.aborted) {
@@ -246,17 +301,7 @@ export default function ChatView() {
           .getHistory(currentChatId)
           .then((data) => {
             if (data.messages && Array.isArray(data.messages)) {
-              setMessages(
-                data.messages.map((msg) => ({
-                  id: msg.id,
-                  role: msg.role,
-                  content: msg.content,
-                  timestamp: msg.timestamp,
-                  attachments: msg.attachments || [],
-                  artifacts: msg.artifacts || [],
-                  images: msg.images || [],
-                })),
-              );
+              setMessages(data.messages.map(buildMessageWithArtifacts));
             }
           })
           .catch(console.error);

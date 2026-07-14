@@ -30,7 +30,6 @@ from app.infra.clients.ollama_client import OllamaClient
 from app.infra.providers.ollama_provider import OllamaProvider
 from app.services.intent_classifier import IntentClassifier
 
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
@@ -39,13 +38,29 @@ logger = logging.getLogger("performance")
 
 
 async def preload_ollama_models():
-    await asyncio.sleep(2)
-    logger.info("Starting background preloading of Ollama models...")
+    await asyncio.sleep(1)  # Pequeño delay para estabilidad
+    logger.info("precalentando modelos de Ollama...")
+
     client = OllamaClient()
+    models_to_preload = ["qwen2.5:7b"]
+
     try:
-        await client.preload_model("qwen3.5:4b")
+        for model in models_to_preload:
+            logger.info(f"\n→ Precalentando {model}...")
+            success = await client.preload_model(model, max_retries=5)
+
+            if success:
+                logger.info(f"✓ {model} está listo para consultas")
+            else:
+                logger.warning(
+                    f"✗ No se pudo precalentar {model}, pero la app continuará. "
+                    f"La primera consulta será lenta."
+                )
+
+        logger.info("\nPrecalentamiento de modelos completado")
+
     except Exception as e:
-        logger.error(f"Error in background model preloading task: {e}")
+        logger.error(f"✗ Error en precalentamiento: {e}", exc_info=True)
     finally:
         await client.close()
 
@@ -108,6 +123,45 @@ app.add_exception_handler(
 )
 
 
+@app.get("/health")
+async def health_check():
+    """Endpoint de salud que valida que Ollama y el modelo están disponibles."""
+    try:
+        client = OllamaClient()
+
+        # Verificar que Ollama responde
+        response = await client.client.get(f"{client.base_url}/api/tags")
+        response.raise_for_status()
+
+        models = response.json().get("models", [])
+        model_names = [m.get("name") for m in models]
+
+        qwen_loaded = any("qwen2.5:7b" in name for name in model_names)
+
+        await client.close()
+
+        return {
+            "status": "healthy",
+            "ollama_available": True,
+            "models_available": model_names,
+            "qwen_loaded": qwen_loaded,
+            "message": (
+                "Sistema listo para consultas"
+                if qwen_loaded
+                else "Modelo cargándose..."
+            ),
+        }
+
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "ollama_available": False,
+            "error": str(e),
+            "message": "Ollama no está disponible",
+        }
+
+
 @app.middleware("http")
 async def measure_requests(request: Request, call_next):
     start_time = time.perf_counter()
@@ -123,15 +177,12 @@ async def measure_requests(request: Request, call_next):
     return response
 
 
+settings_for_cors = get_settings()
+cors_origins_list = [o.strip() for o in settings_for_cors.cors_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:8083",
-        "http://127.0.0.1:8083",
-        "http://localhost:8080",
-        "http://127.0.0.1:8080",
-        "http://10.130.30.40:8080",
-    ],
+    allow_origins=cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

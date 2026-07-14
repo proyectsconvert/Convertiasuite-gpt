@@ -9,39 +9,11 @@ from app.core.model_config import (
     get_model_config,
 )
 
-_GENERIC_CHAT_PATTERNS = [
-    r"^hola[\s\?\!]*$",
-    r"^buenos d[ií]as[\s\?\!]*$",
-    r"^buenas tardes[\s\?\!]*$",
-    r"^buenas noches[\s\?\!]*$",
-    r"^qué tal[\s\?\!]*$",
-    r"^que tal[\s\?\!]*$",
-    r"^cómo estás[\s\?\!]*$",
-    r"^como estas[\s\?\!]*$",
-    r"^quién eres[\s\?\!]*$",
-    r"^quien eres[\s\?\!]*$",
-    r"^qué haces[\s\?\!]*$",
-    r"^que haces[\s\?\!]*$",
-    r"^cómo te llamas[\s\?\!]*$",
-    r"^como te llamas[\s\?\!]*$",
-    r"^tu nombre[\s\?\!]*$",
-    r"^quién soy[\s\?\!]*$",
-    r"^quien soy[\s\?\!]*$",
-    r"^gracias[\s\?\!]*$",
-    r"^muchas gracias[\s\?\!]*$",
-]
+from app.core.keywords_config import GENERIC_CHAT_TERMS, KEYWORDS_LANDING
 
-_LANDING_PHRASES = [
-    "landing page",
-    "landing-page",
-    "sitio web",
-    "maquetación",
-    "diseña una página web",
-    "crea un sitio web",
-    "diseña una landing",
-    "página de destino",
-    "página de aterrizaje",
-]
+_GENERIC_CHAT_PATTERNS = [f"^{re.escape(k)}[\\s\\?\\!]*$" for k in GENERIC_CHAT_TERMS]
+
+_LANDING_PHRASES = KEYWORDS_LANDING
 
 
 def build_routing_context(message: str, history: list | None = None) -> str:
@@ -149,6 +121,29 @@ async def route_model(
         return "medical"
     if any(k in routing_text for k in KEYWORDS_LANDING):
         return "landing"
+
+    # Fallback: Si el mensaje actual es muy corto (ej: "mm", "si", "continua") y no clasifica,
+    # intentamos buscar la intención en el último mensaje del usuario del historial.
+    if len(routing_text) < 15 and history:
+        for item in reversed(history):
+            role = item.get("role") if isinstance(item, dict) else getattr(item, "role", None)
+            content = item.get("content") if isinstance(item, dict) else getattr(item, "content", "")
+            if role == "user" and content:
+                content_clean = _prepare_routing_text(content)
+                if any(k in content_clean for k in KEYWORDS_LANDING):
+                    return "landing"
+                if any(k in content_clean for k in KEYWORDS_VISION):
+                    return "vision"
+                if any(k in content_clean for k in KEYWORDS_ANALYSIS):
+                    return "analysis"
+                if any(k in content_clean for k in KEYWORDS_CODE):
+                    return "code"
+                if any(k in content_clean for k in KEYWORDS_REASONING):
+                    return "reasoning"
+                if any(k in content_clean for k in KEYWORDS_OCR):
+                    return "ocr"
+                if any(k in content_clean for k in KEYWORDS_MEDICAL):
+                    return "medical"
 
     return DEFAULT_MODEL_KEY
 

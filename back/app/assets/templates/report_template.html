@@ -112,37 +112,42 @@
       }
 
       .cover h1 {
-        font-size: 32pt;
+        font-size: 36pt;
         font-weight: 700;
         color: var(--color-primary);
-        line-height: 1.15;
-        margin-bottom: 10pt;
+        line-height: 1.2;
+        margin-bottom: 12pt;
         max-width: 480pt;
+        letter-spacing: -0.5pt;
       }
       
       .cover h1 span.title-highlight {
-        color: var(--color-muted);
+        color: var(--color-accent);
+        font-weight: 700;
       }
 
       .cover-subtitle {
-        font-size: 13pt;
+        font-size: 13.5pt;
         font-weight: 400;
-        color: var(--color-green);
+        color: var(--color-body);
         margin-bottom: 60pt;
+        line-height: 1.6;
       }
 
       .cover-meta {
         margin-top: auto;
-        border-top: 1px solid rgba(255, 255, 255, 0.12);
-        padding-top: 14pt;
+        border-top: 1.5pt solid var(--color-accent);
+        padding-top: 16pt;
       }
       .cover-meta p {
-        font-size: 9pt;
-        color: rgba(19, 59, 51, 0.726);
-        margin-bottom: 3pt;
+        font-size: 9.5pt;
+        color: var(--color-body);
+        margin-bottom: 4pt;
+        line-height: 1.6;
       }
       .cover-meta strong {
         color: var(--color-primary);
+        font-weight: 700;
       }
 
       .content {
@@ -161,35 +166,39 @@
       }
 
       h1 {
-        font-size: 20pt;
+        font-size: 22pt;
         font-weight: 700;
         color: var(--color-primary);
-        margin: 22pt 0 10pt;
+        margin: 24pt 0 12pt;
         page-break-after: avoid;
+        letter-spacing: -0.3pt;
       }
 
       h2 {
         font-size: 15pt;
-        font-weight: 600;
+        font-weight: 700;
         color: var(--color-green);
-        margin: 18pt 0 8pt;
+        margin: 18pt 0 10pt;
         page-break-after: avoid;
-        border-left: 3pt solid var(--color-accent);
-        padding-left: 10pt;
+        border-left: 4pt solid var(--color-accent);
+        padding-left: 12pt;
+        letter-spacing: -0.2pt;
       }
 
       h3 {
         font-size: 12pt;
-        font-weight: 600;
-        color: var(--color-body);
-        margin: 14pt 0 6pt;
+        font-weight: 700;
+        color: var(--color-primary);
+        margin: 14pt 0 8pt;
         page-break-after: avoid;
+        letter-spacing: -0.1pt;
       }
 
       p {
-        margin-bottom: 7pt;
+        margin-bottom: 8pt;
         text-align: justify;
-        color: var(--color-primary);
+        color: var(--color-body);
+        line-height: 1.7;
       }
 
       ul,
@@ -224,37 +233,41 @@
       }
 
       .table-wrapper {
-        margin: 14pt 0 18pt;
-        border-radius: 4pt;
+        margin: 16pt 0 20pt;
+        border-radius: 6pt;
         overflow: hidden;
+        box-shadow: 0 1pt 3pt rgba(0, 0, 0, 0.08);
+        border: 0.5pt solid var(--color-border);
       }
 
       .table-caption {
-        font-size: 9pt;
-        font-weight: 600;
-        color: var(--color-muted);
-        margin-bottom: 5pt;
+        font-size: 9.5pt;
+        font-weight: 700;
+        color: var(--color-green);
+        margin-bottom: 8pt;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.05em;
       }
 
       table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 9pt;
+        font-size: 9.5pt;
+        background: var(--color-white);
       }
 
       thead th {
         background: var(--color-primary);
         color: var(--color-white);
-        font-weight: 600;
-        padding: 7pt 9pt;
+        font-weight: 700;
+        padding: 10pt 12pt;
         text-align: left;
         border: none;
+        letter-spacing: 0.03em;
       }
 
       tbody tr:nth-child(even) {
-        background: var(--color-bg-lite);
+        background: #f9f9f9;
       }
 
       tbody tr:nth-child(odd) {
@@ -262,32 +275,45 @@
       }
 
       tbody tr.row-highlight {
-        background-color: #E6FFFA !important;
+        background-color: rgba(26, 235, 159, 0.12) !important;
         color: var(--color-green);
-        font-weight: bold;
+        font-weight: 600;
       }
       tbody tr.row-highlight td {
         color: var(--color-green);
-        font-weight: bold;
+        font-weight: 600;
+        border-bottom: 1pt solid var(--color-accent);
       }
 
       tbody td {
-        padding: 5pt 9pt;
+        padding: 8pt 12pt;
+        border-bottom: 0.5pt solid rgba(219, 223, 252, 0.6);
+        vertical-align: middle;
+        color: var(--color-body);
+      }
+
+      tbody tr:last-child td {
         border-bottom: 0.5pt solid var(--color-border);
-        vertical-align: top;
       }
 
       /* ── Separador visual ────────────────────────────────────────────────── */
       hr.accent {
         border: none;
-        height: 2pt;
-        background: linear-gradient(
-          90deg,
-          var(--color-accent) 0%,
-          var(--color-lavender) 100%
-        );
-        margin: 16pt 0;
-        border-radius: 2pt;
+        height: 1.5pt;
+        background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-lavender) 50%, transparent 100%);
+        margin: 20pt 0 18pt;
+        border-radius: 1pt;
+      }
+
+      /* ── Espaciado y márgenes ────────────────────────────────────────────── */
+      .content > * + h1,
+      .content > * + h2 {
+        margin-top: 26pt;
+      }
+
+      /* ── Mejora de legibilidad ────────────────────────────────────────────── */
+      .content {
+        line-height: 1.75;
       }
     </style>
   </head>

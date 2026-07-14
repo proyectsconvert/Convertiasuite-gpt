@@ -9,7 +9,9 @@ logger = logging.getLogger(__name__)
 
 
 class UploadService:
-    def __init__(self, document_manager: DocumentManager, attachment_repo: IAttachmentRepository):
+    def __init__(
+        self, document_manager: DocumentManager, attachment_repo: IAttachmentRepository
+    ):
         self.document_manager = document_manager
         self.attachment_repo = attachment_repo
 
@@ -20,16 +22,23 @@ class UploadService:
         user_id: str,
     ) -> dict:
         filename_lower = file.filename.lower()
-        is_image = filename_lower.endswith((".png", ".jpg", ".jpeg", ".webp")) or (file.content_type and file.content_type.startswith("image/"))
+        is_image = filename_lower.endswith((".png", ".jpg", ".jpeg", ".webp")) or (
+            file.content_type and file.content_type.startswith("image/")
+        )
 
         try:
             contents = await file.read()
             if is_image:
                 import base64
+
                 extracted_text = base64.b64encode(contents).decode("utf-8")
                 attachment_type = "image"
             else:
-                processor = self.document_manager.processor_factory.get_processor_by_extension(file.filename)
+                processor = (
+                    self.document_manager.processor_factory.get_processor_by_extension(
+                        file.filename
+                    )
+                )
                 if not processor:
                     raise HTTPException(
                         status_code=400,
@@ -38,7 +47,11 @@ class UploadService:
                 parsed_content = await processor.parse(contents, file.filename)
                 extracted_text = parsed_content.text
 
-                ext = file.filename.rsplit(".", 1)[1].lower() if "." in file.filename else ""
+                ext = (
+                    file.filename.rsplit(".", 1)[1].lower()
+                    if "." in file.filename
+                    else ""
+                )
                 if ext in ("docx", "doc"):
                     attachment_type = "word"
                 elif ext in ("xlsx", "xls"):
@@ -71,7 +84,9 @@ class UploadService:
                 if len(extracted_text) > max_characters:
                     logger.warning(
                         "Documento '%s' truncado de %d a %d chars.",
-                        file.filename, len(extracted_text), max_characters,
+                        file.filename,
+                        len(extracted_text),
+                        max_characters,
                     )
                     truncated_text += "\n[... Documento extenso: solo se procesaron los primeros fragmentos. ...]"
 

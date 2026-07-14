@@ -1,4 +1,7 @@
 import logging
+import jwt
+from jwt import InvalidTokenError
+from app.core.config import get_settings
 from app.infra.clients.supabase_client import SupabaseClient
 
 logger = logging.getLogger(__name__)
@@ -28,28 +31,96 @@ class AuthService:
             return None
 
     def decode_token(self, token: str) -> dict | None:
-
         try:
-            response = self.supabase.auth.get_user(token)
+            secret = get_settings().supabase_jwt_secret
+            if not secret:
+                logger.warning(
+                    "SUPABASE_JWT_SECRET no configurada, usando validacion por red."
+                )
+                response = self.supabase.auth.get_user(token)
+                if not response or not response.user:
+                    return None
+                user = response.user
+                user_metadata = user.user_metadata or {}
+                return {
+                    "sub": user.id,
+                    "email": user.email,
+                    "role": self._resolve_role(user),
+                    "name": user_metadata.get("full_name")
+                    or user_metadata.get("name")
+                    or user.email,
+                    "area": user_metadata.get("area"),
+                    "functional_role": user_metadata.get("functional_role"),
+                }
 
-            if not response or not response.user:
-                return None
+            # Validacion Local (0ms network latency)
+            try:
+                payload = jwt.decode(
+                    token,
+                    secret,
+                    algorithms=["HS256"],
+                    audience="authenticated",
+                    leeway=120,  # Tolerancia de 120s por desincronizacion de reloj entre Docker y Supabase
+                )
+            except jwt.ImmatureSignatureError as e:
+                logger.warning(
+                    "Token not yet valid; revalidating with Supabase to avoid 401 due to clock skew: %s",
+                    e,
+                )
+                response = self.supabase.auth.get_user(token)
+                if not response or not response.user:
+                    return None
+                user = response.user
+                user_metadata = user.user_metadata or {}
+                return {
+                    "sub": user.id,
+                    "email": user.email,
+                    "role": self._resolve_role(user),
+                    "name": user_metadata.get("full_name")
+                    or user_metadata.get("name")
+                    or user.email,
+                    "area": user_metadata.get("area"),
+                    "functional_role": user_metadata.get("functional_role"),
+                }
+            except InvalidTokenError as e:
+                logger.warning(
+                    "Local JWT validation failed, falling back to Supabase remote validation: %s",
+                    e,
+                )
+                response = self.supabase.auth.get_user(token)
+                if not response or not response.user:
+                    return None
+                user = response.user
+                user_metadata = user.user_metadata or {}
+                return {
+                    "sub": user.id,
+                    "email": user.email,
+                    "role": self._resolve_role(user),
+                    "name": user_metadata.get("full_name")
+                    or user_metadata.get("name")
+                    or user.email,
+                    "area": user_metadata.get("area"),
+                    "functional_role": user_metadata.get("functional_role"),
+                }
 
-            user = response.user
+            user_metadata = payload.get("user_metadata", {})
+            app_metadata = payload.get("app_metadata", {})
 
-            user_metadata = user.user_metadata or {}
             return {
-                "sub": user.id,
-                "email": user.email,
-                "role": self._resolve_role(user),
-                "name": user_metadata.get("full_name") or user_metadata.get("name") or user.email,
+                "sub": payload.get("sub"),
+                "email": payload.get("email"),
+                "role": app_metadata.get("role")
+                or payload.get("role")
+                or "authenticated",
+                "name": user_metadata.get("full_name")
+                or user_metadata.get("name")
+                or payload.get("email"),
                 "area": user_metadata.get("area"),
                 "functional_role": user_metadata.get("functional_role"),
             }
-
         except Exception as e:
             logger.warning(
-                "Supabase token validation failed type=%s error=%s",
+                "Validacion de token fallida (local o remota) type=%s error=%s",
                 type(e).__name__,
                 e,
             )
@@ -89,6 +160,7 @@ class AuthService:
     def sync_user_profile_to_db(self, user) -> None:
         try:
             from app.infra.clients.supabase_client import SupabaseClient
+
             admin_client = SupabaseClient().admin
 
             user_id = user.id
@@ -108,33 +180,47 @@ class AuthService:
             # 2. Resolve department_id
             dep_id = None
             if area:
-                dep_res = admin_client.table("departments").select("department_id").eq("department_name", area).execute()
+                dep_res = (
+                    admin_client.table("departments")
+                    .select("department_id")
+                    .eq("department_name", area)
+                    .execute()
+                )
                 if dep_res.data:
                     dep_id = dep_res.data[0]["department_id"]
                 else:
-                    dep_insert = admin_client.table("departments").insert({"department_name": area}).execute()
+                    dep_insert = (
+                        admin_client.table("departments")
+                        .insert({"department_name": area})
+                        .execute()
+                    )
                     if dep_insert.data:
                         dep_id = dep_insert.data[0]["department_id"]
 
             # 3. Resolve position_id
             pos_id = None
             if functional_role:
-                pos_res = admin_client.table("positions").select("position_id").eq("position_name", functional_role).execute()
+                pos_res = (
+                    admin_client.table("positions")
+                    .select("position_id")
+                    .eq("position_name", functional_role)
+                    .execute()
+                )
                 if pos_res.data:
                     pos_id = pos_res.data[0]["position_id"]
                 else:
-                    pos_insert = admin_client.table("positions").insert({
-                        "position_name": functional_role,
-                        "department_id": dep_id
-                    }).execute()
+                    pos_insert = (
+                        admin_client.table("positions")
+                        .insert(
+                            {"position_name": functional_role, "department_id": dep_id}
+                        )
+                        .execute()
+                    )
                     if pos_insert.data:
                         pos_id = pos_insert.data[0]["position_id"]
 
             # 4. Upsert employee_profiles
-            emp_data = {
-                "user_id": user_id,
-                "work_email": email
-            }
+            emp_data = {"user_id": user_id, "work_email": email}
             if dep_id is not None:
                 emp_data["department_id"] = dep_id
             if pos_id is not None:
@@ -143,7 +229,10 @@ class AuthService:
             admin_client.table("employee_profiles").upsert(emp_data).execute()
             logger.info(f"Successfully synced user profile to database for: {email}")
         except Exception as e:
-            logger.error(f"Error in sync_user_profile_to_db for user {user.id}: {e}", exc_info=True)
+            logger.error(
+                f"Error in sync_user_profile_to_db for user {user.id}: {e}",
+                exc_info=True,
+            )
 
     async def update_profile(
         self,
@@ -203,7 +292,6 @@ class AuthService:
                 f"Error updating user profile user_id={user_id} error={type(e).__name__}: {e}"
             )
             return None
-
 
     async def change_password(
         self,

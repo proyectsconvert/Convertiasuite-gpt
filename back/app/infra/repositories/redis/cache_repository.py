@@ -217,7 +217,6 @@ class RedisCacheRepository(
         key = f"stream:{session_id}:stopped"
         await self.redis.delete(key)
 
-    # ai generated files operations
     async def save_ai_file(
         self,
         session_id: str,
@@ -260,9 +259,7 @@ class RedisCacheRepository(
         self,
         file_id: str,
     ) -> dict | None:
-        """Retrieve an AI-generated file by ID from Redis."""
-        # Search through all sessions to find the file
-        # Pattern: chat:{session_id}:ai_files:{file_id}
+       
         cursor = 0
         while True:
             cursor, keys = await self.redis.scan(
@@ -274,9 +271,9 @@ class RedisCacheRepository(
                     if data and b"deleted_at" not in data:
                         # Convert bytes to strings
                         return {
-                            k.decode() if isinstance(k, bytes) else k: v.decode()
-                            if isinstance(v, bytes)
-                            else v
+                            k.decode() if isinstance(k, bytes) else k: (
+                                v.decode() if isinstance(v, bytes) else v
+                            )
                             for k, v in data.items()
                         }
             if cursor == 0:
@@ -287,9 +284,7 @@ class RedisCacheRepository(
         self,
         file_id: str,
         user_id: str,
-    ) -> bool:
-        """Soft delete an AI-generated file by marking it with a deleted_at timestamp."""
-        # Search through all sessions to find and soft delete the file
+    ) -> bool:  
         cursor = 0
         found = False
         while True:

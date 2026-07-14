@@ -3,13 +3,6 @@ from typing import List, Optional
 
 
 class IDocumentRepository(ABC):
-    """Interface for document storage and retrieval.
-
-    Responsibilities:
-    - Persist a document record linked to a chat session.
-    - Store document chunks for later similarity search.
-    - Retrieve relevant chunks based on a query.
-    """
 
     @abstractmethod
     async def save_document(
@@ -29,9 +22,6 @@ class IDocumentRepository(ABC):
         document_id: str,
         chunks: List[dict],
     ) -> None:
-        """Persist a list of chunk dictionaries.
-        Each chunk dict should contain at least ``content`` and optional metadata.
-        """
         raise NotImplementedError
 
     @abstractmethod
@@ -41,10 +31,8 @@ class IDocumentRepository(ABC):
         query: str,
         limit: int = 5,
     ) -> List[dict]:
-        """Return the most relevant chunks for a query within a session.
-        The return format is a list of dicts with ``content`` and any extra metadata.
-        """
         raise NotImplementedError
+
 
 from typing import Optional
 from uuid import UUID

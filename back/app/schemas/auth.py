@@ -21,3 +21,9 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int
     user: UserInfo
+
+
+class ProfileUpdateRequest(BaseModel):
+    name: str | None = None
+    area: str | None = None
+    functional_role: str | None = None

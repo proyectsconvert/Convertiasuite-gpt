@@ -125,9 +125,12 @@ class DocumentManager:
             relevant_chunks = []
             for score, filename, chunk, is_tab in scored_chunks[:limit_chunks]:
                 if score > 0 or not relevant_chunks:
-                    max_len = 45000 if is_tab else 1500
+                    max_len = 2500 if is_tab else 1500
                     trimmed_chunk = (
-                        chunk if len(chunk) <= max_len else chunk[:max_len] + "..."
+                        chunk
+                        if len(chunk) <= max_len
+                        else chunk[:max_len]
+                        + "...\n(Contenido truncado por optimización de rendimiento)"
                     )
                     relevant_chunks.append(f"### Archivo: {filename}\n{trimmed_chunk}")
 

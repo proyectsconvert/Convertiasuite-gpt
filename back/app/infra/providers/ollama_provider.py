@@ -3,6 +3,7 @@ from app.core.model_config import get_model_config
 from app.services.prompts.prompt_templates import build_messages
 from app.domain.entities.message import Message
 from datetime import datetime, UTC
+from typing import AsyncGenerator
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,7 +14,9 @@ class OllamaProvider(ILlmProvider):
         self.client = ollama_client
         self.models = None
 
-    async def generate(self, messages: list, model_key: str) -> str:
+    async def generate(
+        self, messages: list, model_key: str
+    ) -> AsyncGenerator[str, None]:
         models = get_model_config()
         model_info = models.get(model_key, models["default"])
 
@@ -28,25 +31,25 @@ class OllamaProvider(ILlmProvider):
             chat_messages.append(msg)
 
         logger.info(
-            "OllamaProvider sending model=%s for model_key=%s (chat non-stream)",
+            "OllamaProvider sending model=%s for model_key=%s (chat stream)",
             model_info.get("model"),
             model_key,
         )
 
-        return await self.client.generate_chat(
+        # Emitir streaming de la respuesta para mejorar latencia percibida
+        async for chunk in self.client.generate_chat_stream(
             messages=chat_messages,
             model=model_info["model"],
             temperature=model_info.get("temperature"),
             num_ctx=model_info.get("num_ctx"),
             max_tokens=model_info.get("max_tokens"),
-            think=model_info.get("think", False),  # <-- NUEVO
-        )
+            think=model_info.get("think", False),
+        ):
+            yield chunk
 
-    async def generate_once(self, prompt: str, model_key: str) -> str:
-        """
-        Inferencia de un único turno con un prompt raw (sin historial de chat).
-        Usado por el pipeline de chunking Map-Reduce para procesar cada fragmento.
-        """
+    async def generate_once(
+        self, prompt: str, model_key: str
+    ) -> AsyncGenerator[str, None]:
         models = get_model_config()
         model_info = models.get(model_key, models["default"])
 
@@ -68,14 +71,16 @@ class OllamaProvider(ILlmProvider):
             len(prompt),
         )
 
-        return await self.client.generate_chat(
+        # For generate_once we also stream the response
+        async for chunk in self.client.generate_chat_stream(
             messages=chat_messages,
             model=model_info["model"],
             temperature=model_info.get("temperature"),
             num_ctx=model_info.get("num_ctx"),
             max_tokens=model_info.get("max_tokens"),
-            think=model_info.get("think", False),  # <-- NUEVO
-        )
+            think=model_info.get("think", False),
+        ):
+            yield chunk
 
     async def generate_stream(self, messages: list, model_key: str):
         models = get_model_config()

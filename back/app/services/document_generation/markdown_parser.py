@@ -1,8 +1,8 @@
-
 from __future__ import annotations
 import re
 from typing import List
 from app.domain.entities.document_content import DocumentContent, Section, TableData
+
 
 class MarkdownToDocumentContentParser:
 
@@ -43,24 +43,39 @@ class MarkdownToDocumentContentParser:
                 continue
 
             if stripped.startswith("### "):
-                cls._flush_section(sections, current_title, current_level,
-                                   current_content, current_bullets)
+                cls._flush_section(
+                    sections,
+                    current_title,
+                    current_level,
+                    current_content,
+                    current_bullets,
+                )
                 current_title = cls._clean_md(stripped[4:])
                 current_level = 3
                 current_content = []
                 current_bullets = []
 
             elif stripped.startswith("## "):
-                cls._flush_section(sections, current_title, current_level,
-                                   current_content, current_bullets)
+                cls._flush_section(
+                    sections,
+                    current_title,
+                    current_level,
+                    current_content,
+                    current_bullets,
+                )
                 current_title = cls._clean_md(stripped[3:])
                 current_level = 2
                 current_content = []
                 current_bullets = []
 
             elif stripped.startswith("# "):
-                cls._flush_section(sections, current_title, current_level,
-                                   current_content, current_bullets)
+                cls._flush_section(
+                    sections,
+                    current_title,
+                    current_level,
+                    current_content,
+                    current_bullets,
+                )
                 current_title = cls._clean_md(stripped[2:])
                 current_level = 1
                 current_content = []
@@ -71,7 +86,7 @@ class MarkdownToDocumentContentParser:
 
             elif stripped and stripped[0].isdigit() and ". " in stripped[:5]:
                 dot = stripped.index(". ")
-                current_bullets.append(cls._clean_md(stripped[dot + 2:]))
+                current_bullets.append(cls._clean_md(stripped[dot + 2 :]))
 
             elif stripped:
                 current_content.append(cls._clean_md(stripped))
@@ -79,8 +94,9 @@ class MarkdownToDocumentContentParser:
             i += 1
 
         # Volcar la última sección
-        cls._flush_section(sections, current_title, current_level,
-                           current_content, current_bullets)
+        cls._flush_section(
+            sections, current_title, current_level, current_content, current_bullets
+        )
 
         return DocumentContent(
             title=title,
@@ -153,30 +169,47 @@ class MarkdownToDocumentContentParser:
 
     @staticmethod
     def _clean_conversational_noise(content: str) -> str:
+        if not content or not content.strip():
+            return content
+
         lines = content.split("\n")
-        patterns = [
+
+        # Patrones de líneas que son pura conversación (no contenido de documento)
+        conversational_patterns = [
             r"(?i)a\s+continuación,?\s+presento",
             r"(?i)dado\s+que\s+ha\s+solicitado",
-            r"(?i)puede\s+descargar(lo)?\s+utilizando",
-            r"(?i)descargar\s+este\s+reporte",
-            r"(?i)botones\s+de\s+\"?pdf\"?\s+o\s+\"?word\"?",
-            r"(?i)he\s+redactado\s+el\s+contenido",
-            r"(?i)aquí\s+tiene\s+el\s+reporte",
-            r"(?i)espero\s+que\s+este\s+reporte",
-            r"(?i)al\s+final\s+de\s+esta\s+respuesta",
+            r"(?i)puede\s+descargar",
+            r"(?i)he\s+redactado",
+            r"(?i)aquí\s+tiene",
+            r"(?i)espero\s+que",
             r"(?i)utilizando\s+los\s+botones",
+            r"(?i)si\s+necesitas\s+más\s+detalles",
+            r"(?i)si\s+deseas\s+más",
+            r"(?i)¿te\s+gustaría",
+            r"(?i)puedo\s+ayudarte",
+            r"(?i)avísame\s+si",
         ]
-        filtered = [
-            ln for ln in lines
-            if not any(re.search(p, ln.strip()) for p in patterns)
-        ]
-        start = next(
-            (i for i, ln in enumerate(filtered) if ln.strip() not in ["*", "**", "", "-", "_"]),
-            0,
-        )
-        end = next(
-            (i for i in range(len(filtered), 0, -1)
-             if filtered[i - 1].strip() not in ["*", "**", "", "-", "_"]),
-            len(filtered),
-        )
-        return "\n".join(filtered[start:end])
+
+        # Filtrar líneas conversacionales
+        filtered = []
+        for ln in lines:
+            stripped = ln.strip()
+            # Mantener líneas vacías para estructura
+            if not stripped:
+                filtered.append(ln)
+                continue
+            # Eliminar líneas que son pura conversación
+            if any(re.search(p, stripped) for p in conversational_patterns):
+                continue
+            # Eliminar líneas que son solo símbolos
+            if re.match(r"^[\s•\-_*]+$", stripped):
+                continue
+            filtered.append(ln)
+
+        # Reconstruir
+        result = "\n".join(filtered)
+
+        # Limpiar espacios múltiples
+        result = re.sub(r"\n{3,}", "\n\n", result)
+
+        return result.strip()

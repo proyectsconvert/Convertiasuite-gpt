@@ -24,6 +24,7 @@ import {
   isReasoningOnlyMessage,
   normalizeChatContent,
   removeSystemExportJsonBlocks,
+  extractDocumentContent,
 } from "@/lib/artifact-utils";
 
 interface MessageBubbleProps {
@@ -48,7 +49,6 @@ const getCodeText = (children: any): string => {
     return "";
   }
 };
-
 
 function extractTableData(children: any): string[][] {
   const rows: string[][] = [];
@@ -115,8 +115,12 @@ export default function MessageBubble({
   const renderedMessageContent = filterReasoningFromMessage(content);
   const containsFencedHtmlArtifact =
     /```(?:html|markup|xml)\s*[\s\S]*?```/i.test(renderedMessageContent);
-  const directHtmlArtifacts = extractArtifactsFromMessage(message).filter(
+  const allMessageArtifacts = extractArtifactsFromMessage(message);
+  const directHtmlArtifacts = allMessageArtifacts.filter(
     (artifact) => artifact.type === "html",
+  );
+  const documentArtifacts = allMessageArtifacts.filter(
+    (artifact) => artifact.type === "document",
   );
   const previewArtifact = directHtmlArtifacts[0];
 
@@ -184,7 +188,7 @@ export default function MessageBubble({
   const handleDownload = useCallback(
     async (format: string, filename: string, content: any) => {
       try {
-        const cleanedContent = removeSystemExportJsonBlocks(content ?? "");
+        const cleanedContent = extractDocumentContent(content ?? "");
         const blob = await documentsApi.generateFile(
           filename,
           format,
@@ -199,7 +203,7 @@ export default function MessageBubble({
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-        
+
         // Disparar evento para que la vista principal recargue los mensajes/artefactos
         window.dispatchEvent(new CustomEvent("refresh-chat"));
       } catch (error) {
@@ -279,9 +283,7 @@ export default function MessageBubble({
           {isUser ? "Tú" : "OlivIA"}
         </div>
 
-        <div
-          className={`w-full ${isUser ? "flex justify-end" : ""}`}
-        >
+        <div className={`w-full ${isUser ? "flex justify-end" : ""}`}>
           {isUser ? (
             <div className="inline-flex w-fit max-w-[70ch] min-w-0 rounded-2xl rounded-tr-md bg-secondary/70 px-4 py-3 text-[15px] leading-relaxed text-foreground text-left break-words whitespace-pre-wrap break-normal">
               {attachment && (
@@ -357,13 +359,61 @@ export default function MessageBubble({
               ) : null}
 
               {!isStreaming &&
-              (showPdfButton || showWordButton || showPptButton) ? (
+              (showPdfButton ||
+                showWordButton ||
+                showPptButton ||
+                documentArtifacts.length > 0) ? (
                 <div className="flex flex-col gap-3 my-3">
                   <p className="text-[15px] leading-relaxed text-foreground">
                     {getSuccessMessage()}
                   </p>
 
-                  {/* Botón de PDF */}
+                  {documentArtifacts.length > 0 &&
+                    documentArtifacts.map((artifact) => (
+                      <div
+                        key={artifact.id}
+                        className="flex items-center justify-between p-4 rounded-xl border border-border bg-card hover:bg-secondary/20 transition-all shadow-sm"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <FileText className="w-6 h-6" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-foreground truncate max-w-[200px] sm:max-w-xs">
+                              {artifact.filename}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Documento adjunto generado por OlivIA
+                            </div>
+                            <div className="text-[11px] text-primary font-semibold">
+                              {artifact.fileType?.toUpperCase() || "FILE"}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (artifact.downloadUrl) {
+                              const a = document.createElement("a");
+                              a.href = artifact.downloadUrl;
+                              a.download =
+                                artifact.filename ||
+                                `documento.${artifact.fileType || "file"}`;
+                              a.click();
+                            } else {
+                              console.warn(
+                                "Artifact sin URL de descarga:",
+                                artifact,
+                              );
+                            }
+                          }}
+                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
+                          title={`Descargar ${artifact.filename}`}
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+
                   {showPdfButton && (
                     <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-card hover:bg-secondary/20 transition-all shadow-sm">
                       <div className="flex items-center gap-3">
@@ -402,7 +452,6 @@ export default function MessageBubble({
                     </div>
                   )}
 
-                  {/* Botón de Word */}
                   {showWordButton && (
                     <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-card hover:bg-secondary/20 transition-all shadow-sm">
                       <div className="flex items-center gap-3">

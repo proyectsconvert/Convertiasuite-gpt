@@ -50,19 +50,32 @@ export function extractArtifactsFromMessage(
   // Extraer documentos del campo artifacts (generados por el backend)
   if (message.artifacts && message.artifacts.length > 0) {
     message.artifacts.forEach((artifact, index) => {
-      const fileType = (artifact.type as ChatArtifact["fileType"]) || "file";
+      if (artifact.type === "html") {
+        artifacts.push({
+          id: `${message.id}-artifact-${index}`,
+          messageId: message.id,
+          title: artifact.filename || "Interfaz Web Generada",
+          type: "html",
+          language: "html",
+          content: artifact.content || "",
+          downloadUrl: artifact.url,
+          timestamp: message.timestamp,
+        });
+      } else {
+        const fileType = (artifact.type as ChatArtifact["fileType"]) || "file";
 
-      artifacts.push({
-        id: `${message.id}-artifact-${index}`,
-        messageId: message.id,
-        title: artifact.filename,
-        type: "document",
-        filename: artifact.filename,
-        fileType,
-        content: artifact.content || "",
-        downloadUrl: artifact.url,
-        timestamp: message.timestamp,
-      });
+        artifacts.push({
+          id: `${message.id}-artifact-${index}`,
+          messageId: message.id,
+          title: artifact.filename,
+          type: "document",
+          filename: artifact.filename,
+          fileType,
+          content: artifact.content || "",
+          downloadUrl: artifact.url,
+          timestamp: message.timestamp,
+        });
+      }
     });
   }
 
@@ -220,5 +233,56 @@ export function removeSystemExportJsonBlocks(content: string): string {
   );
 
   return cleaned.trim();
+}
+
+/**
+ * Extrae solo la parte del documento eliminando charla conversacional inicial
+ */
+export function extractDocumentContent(content: string): string {
+  if (!content) return content;
+
+  // Primero remover bloques de sistema
+  let cleaned = removeSystemExportJsonBlocks(content);
+
+  // Patrones de conversación a eliminar
+  const conversationalPatterns = [
+    /¿te gustaría/gi,
+    /¿necesitas/gi,
+    /avísame si/gi,
+    /si tienes/gi,
+    /si requieres/gi,
+    /si necesitas más detalles/gi,
+    /si deseas/gi,
+    /puedo ayudarte/gi,
+    /aquí tienes/gi,
+    /espero que/gi,
+    /te proporciono/gi,
+  ];
+
+  // Eliminar líneas que son pura conversación
+  let lines = cleaned.split('\n').filter(line => {
+    const stripped = line.trim();
+    if (!stripped) return true;
+    // Líneas solo con símbolos: eliminar
+    if (/^[\s•\-_*]+$/.test(stripped)) return false;
+    // Líneas con conversación específica: eliminar
+    return !conversationalPatterns.some(pattern => pattern.test(stripped));
+  });
+
+  // Convertir viñetas a texto normal
+  lines = lines.map(line => {
+    let stripped = line.trim();
+    if (stripped.startsWith("• ")) return stripped.substring(2).trim();
+    if (stripped.startsWith("- ") && !stripped.match(/^-{3,}/)) return stripped.substring(2).trim();
+    if (stripped.startsWith("* ") && !stripped.startsWith("**")) return stripped.substring(2).trim();
+    return line;
+  });
+
+  let result = lines.join('\n').trim();
+
+  // Limpiar espacios excesivos
+  result = result.replace(/\n{3,}/g, '\n\n');
+
+  return result;
 }
 

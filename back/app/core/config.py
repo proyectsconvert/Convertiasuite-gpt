@@ -3,25 +3,23 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    
+
     secret_key: str
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
-    
+
     # External Services
     ollama_base_url: str
     redis_url: str
     supabase_url: str = ""
-    supabase_key: str = ""  
-    supabase_service_key: str = ""  
+    supabase_key: str = ""
+    supabase_service_key: str = ""
     database_url: str = ""
     supabase_jwt_secret: str = ""
+    cors_origins: str = "http://localhost:8083,http://127.0.0.1:8083,http://localhost:8080,http://127.0.0.1:8080,http://10.130.30.40:8080"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore"
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
 
 

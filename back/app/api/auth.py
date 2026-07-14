@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, status, Depends
 from app.schemas.auth import (
     LoginRequest,
     TokenResponse,
+    ProfileUpdateRequest,
 )
 from app.security.rate_limiting import limiter
 from app.services.auth_service import AuthService
@@ -78,7 +79,7 @@ async def login(
 )
 async def update_profile(
     request: Request,
-    body: dict,
+    body: ProfileUpdateRequest,
     current_user: dict = Depends(get_current_user),
 ):
     try:
@@ -91,9 +92,9 @@ async def update_profile(
 
         result = await auth_service.update_profile(
             user_id=user_id,
-            name=body.get("name"),
-            area=body.get("area"),
-            functional_role=body.get("functional_role"),
+            name=body.name,
+            area=body.area,
+            functional_role=body.functional_role,
         )
 
         if not result:
@@ -168,8 +169,6 @@ async def change_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor",
         )
-
- 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(request: Request):
     auth_header = request.headers.get("Authorization")
@@ -204,9 +203,7 @@ async def refresh_token(request: Request):
         user={
             "id": user.id,
             "name": (
-                user_metadata.get("full_name")
-                or user_metadata.get("name")
-                or "Usuario"
+                user_metadata.get("full_name") or user_metadata.get("name") or "Usuario"
             ),
             "email": user.email,
             "role": app_metadata.get("role", "authenticated"),

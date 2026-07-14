@@ -426,10 +426,28 @@ export default function ArtifactsPanel() {
                     <div className="flex-1 overflow-auto bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.08),_transparent_55%)] p-2 sm:p-3">
                       <div className="mx-auto h-full min-h-[560px] overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-inner">
                         <iframe
-                          srcDoc={demoArtifact.content}
+                          srcDoc={
+                            demoArtifact.content +
+                            `\n<script>
+                              document.addEventListener('click', function(e) {
+                                const anchor = e.target.closest('a');
+                                if (anchor) {
+                                  const href = anchor.getAttribute('href');
+                                  if (href && href.startsWith('#')) {
+                                    e.preventDefault();
+                                    const id = href.slice(1);
+                                    const el = document.getElementById(id);
+                                    if (el) {
+                                      el.scrollIntoView({ behavior: 'smooth' });
+                                    }
+                                  }
+                                }
+                              });
+                            </script>`
+                          }
                           className="h-full w-full min-h-[560px] bg-white"
                           title="Vista previa HTML"
-                          sandbox="allow-scripts"
+                          sandbox="allow-scripts allow-same-origin"
                           style={{ width: "100%", border: 0 }}
                         />
                       </div>

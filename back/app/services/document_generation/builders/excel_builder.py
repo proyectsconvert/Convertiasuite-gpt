@@ -26,7 +26,7 @@ class ExcelBuilder(IDocumentBuilder):
     def build(self, content: DocumentContent) -> bytes:
         brand = content.brand or "convertia"
         excel_cfg = BRAND_CONFIG[brand].get("excel", {})
-        
+
         # Enriquecer la configuración con el logo y el nombre de la marca
         excel_cfg = dict(excel_cfg)
         excel_cfg["logo_path"] = BRAND_CONFIG[brand]["logos"].get("main")
@@ -34,7 +34,7 @@ class ExcelBuilder(IDocumentBuilder):
 
         try:
             ctx = self._engine.build_excel_context(content)
-            wb  = openpyxl.Workbook()
+            wb = openpyxl.Workbook()
             wb.remove(wb.active)  # Eliminar hoja por defecto
 
             for sheet_ctx in ctx["sheets"]:
@@ -57,13 +57,9 @@ class ExcelBuilder(IDocumentBuilder):
         cfg: dict,
     ) -> None:
         headers = ctx.get("headers", [])
-        rows    = ctx.get("rows", [])
+        rows = ctx.get("rows", [])
         summary = ctx.get("summary")
 
-        # -------------------------------------------------------------
-        # 1. Configuración Visual e Inserción de Branding (Filas 1 y 2)
-        # -------------------------------------------------------------
-        # Insertar el Logotipo Corporativo en A1
         logo_path = cfg.get("logo_path")
         if logo_path and os.path.exists(logo_path):
             try:
@@ -73,41 +69,37 @@ class ExcelBuilder(IDocumentBuilder):
                 img.height = 30
                 img.width = int(30 * aspect_ratio)
                 ws.add_image(img, "A1")
-                # Configurar alto de la primera fila para que quepa el logo cómodamente
                 ws.row_dimensions[1].height = 36
             except Exception as e:
                 logger.warning(f"No se pudo insertar el logo en Excel: {e}")
 
-        # Configurar la segunda fila como fila vacía / separador
         ws.row_dimensions[2].height = 15
 
-        # Escribir el título de la hoja en C1 (o A1 si no hay logo)
         sheet_title = ctx.get("name", "Datos")
         title_col = 3 if (logo_path and os.path.exists(logo_path)) else 1
         title_cell = ws.cell(row=1, column=title_col, value=sheet_title.upper())
         title_cell.font = Font(
             name=cfg.get("font_name", "Calibri"),
             bold=True,
-            color=cfg.get("header_fill", "011E23"),  # Usar el color primario corporativo
-            size=14
+            color=cfg.get(
+                "header_fill", "011E23"
+            ),  # Usar el color primario corporativo
+            size=14,
         )
         title_cell.alignment = Alignment(horizontal="left", vertical="center")
 
-        # -------------------------------------------------------------
-        # 2. Configuración de Estilos para la Tabla
-        # -------------------------------------------------------------
-        header_fill   = PatternFill("solid", fgColor=cfg.get("header_fill", "011E23"))
-        header_font   = Font(
+        header_fill = PatternFill("solid", fgColor=cfg.get("header_fill", "011E23"))
+        header_font = Font(
             name=cfg.get("font_name", "Calibri"),
             bold=True,
             color=cfg.get("header_text", "FFFFFF"),
             size=10,
         )
-        zebra_fill    = PatternFill("solid", fgColor=cfg.get("zebra_fill", "F5F5F5"))
-        border_color  = cfg.get("border_color", "D9D9D9")
-        body_font     = Font(name=cfg.get("font_name", "Calibri"), size=9)
-        center_align  = Alignment(horizontal="center", vertical="center")
-        left_align    = Alignment(horizontal="left",   vertical="center")
+        zebra_fill = PatternFill("solid", fgColor=cfg.get("zebra_fill", "F5F5F5"))
+        border_color = cfg.get("border_color", "D9D9D9")
+        body_font = Font(name=cfg.get("font_name", "Calibri"), size=9)
+        center_align = Alignment(horizontal="center", vertical="center")
+        left_align = Alignment(horizontal="left", vertical="center")
 
         thin_border = Border(
             left=Side(style="thin", color=border_color),
@@ -116,29 +108,26 @@ class ExcelBuilder(IDocumentBuilder):
             bottom=Side(style="thin", color=border_color),
         )
 
-        # -------------------------------------------------------------
-        # 3. Escritura de Cabeceras (Fila 3) y Datos (Fila 4+)
-        # -------------------------------------------------------------
         start_row = 3
         ws.row_dimensions[start_row].height = 24  # Alto de la fila de cabecera
 
         for c_idx, header in enumerate(headers, start=1):
             cell = ws.cell(row=start_row, column=c_idx, value=str(header))
-            cell.fill      = header_fill
-            cell.font      = header_font
+            cell.fill = header_fill
+            cell.font = header_font
             cell.alignment = center_align
-            cell.border    = thin_border
+            cell.border = thin_border
 
         for r_idx, row in enumerate(rows, start=start_row + 1):
             ws.row_dimensions[r_idx].height = 18  # Alto estándar de fila de datos
-            is_zebra = (r_idx % 2 == 0)
+            is_zebra = r_idx % 2 == 0
             for c_idx, value in enumerate(row, start=1):
                 if c_idx > len(headers):
                     break
                 cell = ws.cell(row=r_idx, column=c_idx, value=value)
-                cell.font      = body_font
+                cell.font = body_font
                 cell.alignment = left_align
-                cell.border    = thin_border
+                cell.border = thin_border
                 if is_zebra:
                     cell.fill = zebra_fill
 
@@ -151,9 +140,6 @@ class ExcelBuilder(IDocumentBuilder):
                     max_length = max(max_length, len(str(row[c_idx - 1])))
             ws.column_dimensions[col_letter].width = min(max_length + 4, 50)
 
-        # -------------------------------------------------------------
-        # 4. Sección de Resumen (Si está disponible)
-        # -------------------------------------------------------------
         if summary:
             summary_row = start_row + len(rows) + 2
             ws.row_dimensions[summary_row].height = 20
@@ -169,7 +155,9 @@ class ExcelBuilder(IDocumentBuilder):
             col = 2
             for key, val in summary.items():
                 cell_key = ws.cell(row=summary_row, column=col, value=str(key))
-                cell_key.font = Font(name=cfg.get("font_name", "Calibri"), size=9, bold=True)
+                cell_key.font = Font(
+                    name=cfg.get("font_name", "Calibri"), size=9, bold=True
+                )
                 cell_key.alignment = left_align
                 cell_key.border = thin_border
                 cell_key.fill = zebra_fill
@@ -181,5 +169,4 @@ class ExcelBuilder(IDocumentBuilder):
 
                 col += 2
 
-        # Congelar paneles: Mantener el logo (filas 1-2) y las cabeceras (fila 3) fijos
         ws.freeze_panes = "A4"

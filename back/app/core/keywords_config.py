@@ -1,6 +1,7 @@
 import re
 from functools import lru_cache
 
+
 @lru_cache(maxsize=1024)
 def _compile(keyword: str) -> "re.Pattern":
     if " " in keyword:
@@ -23,7 +24,6 @@ KEYWORDS_VISION = [
     "este screenshot",
 ]
 
-# --- OCR -> glm-ocr. Frases explícitas de extracción de texto de un escaneo. ---
 KEYWORDS_OCR = [
     "extrae el texto",
     "transcribe",
@@ -102,6 +102,15 @@ KEYWORDS_LANDING = [
     "crea un sitio web",
     "diseña una landing",
     "tailwind",
+    "hero",
+    "cta",
+    "testimonial",
+    "testimonials",
+    "sección",
+    "seccion",
+    "ui",
+    "saas",
+    "saaS",
 ]
 
 
@@ -114,3 +123,25 @@ ALL_KEYWORDS = {
     "ocr": KEYWORDS_OCR,
     "medical": KEYWORDS_MEDICAL,
 }
+
+GENERIC_CHAT_TERMS = [
+    "hola",
+    "buenos días",
+    "buenas tardes",
+    "buenas noches",
+    "qué tal",
+    "que tal",
+    "cómo estás",
+    "como estas",
+    "quién eres",
+    "quien eres",
+    "qué haces",
+    "que haces",
+    "cómo te llamas",
+    "como te llamas",
+    "tu nombre",
+    "quién soy",
+    "quien soy",
+    "gracias",
+    "muchas gracias",
+]

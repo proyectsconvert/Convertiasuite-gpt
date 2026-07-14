@@ -1,4 +1,5 @@
 import logging
+import re
 from uuid import UUID
 import io
 from datetime import datetime
@@ -8,9 +9,11 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, R
 from fastapi.responses import StreamingResponse
 from app.dependencies.auth import get_current_user
 from app.services.document_processing.document_manager import DocumentManager
+from app.services.storage_service import upload_file_to_supabase
 from app.services.document_generation.document_generator import DocumentGenerator
 from app.domain.entities.document_content import DocumentContent
 from app.domain.interfaces.memory_repository import IMemoryRepository
+from fastapi import Response
 
 
 def matches_document_filters(
@@ -477,6 +480,15 @@ async def generate_document(
         cleaned_content = _remove_system_export_json_blocks(request.content)
         file_bytes = generator.generate(cleaned_content, fmt=format_lower)
 
+        # If session provided, attempt to upload bytes to Supabase storage and save metadata
+        if request.session_id:
+            try:
+                public_url = await upload_file_to_supabase(
+                    memory_repo, request.session_id, filename, file_bytes, f"application/{format_lower}"
+                )
+            except Exception as e:
+                logger.warning(f"Error while attempting storage upload: {e}")
+
         # Save to document store via DocumentManager for user access and RAG
         try:
             await document_manager.process_document(
@@ -609,6 +621,11 @@ async def generate_and_add_artifact(
                 extra={"filename": filename},
             )
 
+        # Construct download URL if we saved metadata
+        download_url = None
+        if file_id:
+            download_url = f"/api/documents/ai-file/{file_id}/download"
+
         # Return artifact metadata for frontend to add to message artifacts
         return {
             "success": True,
@@ -618,6 +635,7 @@ async def generate_and_add_artifact(
                 "type": format_lower,
                 "size": len(file_bytes),
                 "created_at": datetime.utcnow().isoformat(),
+                "downloadUrl": download_url,
             },
             "message": "Document generated successfully. Use the artifact info to add to message artifacts.",
         }
@@ -627,3 +645,88 @@ async def generate_and_add_artifact(
     except Exception as e:
         logger.error(f"Error generating document with artifact: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate document")
+
+
+@router.get("/ai-file/{file_id}/download")
+async def download_ai_file(
+    file_id: str,
+    current_user: dict = Depends(get_current_user),
+    memory_repo: IMemoryRepository = Depends(get_memory_repo),
+    request: Request = None,
+):
+    try:
+        record = await memory_repo.get_ai_file_by_id(file_id)
+        if not record:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Ensure ownership
+        if str(record.get("user_id")) != str(current_user["id"]):
+            raise HTTPException(
+                status_code=403, detail="Not authorized to access this file"
+            )
+
+        storage_path = record.get("storage_path") or ""
+        # Expect storage_path like 'ai_files/{session_id}/{filename}'
+        if storage_path.startswith("ai_files/"):
+            parts = storage_path.split("/", 2)
+            # bucket = 'ai_files', path = '{session_id}/{filename}'
+            bucket = parts[0]
+            path = storage_path[len(bucket) + 1 :]
+        else:
+            # default fallback
+            bucket = "ai_files"
+            path = storage_path
+
+        # Try to use Supabase client if available on memory_repo
+        supabase_client = None
+        # Composite repository delegates to .db
+        if hasattr(memory_repo, "db") and hasattr(memory_repo.db, "client"):
+            supabase_client = getattr(memory_repo.db, "client")
+        elif hasattr(memory_repo, "client"):
+            supabase_client = getattr(memory_repo, "client")
+
+        if supabase_client and hasattr(supabase_client, "admin"):
+            try:
+                storage = supabase_client.admin.storage
+                # Attempt to download
+                data = storage.from_(bucket).download(path)
+                # The download may return bytes or a response-like object
+                if isinstance(data, (bytes, bytearray)):
+                    file_bytes = bytes(data)
+                else:
+                    # Try to read content attribute
+                    file_bytes = getattr(data, "content", None) or getattr(
+                        data, "raw", None
+                    )
+                    if file_bytes is None:
+                        # If client returns a tuple (content, error)
+                        try:
+                            file_bytes = data[0]
+                        except Exception:
+                            file_bytes = None
+
+                if not file_bytes:
+                    raise Exception("No data returned from storage download")
+
+                filename = record.get("file_name") or "download"
+                media_type = "application/octet-stream"
+                headers = {
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Access-Control-Expose-Headers": "Content-Disposition",
+                }
+                return StreamingResponse(
+                    io.BytesIO(file_bytes), media_type=media_type, headers=headers
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to download from storage for file_id={file_id}: {e}"
+                )
+
+        # If storage download failed, return 404
+        raise HTTPException(status_code=404, detail="File not available for download")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading AI file {file_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to download AI file")
