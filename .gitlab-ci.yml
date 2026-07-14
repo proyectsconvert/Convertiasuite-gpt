@@ -167,8 +167,9 @@ deploy:
     - echo "  ProxyCommand cloudflared access ssh --hostname %h --id $CF_ACCESS_CLIENT_ID --secret $CF_ACCESS_CLIENT_SECRET" >> ~/.ssh/config
   script:
     - sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@deploy.testbot.click"
-        "git config --global --add safe.directory $SERVER_PROJECT_PATH &&
-         cd $SERVER_PROJECT_PATH &&
+        "SAFE_PATH=\$(echo $SERVER_PROJECT_PATH | sed 's:/*\$::') &&
+         git config --global --add safe.directory \$SAFE_PATH &&
+         cd \$SAFE_PATH &&
          git stash &&
          git pull origin master &&
          sudo docker compose -f docker-compose-prod.yml down &&
