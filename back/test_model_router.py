@@ -37,6 +37,18 @@ class TestModelRouter(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(model_key, "code")
 
+    async def test_short_message_uses_last_user_history_for_routing(self):
+        history = [
+            {"role": "user", "content": "Necesito una landing page para mi producto"},
+            {"role": "assistant", "content": "Puedo ayudarte con eso"},
+        ]
+        model_key = await route_model(
+            "si",
+            intent_classifier=None,
+            history=history,
+        )
+        self.assertEqual(model_key, "landing")
+
 
 if __name__ == "__main__":
     unittest.main()

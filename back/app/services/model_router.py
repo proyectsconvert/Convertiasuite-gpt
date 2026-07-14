@@ -73,6 +73,7 @@ async def route_model(
     user_role: str = None,
     attachment_type: Optional[str] = None,
     intent_classifier=None,
+    history: list | None = None,
 ) -> str:
     if attachment_type:
         normalized_type = attachment_type.lower()

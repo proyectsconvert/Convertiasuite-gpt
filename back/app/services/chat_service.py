@@ -384,6 +384,7 @@ async def process_chat(
                 user_role=request.user_role,
                 attachment_type=request.attachment_type,
                 intent_classifier=intent_classifier,
+                history=sanitized_history,
             )
 
         doc_context, model_key = await asyncio.gather(
