@@ -19,7 +19,12 @@ spec:
       type: boolean
       default: false
       description: "Ejecuta radar de CI/CD"
----
+
+    architecture_scan:
+      type: boolean
+      default: false
+      description: "Ejecuta radar de arquitectura"
+
 stages:
   - lint
   - test
@@ -55,6 +60,10 @@ variables:
 .ci_rule: &ci_rule
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.ci_scan ]] == true'
+
+.architecture_rule: &architecture_rule
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.architecture_scan ]] == true'
 
 pip-audit:
   stage: security
@@ -216,3 +225,25 @@ ci-radar:
   variables:
     OLLAMA_HOST: "$OLLAMA_BASE_URL"
     OLLAMA_MODEL: "qwen2.5:7b"
+
+architecture-radar:
+  stage: scheduled-analysis
+  image: python:3.11-slim
+ 
+  <<: *architecture_rule
+ 
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq git
+    - pip install --quiet requests vulture pytest
+    - if [ -f back/requirements.txt ]; then pip install --quiet -r back/requirements.txt; fi
+ 
+  script:
+    - git fetch --unshallow || true
+    - python3 architecture_radar.py
+ 
+  variables:
+    GIT_DEPTH: 0
+    OLLAMA_HOST: "$OLLAMA_BASE_URL"
+    OLLAMA_MODEL: "qwen2.5:7b"
+ 
