@@ -23,8 +23,6 @@ async def get_current_user(
 
     token = credentials.credentials
 
-    # decode_token hace una llamada de red a Supabase (bloqueante).
-    # La ejecutamos en un thread separado para no bloquear el event loop de FastAPI.
     payload = await asyncio.to_thread(auth_service.decode_token, token)
 
     if not payload:

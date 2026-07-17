@@ -3,24 +3,34 @@ spec:
     radar:
       type: boolean
       default: false
-      description: "Si es true, ejecuta el job tech-debt en este pipeline"
+      description: "Ejecuta análisis de deuda técnica"
+
     security_scan:
       type: boolean
       default: false
-      description: "Si es true, ejecuta el radar de seguridad (pip-audit, npm audit, Trivy) en este pipeline"
+      description: "Ejecuta radar de seguridad"
+
+    dependency_scan:
+      type: boolean
+      default: false
+      description: "Ejecuta radar de dependencias"
+
+    ci_scan:
+      type: boolean
+      default: false
+      description: "Ejecuta radar de CI/CD"
 ---
 stages:
   - lint
   - test
   - security
+  - scheduled-analysis
   - build
   - deploy
-  - scheduled-analysis
 
 include:
   - template: Jobs/Secret-Detection.gitlab-ci.yml
   - template: Jobs/SAST.gitlab-ci.yml
-
 
 cache:
   paths:
@@ -30,70 +40,31 @@ cache:
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
-
-lint-backend:
-  stage: lint
-  image: python:3.11-slim
-  script:
-    - cd back
-    - pip install --quiet ruff
-    - ruff check . || true
-
-lint-frontend:
-  stage: lint
-  image: node:20-slim
-  script:
-    - cd front
-    - npm ci --silent
-    - npm run lint || true
-
-backend-test:
-  stage: test
-  image: python:3.11
-  before_script:
-    - cd back
-    - python -m venv venv
-    - . venv/bin/activate
-    - pip install --upgrade pip
-    - pip install -r requirements.txt
-  script:
-    - mkdir -p reports
-    - pytest -q --junitxml=reports/junit.xml || true
-  artifacts:
-    when: always
-    paths:
-      - back/reports/
-    reports:
-      junit: back/reports/junit.xml
-    expire_in: 1 week
-
-frontend-test:
-  stage: test
-  image: node:20-slim
-  before_script:
-    - cd front
-    - npm ci --silent
-  script:
-    - npm run test --silent || true
-    - npm run build --if-present --silent || true
-  artifacts:
-    when: always
-    paths:
-      - front/dist/
-    expire_in: 1 week
-
-
 .security_rule: &security_rule
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.security_scan ]] == true'
+
+.tech_debt_rule: &tech_debt_rule
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.radar ]] == true'
+
+.dependency_rule: &dependency_rule
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.dependency_scan ]] == true'
+
+.ci_rule: &ci_rule
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.ci_scan ]] == true'
 
 pip-audit:
   stage: security
   image: python:3.11-slim
   <<: *security_rule
+
   script:
     - pip install --quiet pip-audit
     - pip-audit -r back/requirements.txt --format json -o pip-audit-report.json || true
+
   artifacts:
     when: always
     paths:
@@ -104,8 +75,10 @@ npm-audit:
   stage: security
   image: node:20-slim
   <<: *security_rule
+
   script:
     - npm audit --json > npm-audit-report.json || true
+
   artifacts:
     when: always
     paths:
@@ -115,82 +88,66 @@ npm-audit:
 container-scan:
   stage: security
   image: docker:24-cli
+
   services:
     - docker:24-dind
+
   variables:
-    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+
   <<: *security_rule
+
   before_script:
     - apk add --no-cache curl
     - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
   script:
     - docker compose -f docker-compose-prod.yml build
     - mkdir -p trivy-reports
+
     - |
       for img in $(docker compose -f docker-compose-prod.yml config --images); do
         safe_name=$(echo "$img" | tr '/:' '__')
-        trivy image --format json --output "trivy-reports/${safe_name}.json" --timeout 10m "$img" || true
+
+        trivy image \
+          --format json \
+          --output "trivy-reports/${safe_name}.json" \
+          --timeout 10m \
+          "$img" || true
       done
+
   artifacts:
     when: always
     paths:
       - trivy-reports/
     expire_in: 1 week
 
-build:
-  stage: build
-  image: docker:24-cli
-  services:
-    - docker:24-dind
-  variables:
-    DOCKER_TLS_CERTDIR: "/certs"
-  before_script:
-    - apk add --no-cache curl
-  script:
-    - docker compose -f docker-compose-prod.yml build --pull
-    - docker compose -f docker-compose-prod.yml config --images > docker-images-list.txt
-  artifacts:
-    when: on_success
-    paths:
-      - docker-images-list.txt
-    expire_in: 1 week
-
-deploy:
-  stage: deploy
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache openssh-client sshpass curl
-    - curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
-    - chmod +x /usr/local/bin/cloudflared
-    - mkdir -p ~/.ssh
-    - echo "Host deploy.testbot.click" >> ~/.ssh/config
-    - echo "  ProxyCommand cloudflared access ssh --hostname %h --id $CF_ACCESS_CLIENT_ID --secret $CF_ACCESS_CLIENT_SECRET" >> ~/.ssh/config
-  script:
-    - sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@deploy.testbot.click"
-        "SAFE_PATH=\$(echo $SERVER_PROJECT_PATH | sed 's:/*\$::') &&
-         sudo git -C \$SAFE_PATH config --global --add safe.directory \$SAFE_PATH &&
-         sudo git -C \$SAFE_PATH fetch origin &&
-         sudo git -C \$SAFE_PATH reset --hard origin/master &&
-         cd \$SAFE_PATH &&
-         sudo docker compose -f docker-compose-prod.yml down &&
-         sudo docker image prune -af &&
-         sudo docker container prune -f &&
-         sudo docker compose -f docker-compose-prod.yml build --no-cache &&
-         sudo docker compose -f docker-compose-prod.yml up -d --force-recreate"
-  only:
-    - master
-
 tech-debt:
   stage: scheduled-analysis
   image: python:3.11-slim
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.radar ]] == true'
+
+  <<: *tech_debt_rule
+
   before_script:
-    - apt-get update -qq && apt-get install -y -qq git grep > /dev/null
+    - apt-get update -qq
+    - apt-get install -y -qq git grep nodejs npm
     - pip install --quiet radon requests
-    - git fetch --unshallow || true
+
   script:
+    - git fetch --unshallow || true
+
+    - cd front
+    - npm ci --silent
+
+    - npm run lint \
+      -- --format json \
+      --output-file ../eslint-report.json || true
+
+    - cd ..
+
     - python3 tech_debt_radar.py
+
   variables:
     GIT_DEPTH: 0
     OLLAMA_HOST: "$OLLAMA_BASE_URL"
@@ -199,15 +156,63 @@ tech-debt:
 security-radar:
   stage: scheduled-analysis
   image: python:3.11-slim
+
   <<: *security_rule
+
   needs:
-    - pip-audit
-    - npm-audit
-    - container-scan
+    - job: pip-audit
+      artifacts: true
+
+    - job: npm-audit
+      artifacts: true
+
+    - job: container-scan
+      artifacts: true
+
   before_script:
     - pip install --quiet requests
+
   script:
     - python3 security_radar.py
+
+  variables:
+    OLLAMA_HOST: "$OLLAMA_BASE_URL"
+    OLLAMA_MODEL: "qwen2.5:7b"
+
+dependency-radar:
+  stage: scheduled-analysis
+  image: python:3.11-slim
+
+  <<: *dependency_rule
+
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq nodejs npm
+    - pip install --quiet requests
+    - if [ -f back/requirements.txt ]; then pip install --quiet -r back/requirements.txt; fi
+    - if [ -f front/package.json ]; then (cd front && npm ci --silent); fi
+
+  script:
+    - python3 dependency_radar.py
+
+  variables:
+    OLLAMA_HOST: "$OLLAMA_BASE_URL"
+    OLLAMA_MODEL: "qwen2.5:7b"
+
+ci-radar:
+  stage: scheduled-analysis
+  image: python:3.11-slim
+
+  <<: *ci_rule
+
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq nodejs npm
+    - pip install --quiet requests
+
+  script:
+    - python3 ci_radar.py
+
   variables:
     OLLAMA_HOST: "$OLLAMA_BASE_URL"
     OLLAMA_MODEL: "qwen2.5:7b"
