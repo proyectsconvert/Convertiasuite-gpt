@@ -24,7 +24,7 @@ spec:
       type: boolean
       default: false
       description: "Ejecuta radar de arquitectura"
-
+---
 stages:
   - lint
   - test
