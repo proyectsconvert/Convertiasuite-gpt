@@ -131,7 +131,7 @@ interface AppState {
   generateDocumentAndAddArtifact: (
     filename: string,
     format: string,
-    content: any,
+    content: string | Record<string, unknown>,
     messageId?: string
   ) => Promise<ChatArtifact | null>;
 }

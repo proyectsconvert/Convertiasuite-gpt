@@ -1,4 +1,8 @@
+import os
+import sys
 import unittest
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.services.model_router import build_routing_context, route_model
 

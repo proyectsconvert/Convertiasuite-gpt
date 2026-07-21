@@ -37,7 +37,7 @@ export default function ForgotPassword() {
       } else {
         setMessage("Se ha enviado un enlace a tu correo para restablecer la contraseña.");
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Network or execution error:", err);
       setError("Ocurrió un error inesperado. Inténtalo de nuevo.");
     } finally {

@@ -14,7 +14,7 @@ export default function AppLayout() {
 
   useEffect(() => {
     const path = location.pathname.replace("/app/", "") || "chat";
-    setView(path as any);
+    setView(path as Parameters<typeof setView>[0]);
   }, [location, setView]);
 
   return (

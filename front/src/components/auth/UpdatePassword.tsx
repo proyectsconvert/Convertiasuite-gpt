@@ -40,7 +40,7 @@ export default function UpdatePassword() {
           navigate("/login");
         }, 2000);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Network or execution error during password update:", err);
       setError("Ocurrió un error inesperado. Inténtalo de nuevo.");
     } finally {

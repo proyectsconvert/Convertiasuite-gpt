@@ -10,7 +10,7 @@ describe("extractArtifactsFromMessage", () => {
             timestamp: "2026-06-18T00:00:00.000Z",
         };
 
-        const artifacts = extractArtifactsFromMessage(message as any);
+        const artifacts = extractArtifactsFromMessage(message as Parameters<typeof extractArtifactsFromMessage>[0]);
 
         expect(artifacts).toHaveLength(1);
         expect(artifacts[0].type).toBe("html");

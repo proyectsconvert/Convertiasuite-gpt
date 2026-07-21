@@ -54,7 +54,7 @@ export default function ChatView() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, isLoading, streamingContent]);
 
-  const buildMessageWithArtifacts = (msg: any) => {
+  const buildMessageWithArtifacts = (msg: ChatMessage): ChatMessage => {
     const content = msg.content || "";
     const artifacts = msg.artifacts || [];
 

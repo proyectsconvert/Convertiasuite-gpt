@@ -11,7 +11,6 @@ Estrategia: Map-Reduce
 
 import logging
 import os
-from typing import Generator
 
 logger = logging.getLogger(__name__)
 

@@ -242,7 +242,7 @@ export function extractDocumentContent(content: string): string {
   if (!content) return content;
 
   // Primero remover bloques de sistema
-  let cleaned = removeSystemExportJsonBlocks(content);
+  const cleaned = removeSystemExportJsonBlocks(content);
 
   // Patrones de conversación a eliminar
   const conversationalPatterns = [
@@ -271,7 +271,7 @@ export function extractDocumentContent(content: string): string {
 
   // Convertir viñetas a texto normal
   lines = lines.map(line => {
-    let stripped = line.trim();
+    const stripped = line.trim();
     if (stripped.startsWith("• ")) return stripped.substring(2).trim();
     if (stripped.startsWith("- ") && !stripped.match(/^-{3,}/)) return stripped.substring(2).trim();
     if (stripped.startsWith("* ") && !stripped.startsWith("**")) return stripped.substring(2).trim();
