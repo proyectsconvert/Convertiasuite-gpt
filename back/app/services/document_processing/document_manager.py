@@ -1,5 +1,5 @@
 import logging
-from uuid import UUID, uuid4
+from uuid import UUID
 from datetime import datetime, UTC
 from app.domain.entities.document import Document, DocumentType
 from app.domain.interfaces.document_processor import DocumentProcessorFactory

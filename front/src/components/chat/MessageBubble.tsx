@@ -35,14 +35,14 @@ interface MessageBubbleProps {
   sessionId?: string;
 }
 
-const getCodeText = (children: any): string => {
+const getCodeText = (children: React.ReactNode): string => {
   try {
     if (!children) return "";
     if (typeof children === "string") return children;
     if (typeof children === "number") return String(children);
     if (Array.isArray(children)) return children.map(getCodeText).join("");
-    if (children.props && children.props.children !== undefined) {
-      return getCodeText(children.props.children);
+    if (typeof children === "object" && children !== null && "props" in children) {
+      return getCodeText((children as React.ReactElement<{ children?: React.ReactNode }>).props.children);
     }
     return "";
   } catch {
@@ -50,41 +50,49 @@ const getCodeText = (children: any): string => {
   }
 };
 
-function extractTableData(children: any): string[][] {
+function extractTableData(children: React.ReactNode): string[][] {
   const rows: string[][] = [];
 
-  const getText = (node: any): string => {
+  const getText = (node: React.ReactNode): string => {
     if (!node) return "";
     if (typeof node === "string") return node;
     if (typeof node === "number") return String(node);
     if (Array.isArray(node)) return node.map(getText).join("");
-    if (node.props && node.props.children) return getText(node.props.children);
+    if (typeof node === "object" && node !== null && "props" in node) {
+      return getText((node as React.ReactElement<{ children?: React.ReactNode }>).props.children);
+    }
     return "";
   };
-  const findRows = (node: any) => {
+  const findRows = (node: React.ReactNode) => {
     if (!node) return;
-    if (node.type === "tr") {
-      const cells: string[] = [];
-      const childrenArray = Array.isArray(node.props.children)
-        ? node.props.children
-        : [node.props.children];
+    if (typeof node === "object" && node !== null && "type" in node && "props" in node) {
+      const element = node as React.ReactElement<{ children?: React.ReactNode }>;
+      if (element.type === "tr") {
+        const cells: string[] = [];
+        const childrenArray = Array.isArray(element.props.children)
+          ? element.props.children
+          : [element.props.children];
 
-      childrenArray.forEach((cell: any) => {
-        if (cell && typeof cell === "object") {
-          const text = getText(cell).trim();
-          if (text || text === "") {
-            cells.push(text);
+        childrenArray.forEach((cell) => {
+          if (cell && typeof cell === "object") {
+            const text = getText(cell).trim();
+            if (text || text === "") {
+              cells.push(text);
+            }
           }
+        });
+        if (cells.length > 0) {
+          rows.push(cells);
         }
-      });
-      if (cells.length > 0) {
-        rows.push(cells);
       }
-    } else if (node.props && node.props.children) {
-      const childrenArray = Array.isArray(node.props.children)
-        ? node.props.children
-        : [node.props.children];
-      childrenArray.forEach(findRows);
+    } else if (typeof node === "object" && node !== null && "props" in node) {
+      const element = node as React.ReactElement<{ children?: React.ReactNode }>;
+      if (element.props && element.props.children) {
+        const childrenArray = Array.isArray(element.props.children)
+          ? element.props.children
+          : [element.props.children];
+        childrenArray.forEach(findRows);
+      }
     }
   };
 
@@ -182,11 +190,13 @@ export default function MessageBubble({
       await navigator.clipboard.writeText(message.content);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {}
+    } catch {
+      // Ignore clipboard write failures
+    }
   }, [message.content]);
 
   const handleDownload = useCallback(
-    async (format: string, filename: string, content: any) => {
+    async (format: string, filename: string, content: string) => {
       try {
         const cleanedContent = extractDocumentContent(content ?? "");
         const blob = await documentsApi.generateFile(
@@ -534,7 +544,7 @@ export default function MessageBubble({
                   remarkPlugins={[remarkGfm]}
                   components={{
                     pre: ({ children, ...props }) => {
-                      const codeElement = children as any;
+                      const codeElement = children as React.ReactElement<{ className?: string }>;
                       const className = codeElement?.props?.className || "";
                       const match = /language-(\w+)/.exec(className);
                       const rawLang = match ? match[1] : "txt";

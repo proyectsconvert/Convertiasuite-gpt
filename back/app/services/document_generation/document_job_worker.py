@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import json
 import logging
 from datetime import datetime, UTC
 from uuid import UUID

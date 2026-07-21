@@ -156,7 +156,7 @@ export default function ChatInput({
 
   const realtimeTranscriptRef = useRef("");
   const transcriptAccumulatedRef = useRef("");
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<unknown>(null);
 
   useEffect(() => {
     realtimeTranscriptRef.current = realtimeTranscript;
@@ -332,9 +332,15 @@ export default function ChatInput({
         stream.getTracks().forEach((track) => track.stop());
       };
 
-      const SpeechRecognitionAPI =
-        (window as any).SpeechRecognition ||
-        (window as any).webkitSpeechRecognition;
+      const win = window as unknown as Record<string, new () => {
+        lang: string;
+        continuous: boolean;
+        interimResults: boolean;
+        start: () => void;
+        onresult: (event: { resultIndex: number; results: Array<Array<{ transcript: string }> & { isFinal: boolean }> }) => void;
+        onerror: (event: { error: string }) => void;
+      }>;
+      const SpeechRecognitionAPI = win.SpeechRecognition || win.webkitSpeechRecognition;
 
       if (SpeechRecognitionAPI) {
         const recognition = new SpeechRecognitionAPI();
@@ -342,7 +348,7 @@ export default function ChatInput({
         recognition.continuous = true;
         recognition.interimResults = true;
 
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event) => {
           let interim = "";
           let final = "";
 
@@ -362,7 +368,7 @@ export default function ChatInput({
           }
         };
 
-        recognition.onerror = (event: any) => {
+        recognition.onerror = (event) => {
           console.error("Speech recognition error:", event.error);
         };
 

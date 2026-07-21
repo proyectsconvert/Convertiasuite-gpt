@@ -1,15 +1,14 @@
 import os
 import sys
 
-# Añadir el directorio actual al path para importar app correctamente
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+# Añadir el directorio padre al path para importar app correctamente
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.domain.entities.document_content import DocumentContent, Section, TableData
 from app.services.document_generation.document_generator import DocumentGenerator
 
 
 def main():
-    # 1. Crear datos de tabla de prueba
     table = TableData(
         headers=["Métrica", "Enero", "Febrero", "Marzo"],
         rows=[
@@ -20,7 +19,6 @@ def main():
         caption="Métricas de rendimiento Q1"
     )
 
-    # 2. Crear estructura de secciones de prueba
     sections = [
         Section(
             title="Introducción General",
@@ -42,7 +40,6 @@ def main():
         )
     ]
 
-    # 3. Construir la entidad de contenido principal
     content = DocumentContent(
         title="Reporte Trimestral de Convertia",
         subtitle="Rendimiento del primer trimestre y proyecciones de crecimiento para el Q2",
@@ -50,14 +47,11 @@ def main():
         date="03 / 06 / 2026",
         classification="Confidencial Corporativo",
         sections=sections,
-        tables=[table]  # Tabla global al final
+        tables=[table]
     )
 
-    # 4. Inicializar el generador
     generator = DocumentGenerator(brand="convertia")
-
-    # Carpeta de salida para las pruebas
-    out_dir = os.path.join(os.path.dirname(__file__), "test_output")
+    out_dir = os.path.join(os.path.dirname(__file__), "..", "test_output")
     os.makedirs(out_dir, exist_ok=True)
 
     print("=" * 60)

@@ -1,6 +1,5 @@
 import logging
 import re
-from typing import Optional
 
 from app.domain.contracts import PromptContract, ResponseFormat
 from app.domain.entities.safety_response import SafetyResponse
