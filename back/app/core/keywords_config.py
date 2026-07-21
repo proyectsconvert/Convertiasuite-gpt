@@ -95,6 +95,7 @@ KEYWORDS_CODE = [
 
 
 KEYWORDS_LANDING = [
+    "landing",
     "landing page",
     "landing-page",
     "página de aterrizaje",

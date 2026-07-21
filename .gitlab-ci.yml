@@ -24,14 +24,21 @@ spec:
       type: boolean
       default: false
       description: "Ejecuta radar de arquitectura"
+
+    test_generator:
+      type: boolean
+      default: false
+      description: "Ejecuta generación de tests"
 ---
 stages:
   - lint
   - test
   - security
   - scheduled-analysis
+  - test-generation
   - build
   - deploy
+  
 
 include:
   - template: Jobs/Secret-Detection.gitlab-ci.yml
@@ -64,6 +71,12 @@ variables:
 .architecture_rule: &architecture_rule
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.architecture_scan ]] == true'
+
+.test_generator_rule: &test_generator_rule
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.test_generator ]] == true'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
 
 pip-audit:
   stage: security
@@ -247,3 +260,51 @@ architecture-radar:
     OLLAMA_HOST: "$OLLAMA_BASE_URL"
     OLLAMA_MODEL: "qwen2.5:7b"
  
+test-generator:
+  stage: test-generation
+  image: python:3.11-slim
+
+  <<: *test_generator_rule 
+
+  variables:
+    GIT_DEPTH: 0
+    OLLAMA_HOST: "$OLLAMA_BASE_URL"
+    OLLAMA_MODEL: "qwen2.5:7b"
+    MR_BRANCH: "auto/test-generation-${CI_PIPELINE_ID}"
+
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq git nodejs npm curl
+    - pip install --quiet requests
+    - if [ -f back/requirements.txt ]; then pip install --quiet -r back/requirements.txt; fi
+    - if [ -f front/package.json ]; then (cd front && npm ci --silent); fi
+
+  script:
+    - git fetch --unshallow || true
+    - python3 test_generator.py
+    - |
+      if [ -f .tests_generated ]; then
+        git config user.email "ci-bot@$CI_SERVER_HOST"
+        git config user.name "CI Test Generator"
+        git checkout -b "$MR_BRANCH"
+        git add .
+        git commit -m "test: generar tests faltantes [skip ci]"
+        git push "https://oauth2:${GIT_PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" "$MR_BRANCH"
+
+        curl --request POST \
+          --header "PRIVATE-TOKEN: ${GIT_PUSH_TOKEN}" \
+          --data "source_branch=${MR_BRANCH}" \
+          --data "target_branch=${CI_DEFAULT_BRANCH}" \
+          --data "title=🤖 Tests generados automáticamente" \
+          --data "description=MR generado por el pipeline ${CI_PIPELINE_ID}. Revisar antes de mergear." \
+          "https://${CI_SERVER_HOST}/api/v4/projects/${CI_PROJECT_ID}/merge_requests"
+      else
+        echo "No había tests faltantes, nada que generar."
+      fi
+
+  artifacts:
+    when: always
+    paths:
+      - test_generation_report.json
+    expire_in: 1 week
+
