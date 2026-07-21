@@ -9,7 +9,7 @@ from app.core.model_config import (
     get_model_config,
 )
 
-from app.core.keywords_config import GENERIC_CHAT_TERMS, KEYWORDS_LANDING
+from app.core.keywords_config import GENERIC_CHAT_TERMS, KEYWORDS_LANDING, matches_any
 
 _GENERIC_CHAT_PATTERNS = [f"^{re.escape(k)}[\\s\\?\\!]*$" for k in GENERIC_CHAT_TERMS]
 
@@ -95,7 +95,7 @@ async def route_model(
             return domain
 
     routing_text = _prepare_routing_text(message)
-    if any(k in routing_text for k in _LANDING_PHRASES):
+    if matches_any(routing_text, _LANDING_PHRASES):
         return "landing"
 
     from app.core.keywords_config import (
@@ -108,19 +108,19 @@ async def route_model(
         KEYWORDS_MEDICAL,
     )
 
-    if any(k in routing_text for k in KEYWORDS_VISION):
+    if matches_any(routing_text, KEYWORDS_VISION):
         return "vision"
-    if any(k in routing_text for k in KEYWORDS_ANALYSIS):
+    if matches_any(routing_text, KEYWORDS_ANALYSIS):
         return "analysis"
-    if any(k in routing_text for k in KEYWORDS_CODE):
+    if matches_any(routing_text, KEYWORDS_CODE):
         return "code"
-    if any(k in routing_text for k in KEYWORDS_REASONING):
+    if matches_any(routing_text, KEYWORDS_REASONING):
         return "reasoning"
-    if any(k in routing_text for k in KEYWORDS_OCR):
+    if matches_any(routing_text, KEYWORDS_OCR):
         return "ocr"
-    if any(k in routing_text for k in KEYWORDS_MEDICAL):
+    if matches_any(routing_text, KEYWORDS_MEDICAL):
         return "medical"
-    if any(k in routing_text for k in KEYWORDS_LANDING):
+    if matches_any(routing_text, KEYWORDS_LANDING):
         return "landing"
 
     # Fallback: Si el mensaje actual es muy corto (ej: "mm", "si", "continua") y no clasifica,
@@ -131,19 +131,19 @@ async def route_model(
             content = item.get("content") if isinstance(item, dict) else getattr(item, "content", "")
             if role == "user" and content:
                 content_clean = _prepare_routing_text(content)
-                if any(k in content_clean for k in KEYWORDS_LANDING):
+                if matches_any(content_clean, KEYWORDS_LANDING):
                     return "landing"
-                if any(k in content_clean for k in KEYWORDS_VISION):
+                if matches_any(content_clean, KEYWORDS_VISION):
                     return "vision"
-                if any(k in content_clean for k in KEYWORDS_ANALYSIS):
+                if matches_any(content_clean, KEYWORDS_ANALYSIS):
                     return "analysis"
-                if any(k in content_clean for k in KEYWORDS_CODE):
+                if matches_any(content_clean, KEYWORDS_CODE):
                     return "code"
-                if any(k in content_clean for k in KEYWORDS_REASONING):
+                if matches_any(content_clean, KEYWORDS_REASONING):
                     return "reasoning"
-                if any(k in content_clean for k in KEYWORDS_OCR):
+                if matches_any(content_clean, KEYWORDS_OCR):
                     return "ocr"
-                if any(k in content_clean for k in KEYWORDS_MEDICAL):
+                if matches_any(content_clean, KEYWORDS_MEDICAL):
                     return "medical"
 
     return DEFAULT_MODEL_KEY

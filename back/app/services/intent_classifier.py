@@ -114,13 +114,13 @@ class IntentClassifier:
             return "landing"
 
 
-        if any(k in msg_lower for k in KEYWORDS_CODE):
+        if matches_any(msg_lower, KEYWORDS_CODE):
             return "code"
-        if any(k in msg_lower for k in KEYWORDS_REASONING):
+        if matches_any(msg_lower, KEYWORDS_REASONING):
             return "reasoning"
-        if any(k in msg_lower for k in KEYWORDS_OCR):
+        if matches_any(msg_lower, KEYWORDS_OCR):
             return "ocr"
-        if any(k in msg_lower for k in KEYWORDS_MEDICAL):
+        if matches_any(msg_lower, KEYWORDS_MEDICAL):
             return "medical"
 
         return None

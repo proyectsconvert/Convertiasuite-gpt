@@ -53,6 +53,21 @@ class TestModelRouter(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(model_key, "landing")
 
+    async def test_normal_question_with_ui_substring_uses_default(self):
+        # "equipos" contains "ui" as substring, but it shouldn't trigger "landing"
+        model_key = await route_model(
+            "como creo equipos de trabajo?",
+            intent_classifier=None,
+        )
+        self.assertEqual(model_key, "default")
+
+    async def test_landing_with_word_boundary_uses_landing(self):
+        model_key = await route_model(
+            "necesito diseñar una landing",
+            intent_classifier=None,
+        )
+        self.assertEqual(model_key, "landing")
+
 
 if __name__ == "__main__":
     unittest.main()
