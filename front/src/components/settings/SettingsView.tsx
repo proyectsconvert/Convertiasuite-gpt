@@ -36,11 +36,10 @@ export default function SettingsView() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isChangingPass, setIsChangingPass] = useState(false);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setIsLoggingOut(true);
-    await new Promise((resolve) => setTimeout(resolve, 400));
     logout();
-    navigate("/");
+    window.location.href = "/";
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {

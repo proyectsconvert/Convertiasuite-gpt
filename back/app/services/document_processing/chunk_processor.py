@@ -14,9 +14,7 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# Configurable via env var. Ajustar según la ventana de contexto del modelo.
-# qwen2.5:7b soporta ~32K tokens; con ~4 chars/token ≈ 128K chars.
-# Usamos 20K chars por chunk para dejar espacio al historial y al prompt.
+
 DEFAULT_CHUNK_CHARS = int(os.getenv("CHUNK_MAX_CHARS", 20_000))
 MAX_CHUNKS = int(os.getenv("CHUNK_MAX_CHUNKS", 20))  # límite de seguridad
 
@@ -27,8 +25,6 @@ def split_text_into_chunks(
 ) -> list[str]:
     """
     Divide un texto tabular en chunks respetando los saltos de línea.
-    No corta filas a la mitad: busca el último \\n dentro del límite.
-
     Args:
         text: Texto extraído del CSV/Excel.
         chunk_size: Tamaño máximo de cada chunk en caracteres.
@@ -118,9 +114,6 @@ def build_synthesis_prompt(
     filename: str,
     total_chunks: int,
 ) -> str:
-    """
-    Construye el prompt de síntesis final que combina todos los análisis parciales.
-    """
     combined = "\n\n---\n\n".join(
         f"### Resultado fragmento {i + 1}:\n{r}"
         for i, r in enumerate(partial_results)

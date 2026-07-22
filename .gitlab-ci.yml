@@ -29,12 +29,18 @@ spec:
       type: boolean
       default: false
       description: "Ejecuta generación de tests"
+
+    rag_generator:
+      type: boolean
+      default: false
+      description: "Ejecuta generación de RAG (ingestión de documentos y embeddings)"
 ---
 stages:
   - lint
   - test
   - security
   - scheduled-analysis
+  - rag-ingest
   - test-generation
   - build
   - deploy
@@ -75,6 +81,12 @@ variables:
 .test_generator_rule: &test_generator_rule
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.test_generator ]] == true'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+
+.rag_generator_rule: &rag_generator_rule
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $[[ inputs.rag_generator ]] == true'
     - if: '$CI_PIPELINE_SOURCE == "web"'
       when: manual
 
@@ -308,3 +320,14 @@ test-generator:
       - test_generation_report.json
     expire_in: 1 week
 
+rag-ingest:
+  stage: rag-ingest
+  image: python:3.11-slim
+
+  <<: *rag_generator_rule
+
+  before_script:
+    - pip install --quiet requests pypdf python-docx openpyxl
+
+  script:
+    - python3 rag_ingest.py

@@ -269,6 +269,7 @@ export const useAppStore = create<AppState>()(
                 : s
           ),
         })),
+    
 
       /* ARTIFACTS */
 
@@ -344,10 +345,7 @@ export const useAppStore = create<AppState>()(
       },
 
       logout: () => {
-        // clearSession limpia localStorage Y el snapshot de Zustand persist,
-        // evitando que isAuthenticated se rehidrate como true al recargar.
         clearSession();
-
         set({
           user: null,
           accessToken: null,
@@ -356,8 +354,6 @@ export const useAppStore = create<AppState>()(
           currentChatId: null,
           view: "landing",
         });
-
-        // Redirigir al login para cortar cualquier bucle de rutas protegidas
         if (typeof window !== "undefined") {
           window.location.assign("/login");
         }

@@ -29,6 +29,7 @@ from app.api import chat, auth, documents, admin
 from app.infra.clients.ollama_client import OllamaClient
 from app.infra.providers.ollama_provider import OllamaProvider
 from app.services.intent_classifier import IntentClassifier
+from app.rag.supabase_rag_repository import SupabaseRagRepository
 
 logging.basicConfig(
     level=logging.INFO,
@@ -95,6 +96,10 @@ async def lifespan(app: FastAPI):
 
     app.state.intent_classifier = IntentClassifier(ollama_client)
 
+    # Initialize RAG repository
+    app.state.rag_repository = SupabaseRagRepository(supabase_client)
+    logger.info("RAG repository initialized")
+
     logger.info("Application startup completed")
 
     asyncio.create_task(preload_ollama_models())
@@ -125,7 +130,6 @@ app.add_exception_handler(
 
 @app.get("/health")
 async def health_check():
-    """Endpoint de salud que valida que Ollama y el modelo están disponibles."""
     try:
         client = OllamaClient()
 

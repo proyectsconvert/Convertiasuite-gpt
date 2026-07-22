@@ -18,6 +18,8 @@ from app.services.document_processing.document_manager import DocumentManager
 from app.services.document_processing.chunk_processor import (
     needs_chunking,
 )
+from app.domain.interfaces.rag_repository import IRagRepository
+from app.rag.embending import embed_text
 from app.services.document_generation.document_generator import DocumentGenerator
 from app.security.exceptions import (
     PolicyViolationException,
@@ -126,7 +128,6 @@ async def _generate_and_attach_document(
         file_id = None
         storage_path = None
 
-        # Try to store file bytes in Supabase storage if available, then save metadata
         try:
             if session_id and memory_repo:
                 content_type = f"application/{format_type}"
@@ -197,6 +198,7 @@ async def process_chat(
     user_id: str,
     document_manager: DocumentManager | None = None,
     intent_classifier: IntentClassifier | None = None,
+    rag_repository: IRagRepository | None = None,
 ):
     model_name = None
     request_start = time.perf_counter()
@@ -387,10 +389,54 @@ async def process_chat(
                 history=sanitized_history,
             )
 
-        doc_context, model_key = await asyncio.gather(
+        async def _get_rag_context() -> str:
+            """Búsqueda semántica RAG global contra documentos embebidos."""
+            if not rag_repository:
+                return ""
+            try:
+                query_embedding = await embed_text(clean_input)
+                results = await rag_repository.search(query_embedding, k=3)
+                if not results:
+                    return ""
+                fragments = []
+                for r in results:
+                    similarity = r.get("similarity", 0)
+                    if similarity < 0.3:
+                        continue
+                    content = r.get("content", "")
+                    metadata = r.get("metadata") or {}
+                    source = r.get("source_id", "documento")
+                    section = metadata.get("section_title", "")
+                    header = f"### Fuente: {source}"
+                    if section:
+                        header += f" — {section}"
+                    header += f" (similitud: {similarity:.2f})"
+                    fragments.append(f"{header}\n{content}")
+                if fragments:
+                    return (
+                        "## CONTEXTO RAG (documentos embebidos relevantes):\n\n"
+                        + "\n\n".join(fragments)
+                    )
+            except Exception as e:
+                logger.warning(
+                    "RAG search failed session=%s error=%s",
+                    session_id,
+                    str(e),
+                )
+            return ""
+
+        doc_context, model_key, rag_context = await asyncio.gather(
             _get_doc_context(),
             _classify_intent(),
+            _get_rag_context(),
         )
+
+        # Combinar contexto de documentos por sesión con contexto RAG global
+        if rag_context:
+            if doc_context:
+                doc_context = f"{doc_context}\n\n{rag_context}"
+            else:
+                doc_context = rag_context
 
         if not doc_context and request.extracted_context and not is_image:
             is_tabular = request.attachment_type in ("csv", "excel")
@@ -638,18 +684,11 @@ async def process_chat(
                         content=full_response,
                         timestamp=datetime.now(UTC),
                     )
-
-                    # If this exchange was routed to the `landing` model, ensure we
-                    # attach a downloadable HTML artifact instead of leaving a long
-                    # HTML blob as plain text in the chat. This improves frontend
-                    # rendering so the file appears as an artifact.
                     if model_key == "landing":
                         try:
-                            # Try to extract clean HTML from code blocks or directly from response
                             import re
                             html_content = None
                             
-                            # Match ```html ... ``` or ```xml ... ``` or similar code blocks
                             code_block_match = re.search(
                                 r"```(?:html|xml|markup)?\s*([\s\S]*?)```",
                                 full_response,
@@ -723,9 +762,6 @@ async def process_chat(
                                         html_content = html_content.replace(f'src="{src_val}"', f'src="{replacement}"')
                                         html_content = html_content.replace(f"src='{src_val}'", f"src='{replacement}'")
 
-                                # Replace any images.unsplash.com photo IDs with guaranteed working ones
-                                # We match up to the '?' so we can replace the base URL but keep the query parameters if needed, 
-                                # or we just replace the whole thing if it's broken.
                                 unsplash_photo_matches = re.findall(
                                     r'https?://images\.unsplash\.com/photo-[0-9a-zA-Z_-]+(?:[^"\'\s>]+)?',
                                     html_content
@@ -777,7 +813,6 @@ async def process_chat(
                                 assistant_message.artifacts = []
                             assistant_message.artifacts.append(artifact)
 
-                            # Replace content with a short note so the frontend doesn't render raw HTML
                             assistant_message.content = "He generado la landing. Descárgala en el archivo adjunto."
 
                         except Exception as e:
@@ -800,7 +835,6 @@ async def process_chat(
                         messages,
                     )
 
-                    # Record usage to the database in background
                     try:
                         tokens_in = len(request.message) // 4 if request.message else 0
                         tokens_out = len(full_response) // 4 if full_response else 0

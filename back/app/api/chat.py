@@ -14,6 +14,7 @@ from app.security.output_guard import get_safety_fallback
 from app.dependencies.auth import get_current_user
 from app.services.chat_service import process_chat
 from app.services.document_processing.document_manager import DocumentManager
+from app.domain.interfaces.rag_repository import IRagRepository
 
 from app.schemas.chat import (
     ChatRequest,
@@ -43,6 +44,10 @@ def get_intent_classifier(request: Request):
     return getattr(request.app.state, "intent_classifier", None)
 
 
+def get_rag_repository(request: Request) -> IRagRepository | None:
+    return getattr(request.app.state, "rag_repository", None)
+
+
 async def sse_message(event_type: str, data: dict) -> str:
     return f"data: {json.dumps({'type': event_type, **data})}\n\n"
 
@@ -56,6 +61,7 @@ async def send_message_stream(
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
     document_manager: DocumentManager = Depends(get_document_manager),
     intent_classifier=Depends(get_intent_classifier),
+    rag_repository: IRagRepository | None = Depends(get_rag_repository),
 ):
 
     user_id = current_user["id"]
@@ -72,6 +78,7 @@ async def send_message_stream(
                 user_id=user_id,
                 document_manager=document_manager,
                 intent_classifier=intent_classifier,
+                rag_repository=rag_repository,
             )
 
             yield await sse_message(
@@ -202,10 +209,19 @@ async def get_chat_history(
     current_user: dict = Depends(get_current_user),
     memory_repo=Depends(get_memory_repo),
 ):
+    session = await memory_repo.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.get("user_id") != current_user["id"]:
+        raise HTTPException(
+            status_code=403, detail="No tienes permiso para acceder a esta sesión"
+        )
+
     messages = await memory_repo.get_messages(session_id)
 
     if messages is None:
-        raise HTTPException(status_code=404, detail="Session not found")
+        messages = []
 
     formatted_messages = []
     for msg in messages:
