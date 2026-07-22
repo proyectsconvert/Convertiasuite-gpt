@@ -527,9 +527,16 @@ async def process_chat(
         if doc_context and model_messages:
             last_msg = model_messages[-1]
             if last_msg.role == "user":
-                last_msg.content = f"{last_msg.content}\n\n{doc_context}"
+                last_msg.content = (
+                    f"{last_msg.content}\n\n"
+                    f"--- INSTRUCCIONES RAG ---\n"
+                    f"Responde a la consulta anterior basándote estrictamente en el siguiente contexto extraído de los documentos cargados.\n"
+                    f"- Si el contexto no contiene la información necesaria para responder, di amigablemente: \"No encontré esa información en los documentos cargados\". No intentes inventar ni alucinar datos.\n"
+                    f"- Haz referencia corta a la fuente/documento cuando cites un dato.\n\n"
+                    f"<contexto>\n{doc_context}\n</contexto>"
+                )
                 logger.info(
-                    "Injected retrieved context into model query session=%s context_length=%d trace_id=%s",
+                    "Injected structured retrieved context into model query session=%s context_length=%d trace_id=%s",
                     session_id,
                     len(doc_context),
                     trace_id,

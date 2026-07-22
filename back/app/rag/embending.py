@@ -1,9 +1,9 @@
 import httpx
 
-from app.core.config import settings
+from app.core.config import get_settings
 from app.core.model_config import get_model_info
 
-setting = settings()
+setting = get_settings()
 _EMBED_INFO = get_model_info("nomic-embed-text")
 
 async def embed_text(text:str) ->list[float]:

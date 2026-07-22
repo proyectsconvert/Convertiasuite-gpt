@@ -71,7 +71,16 @@ def insert_chunks(rows):
 
 
 def download_from_storage(storage_path):
-    url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{storage_path}"
+    clean_path = storage_path
+    bucket = BUCKET_NAME
+
+    if "/" in storage_path:
+        first_part = storage_path.split("/")[0]
+        if first_part in ("ai_files", "attachments"):
+            bucket = first_part
+            clean_path = storage_path[len(first_part) + 1:]
+
+    url = f"{SUPABASE_URL}/storage/v1/object/{bucket}/{clean_path}"
     response = requests.get(url, headers=supabase_headers(), timeout=60)
     response.raise_for_status()
     return response.content
