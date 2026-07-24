@@ -307,7 +307,6 @@ def scan_dead_code():
 
 
 # Verificación estructural: que nada esté roto
-
 def scan_broken_files(files):
     broken = []
 

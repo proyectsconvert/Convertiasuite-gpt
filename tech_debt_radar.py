@@ -4,6 +4,7 @@ import json
 import subprocess
 import datetime
 from pathlib import Path
+from collections import defaultdict
 import requests
 
 REPO_DIR = Path(os.environ.get("CI_PROJECT_DIR", "."))
@@ -29,20 +30,40 @@ def find_python_files():
     return [REPO_DIR / f for f in out.splitlines() if f]
 
 
-# TODO / FIXME
-def blame_line_date(filepath, line_number):
-    out = run(f"git log -1 --format=%aI -L {line_number},{line_number}:'{filepath}'")
+# TODO / FIXME 
+def get_last_modified_dates(files):
+    rel_paths = {str(f.relative_to(REPO_DIR)) for f in files}
 
-    for line in out.splitlines():
-        try:
-            return datetime.datetime.fromisoformat(line.strip())
-        except ValueError:
+    output = run("git log --format='COMMIT|%aI' --name-only")
+
+    dates = {}
+    current_date = None
+
+    for line in output.splitlines():
+        if line.startswith("COMMIT|"):
+            current_date = line.split("|", 1)[1]
             continue
 
-    return None
+        path = line.strip()
+        if not path or path not in rel_paths or path in dates:
+            continue
+
+        try:
+            dates[path] = datetime.datetime.fromisoformat(current_date)
+        except (ValueError, TypeError):
+            continue
+
+    return dates
 
 
-def scan_todos(files):
+def scan_todos(files, last_modified_dates):
+    """
+    NOTA: usa la fecha de última modificación del ARCHIVO, no un blame
+    línea por línea. Es una aproximación (un TODO puede ser más viejo
+    que la última edición del archivo si esa edición tocó otra línea),
+    pero evita cientos de subprocesos `git log -L` -- uno por cada
+    línea de TODO/FIXME encontrada.
+    """
     findings = []
 
     today = datetime.datetime.now(datetime.timezone.utc)
@@ -53,19 +74,19 @@ def scan_todos(files):
         except Exception:
             continue
 
+        rel = str(file.relative_to(REPO_DIR))
+        date = last_modified_dates.get(rel)
+        age_days = (today - date).days if date else None
+
         for index, line in enumerate(lines, start=1):
             match = TODO_PATTERN.search(line)
 
             if not match:
                 continue
 
-            date = blame_line_date(file.relative_to(REPO_DIR), index)
-
-            age_days = (today - date).days if date else None
-
             findings.append(
                 {
-                    "file": str(file.relative_to(REPO_DIR)),
+                    "file": rel,
                     "line": index,
                     "type": match.group(1).upper(),
                     "text": match.group(2)[:120],
@@ -114,38 +135,52 @@ def scan_complexity():
 
 
 # Zombie files
-def is_referenced_elsewhere(module, rel_path):
+def find_references_for_modules(module_names):
     """
-    FIX: antes se usaba grep con substrings sueltos ("import module"),
-    lo que da falsos positivos/negativos con imports de paquete
-    (ej. "from paquete.utils import x" no matchea "from utils").
-    Usamos una regex con límites de palabra para exigir que "module"
-    sea un token completo justo después de import/from.
+    Un solo grep con todos los nombres de módulo candidatos en
+    alternancia, en vez de un grep (recorriendo TODO el repo) por
+    cada archivo candidato a "zombie".
+    Devuelve: {nombre_modulo: {archivos que lo importan}}
     """
-    escaped = re.escape(module)
-    pattern = rf"(^|[^a-zA-Z0-9_])(import|from)\s+{escaped}([^a-zA-Z0-9_]|$)"
+    if not module_names:
+        return {}
 
-    output = run(f"grep -rlE --include='*.py' '{pattern}' . | grep -v -F '{rel_path}'")
+    alternation = "|".join(re.escape(m) for m in module_names)
+    pattern = rf"(^|[^a-zA-Z0-9_])(import|from)\s+({alternation})([^a-zA-Z0-9_]|$)"
 
-    return output.splitlines() if output else []
+    output = run(f"grep -rnE --include='*.py' '{pattern}' .")
+
+    compiled = re.compile(pattern)
+    refs = defaultdict(set)
+
+    for line in output.splitlines():
+        parts = line.split(":", 2)
+        if len(parts) < 3:
+            continue
+
+        file_path, _line_no, content = parts
+        match = compiled.search(content)
+        if not match:
+            continue
+
+        module = match.group(3)
+        norm_path = file_path[2:] if file_path.startswith("./") else file_path
+        refs[module].add(norm_path)
+
+    return refs
 
 
-def scan_stale_files(files):
+def scan_stale_files(files, last_modified_dates):
 
     today = datetime.datetime.now(datetime.timezone.utc)
 
-    findings = []
+    candidates = []
 
     for file in files:
-        rel = file.relative_to(REPO_DIR)
-        last_commit = run(f"git log -1 --format=%aI -- '{rel}'")
+        rel = str(file.relative_to(REPO_DIR))
+        last_date = last_modified_dates.get(rel)
 
-        if not last_commit:
-            continue
-        try:
-            last_date = datetime.datetime.fromisoformat(last_commit)
-
-        except ValueError:
+        if not last_date:
             continue
 
         age = (today - last_date).days
@@ -153,12 +188,21 @@ def scan_stale_files(files):
         if age < STALE_DAYS:
             continue
 
-        module = rel.stem
+        candidates.append((rel, age))
 
-        refs = is_referenced_elsewhere(module, str(rel))
+    if not candidates:
+        return []
 
-        if not refs:
-            findings.append({"file": str(rel), "age_days": age, "referenced_by": 0})
+    modules = {Path(rel).stem for rel, _ in candidates}
+    refs_by_module = find_references_for_modules(sorted(modules))
+
+    findings = []
+    for rel, age in candidates:
+        module = Path(rel).stem
+        referencing_files = refs_by_module.get(module, set()) - {rel}
+
+        if not referencing_files:
+            findings.append({"file": rel, "age_days": age, "referenced_by": 0})
 
     return sorted(findings, key=lambda x: -x["age_days"])
 
@@ -290,9 +334,11 @@ def main():
 
     files = find_python_files()
 
-    todos = scan_todos(files)
+    last_modified_dates = get_last_modified_dates(files)
+
+    todos = scan_todos(files, last_modified_dates)
     complexity = scan_complexity()
-    stale = scan_stale_files(files)
+    stale = scan_stale_files(files, last_modified_dates)
     eslint = load_eslint_report()
 
     if not (todos or complexity or stale or eslint):

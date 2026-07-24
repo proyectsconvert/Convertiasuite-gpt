@@ -1,7 +1,7 @@
 import os
 import json
 import requests
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
 SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
@@ -38,7 +38,6 @@ def ollama_headers():
 
 
 # Supabase: leer pendientes / escribir chunks (vía REST, no SDK)
-
 def get_pending_sources():
     url = f"{SUPABASE_URL}/rest/v1/rpc/get_pending_rag_sources"
     response = requests.post(url, headers=supabase_headers(), json={}, timeout=30)
@@ -98,8 +97,6 @@ def embed_batch(texts):
     response.raise_for_status()
     return response.json()["embeddings"]
 
-
-# Chunking (autocontenido, sin imports del backend)
 
 def split_into_chunks(text, max_tokens=MAX_TOKENS, overlap=OVERLAP):
     max_chars = max_tokens * CHARS_PER_TOKEN
@@ -172,8 +169,6 @@ def chunks_from_parsed_content(parsed_content):
 
     return results
 
-
-# Extracción de archivos de Storage (sin el DocumentProcessorFactory del
 
 def extract_text_from_file(file_bytes, filename):
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -248,18 +243,25 @@ def ingest_one(row):
     print(f"[OK] {row['source_type']}:{row['file_name']} -> {len(rows)} chunks")
 
 
+INGEST_WORKERS = int(os.environ.get("RAG_INGEST_WORKERS", 4))
+
+
 def main():
     print("Buscando documentos pendientes de ingesta...")
     pending = get_pending_sources()
     print(f"{len(pending)} documentos pendientes de (re)procesar")
 
     errors = 0
-    for row in pending:
-        try:
-            ingest_one(row)
-        except Exception as exc:
-            errors += 1
-            print(f"[ERROR] {row['source_type']}:{row.get('file_name')} -> {exc}")
+    with ThreadPoolExecutor(max_workers=INGEST_WORKERS) as executor:
+        futures = {executor.submit(ingest_one, row): row for row in pending}
+
+        for future in as_completed(futures):
+            row = futures[future]
+            try:
+                future.result()
+            except Exception as exc:
+                errors += 1
+                print(f"[ERROR] {row['source_type']}:{row.get('file_name')} -> {exc}")
 
     if errors:
         print(f"Terminado con {errors} errores")

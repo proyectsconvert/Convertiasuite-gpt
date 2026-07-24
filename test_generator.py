@@ -33,13 +33,13 @@ def find_missing_back_tests():
     missing_tests = []
 
     for py_file in BACK_SRC.rglob("*.py"):
-        if "tests" in py_file.partys or py_file.name.startswith("__"):
+        if "tests" in py_file.parts or py_file.name.startswith("__"):
             continue
 
         expected_test = BACK_TESTS / f"test_{py_file.name}"
 
         if not expected_test.exists():
-            missing_tests.append(str(expected_test, py_file))
+            missing_tests.append(py_file)
     return missing_tests
 
 
@@ -64,6 +64,7 @@ def generate_back_test(source_file: Path):
     BACK_TESTS.mkdir(parents=True, exist_ok=True)
     output_path = BACK_TESTS / f"test_{source_file.name}"
     output_path.write_text(test_code, encoding="utf-8")
+    return output_path
 
 
 # frontend
@@ -91,7 +92,7 @@ def generate_front_test(source_file: Path):
 
     ```javascript
     {source_code}
-
+    ```
 """
     raw = call_ollama(prompt)
     test_code = strip_code_fence(raw)
@@ -116,19 +117,21 @@ def main():
     for source_file in find_missing_frontend_tests():
         try:
             output_path = generate_front_test(source_file)
-            report["front"].append({"source": str(source_file), "test":str(output_path)})
+            report["front"].append({"source": str(source_file), "test": str(output_path)})
             generated_any = True
-        
+
         except Exception as e:
             report["front"].append({"source": str(source_file), "error": str(e)})
 
-        
-        with open("tests_generation_report.js", "w", encoding="utf-8") as f:
-            json.dump(report, f, indent=2, ensure_ascii=False)
+    with open("test_generation_report.json", "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2, ensure_ascii=False)
 
-        
-        if generated_any:
-            Path(".test_generated").touch()
+    if generated_any:
+        Path(".tests_generated").touch()
 
-        print(f"back{len(report['back'])}) archivos procesados")
-        print(f"front{len(report['front'])}) archivos procesados")
+    print(f"back: {len(report['back'])} archivos procesados")
+    print(f"front: {len(report['front'])} archivos procesados")
+
+
+if __name__ == "__main__":
+    main()

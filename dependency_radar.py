@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import datetime
 import subprocess
@@ -8,10 +9,29 @@ import requests
 
 TOP_UPDATES = int(os.environ.get("TOP_UPDATES", 10))
 
+
 def run(cmd):
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     return result.stdout.strip()
 
+
+def parse_requirement_names(requirements_path):
+    """
+    Extrae solo los nombres de paquete declarados en requirements.txt,
+    normalizados (minúsculas, '_' == '-'), para filtrar el output de
+    `pip list --outdated`. Sin esto, la imagen de CI trae herramientas
+    propias (vulture, pytest, radon, pip-audit) que también aparecerían
+    como "dependencias desactualizadas" del proyecto sin serlo.
+    """
+    names = set()
+    for line in requirements_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or line.startswith("-"):
+            continue
+        match = re.match(r"^([A-Za-z0-9_.\-]+)", line)
+        if match:
+            names.add(match.group(1).lower().replace("_", "-"))
+    return names
 
 
 def scan_python_dependencies():
@@ -20,6 +40,8 @@ def scan_python_dependencies():
 
     if not requirements.exists():
         return []
+
+    declared = parse_requirement_names(requirements)
 
     output = run("pip list --outdated --format=json")
 
@@ -34,10 +56,14 @@ def scan_python_dependencies():
     findings = []
 
     for pkg in packages:
+        name = pkg.get("name", "")
+        if name.lower().replace("_", "-") not in declared:
+            continue
+
         findings.append(
             {
                 "ecosystem": "python",
-                "package": pkg.get("name"),
+                "package": name,
                 "current_version": pkg.get("version"),
                 "latest_version": pkg.get("latest_version"),
             }
@@ -111,6 +137,7 @@ Prioriza:
 Sé breve.
 """
 
+
 def call_ollama(prompt):
 
     host = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
@@ -131,7 +158,9 @@ def call_ollama(prompt):
     response.raise_for_status()
     return response.json().get("response", "").strip()
 
+
 # GitLab
+
 
 def create_gitlab_issue(summary):
 

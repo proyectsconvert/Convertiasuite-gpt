@@ -36,6 +36,7 @@ spec:
       description: "Ejecuta generación de RAG (ingestión de documentos y embeddings)"
 ---
 stages:
+  - build-ci-image
   - lint
   - test
   - security
@@ -57,6 +58,26 @@ cache:
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  CI_TOOLS_IMAGE: "$CI_REGISTRY_IMAGE/ci-tools:latest"
+
+
+build-ci-tools:
+  stage: build-ci-image
+  image: docker:24-cli
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+    - changes:
+        - Dockerfile.ci-tools
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker build -f Dockerfile.ci-tools -t "$CI_TOOLS_IMAGE" .
+    - docker push "$CI_TOOLS_IMAGE"
 
 .security_rule: &security_rule
   rules:
@@ -159,14 +180,9 @@ container-scan:
 
 tech-debt:
   stage: scheduled-analysis
-  image: python:3.11-slim
+  image: "$CI_TOOLS_IMAGE"
 
   <<: *tech_debt_rule
-
-  before_script:
-    - apt-get update -qq
-    - apt-get install -y -qq git grep nodejs npm
-    - pip install --quiet radon requests
 
   script:
     - git fetch --unshallow || true
@@ -189,7 +205,7 @@ tech-debt:
 
 security-radar:
   stage: scheduled-analysis
-  image: python:3.11-slim
+  image: "$CI_TOOLS_IMAGE"
 
   <<: *security_rule
 
@@ -203,9 +219,6 @@ security-radar:
     - job: container-scan
       artifacts: true
 
-  before_script:
-    - pip install --quiet requests
-
   script:
     - python3 security_radar.py
 
@@ -215,14 +228,11 @@ security-radar:
 
 dependency-radar:
   stage: scheduled-analysis
-  image: python:3.11-slim
+  image: "$CI_TOOLS_IMAGE"
 
   <<: *dependency_rule
 
   before_script:
-    - apt-get update -qq
-    - apt-get install -y -qq nodejs npm
-    - pip install --quiet requests
     - if [ -f back/requirements.txt ]; then pip install --quiet -r back/requirements.txt; fi
     - if [ -f front/package.json ]; then (cd front && npm ci --silent); fi
 
@@ -235,14 +245,9 @@ dependency-radar:
 
 ci-radar:
   stage: scheduled-analysis
-  image: python:3.11-slim
+  image: "$CI_TOOLS_IMAGE"
 
   <<: *ci_rule
-
-  before_script:
-    - apt-get update -qq
-    - apt-get install -y -qq nodejs npm
-    - pip install --quiet requests
 
   script:
     - python3 ci_radar.py
@@ -253,46 +258,36 @@ ci-radar:
 
 architecture-radar:
   stage: scheduled-analysis
-  image: python:3.11-slim
+  image: "$CI_TOOLS_IMAGE"
  
   <<: *architecture_rule
  
   before_script:
-    - apt-get update -qq
-    - apt-get install -y -qq git
-    - pip install --quiet requests vulture pytest
     - if [ -f back/requirements.txt ]; then pip install --quiet -r back/requirements.txt; fi
  
   script:
-    - git fetch --unshallow || true
     - python3 architecture_radar.py
  
   variables:
-    GIT_DEPTH: 0
     OLLAMA_HOST: "$OLLAMA_BASE_URL"
     OLLAMA_MODEL: "qwen2.5:7b"
  
 test-generator:
   stage: test-generation
-  image: python:3.11-slim
+  image: "$CI_TOOLS_IMAGE"
 
   <<: *test_generator_rule 
 
   variables:
-    GIT_DEPTH: 0
     OLLAMA_HOST: "$OLLAMA_BASE_URL"
     OLLAMA_MODEL: "qwen2.5:7b"
     MR_BRANCH: "auto/test-generation-${CI_PIPELINE_ID}"
 
   before_script:
-    - apt-get update -qq
-    - apt-get install -y -qq git nodejs npm curl
-    - pip install --quiet requests
     - if [ -f back/requirements.txt ]; then pip install --quiet -r back/requirements.txt; fi
     - if [ -f front/package.json ]; then (cd front && npm ci --silent); fi
 
   script:
-    - git fetch --unshallow || true
     - python3 test_generator.py
     - |
       if [ -f .tests_generated ]; then
@@ -307,7 +302,7 @@ test-generator:
           --header "PRIVATE-TOKEN: ${GIT_PUSH_TOKEN}" \
           --data "source_branch=${MR_BRANCH}" \
           --data "target_branch=${CI_DEFAULT_BRANCH}" \
-          --data "title=🤖 Tests generados automáticamente" \
+          --data "title= Tests generados automáticamente" \
           --data "description=MR generado por el pipeline ${CI_PIPELINE_ID}. Revisar antes de mergear." \
           "https://${CI_SERVER_HOST}/api/v4/projects/${CI_PROJECT_ID}/merge_requests"
       else

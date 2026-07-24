@@ -3,6 +3,7 @@ import json
 import glob
 import datetime
 import requests
+from concurrent.futures import ThreadPoolExecutor
 
 
 def load_json(path):
@@ -55,25 +56,31 @@ def parse_pip_audit(path="pip-audit-report.json"):
     if not data:
         return []
 
-    findings = []
-
+    entries = []
     for dep in data.get("dependencies", []):
         for vuln in dep.get("vulns", []):
-            vuln_id = vuln.get("id")
+            entries.append((dep, vuln))
 
-            severity = fetch_osv_severity(vuln_id) or "HIGH"
+    if not entries:
+        return []
 
-            findings.append(
-                {
-                    "origen": "pip-audit",
-                    "paquete": dep.get("name"),
-                    "version_actual": dep.get("version"),
-                    "id": vuln_id,
-                    "fix_versions": vuln.get("fix_versions", []),
-                    "descripcion": vuln.get("description", "")[:300],
-                    "severidad": severity,
-                }
-            )
+    vuln_ids = [vuln.get("id") for _, vuln in entries]
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        severities = list(executor.map(fetch_osv_severity, vuln_ids))
+
+    findings = []
+    for (dep, vuln), severity in zip(entries, severities):
+        findings.append(
+            {
+                "origen": "pip-audit",
+                "paquete": dep.get("name"),
+                "version_actual": dep.get("version"),
+                "id": vuln.get("id"),
+                "fix_versions": vuln.get("fix_versions", []),
+                "descripcion": vuln.get("description", "")[:300],
+                "severidad": severity or "HIGH",
+            }
+        )
 
     return findings
 
@@ -235,8 +242,6 @@ def create_gitlab_issue(title, description):
 
 
 # Main
-
-
 def main():
 
     pip = parse_pip_audit()

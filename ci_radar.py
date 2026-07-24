@@ -190,16 +190,13 @@ def main():
 
     print(json.dumps(data, indent=2))
 
-    prompt = build_prompt(data)
-
-    summary = call_ollama(prompt)
-
     if pipeline_stats["failed_pipelines"] == 0 and not job_stats["most_failed_jobs"]:
         print("CI saludable, no se crea issue.")
         return
 
+    prompt = build_prompt(data)
+    summary = call_ollama(prompt)
     issue = create_issue(summary)
-
     print(issue.get("web_url"))
 
 
