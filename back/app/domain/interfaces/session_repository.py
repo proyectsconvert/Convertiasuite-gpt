@@ -23,7 +23,10 @@ class ISessionRepository(ABC):
     async def get_session_list(
         self,
         user_id: str,
-    ) -> list:
+        limit: int = 20,
+        cursor_updated_at: str | None = None,
+        cursor_id: str | None = None,
+    ) -> dict:
         pass
 
     @abstractmethod

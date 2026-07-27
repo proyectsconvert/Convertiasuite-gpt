@@ -1,11 +1,9 @@
 import logging
 from typing import Optional, List
-
 from app.domain.interfaces.session_repository import ISessionRepository
 from app.domain.interfaces.message_repository import IMessageRepository
 from app.domain.interfaces.attachment_repository import IAttachmentRepository
 from app.domain.interfaces.ai_generated_files import IAIGeneratedFilesRepository
-
 from app.infra.repositories.supabase.memory_repository import SupabaseMemoryRepository
 from app.infra.repositories.redis.cache_repository import RedisCacheRepository
 
@@ -43,8 +41,19 @@ class CompositeMemoryRepository(
     async def get_session(self, session_id: str) -> Optional[dict]:
         return await self.db.get_session(session_id)
 
-    async def get_session_list(self, user_id: str) -> List[dict]:
-        return await self.db.get_session_list(user_id)
+    async def get_session_list(
+        self,
+        user_id: str,
+        limit: int = 20,
+        cursor_updated_at: str | None = None,
+        cursor_id: str | None = None,
+    ) -> dict:
+        return await self.db.get_session_list(
+            user_id,
+            limit=limit,
+            cursor_updated_at=cursor_updated_at,
+            cursor_id=cursor_id,
+        )
 
     async def update_session(self, session_id: str, title: str) -> None:
         return await self.db.update_session(session_id, title)

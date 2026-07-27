@@ -96,6 +96,10 @@ interface AppState {
     session: SessionSummary
   ) => void;
 
+  appendSessions: (
+    sessions: SessionSummary[]
+  ) => void;
+
   deleteSession: (
     id: string
   ) => void;
@@ -243,6 +247,14 @@ export const useAppStore = create<AppState>()(
           sessions: [
             session,
             ...state.sessions,
+          ],
+        })),
+
+      appendSessions: (newSessions) =>
+        set((state) => ({
+          sessions: [
+            ...state.sessions,
+            ...newSessions,
           ],
         })),
 

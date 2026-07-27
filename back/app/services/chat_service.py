@@ -11,7 +11,7 @@ from app.domain.contracts import PromptContract
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.message_repository import IMessageRepository
 from app.security.risk_scorer import risk_scorer
-from app.services.model_router import route_model, build_routing_context
+from app.services.model_router import route_model, build_routing_context, is_generic_chat, is_trivial_or_interjection
 from app.services.intent_classifier import IntentClassifier
 from app.services.storage_service import upload_file_to_supabase
 from app.services.document_processing.document_manager import DocumentManager
@@ -46,9 +46,6 @@ from app.security.output_guard import (
     validate_chunk_realtime,
 )
 
-from app.security.prompt_injection_guard import (
-    validate_prompt_safety,
-)
 
 MODEL_CONFIG = get_model_config()
 logger = logging.getLogger(__name__)
@@ -282,23 +279,6 @@ async def process_chat(
         for msg in history:
             try:
                 msg_obj = Message.from_dict(msg) if isinstance(msg, dict) else msg
-
-                if msg_obj.role == "user":
-                    try:
-                        validate_prompt_safety(
-                            msg_obj.content,
-                            risk_level="MEDIUM",
-                        )
-
-                    except Exception:
-                        logger.warning(
-                            "Skipping malicious history message session=%s trace_id=%s",
-                            session_id,
-                            trace_id,
-                        )
-
-                        continue
-
                 sanitized_history.append(msg_obj)
 
             except Exception as e:
@@ -364,6 +344,8 @@ async def process_chat(
             )
 
         async def _get_doc_context() -> str:
+            if is_generic_chat(clean_input) or is_trivial_or_interjection(clean_input):
+                return ""
             if document_manager and session_id and not is_image:
                 try:
                     return await document_manager.get_relevant_context(
@@ -390,7 +372,8 @@ async def process_chat(
             )
 
         async def _get_rag_context() -> str:
-            """Búsqueda semántica RAG global contra documentos embebidos."""
+            if is_generic_chat(clean_input) or is_trivial_or_interjection(clean_input):
+                return ""
             if not rag_repository:
                 return ""
             try:
@@ -401,7 +384,7 @@ async def process_chat(
                 fragments = []
                 for r in results:
                     similarity = r.get("similarity", 0)
-                    if similarity < 0.3:
+                    if similarity < 0.6:
                         continue
                     content = r.get("content", "")
                     metadata = r.get("metadata") or {}
@@ -425,11 +408,32 @@ async def process_chat(
                 )
             return ""
 
-        doc_context, model_key, rag_context = await asyncio.gather(
-            _get_doc_context(),
-            _classify_intent(),
-            _get_rag_context(),
-        )
+        model_key = await _classify_intent()
+
+        # Verificar rápidamente si la sesión contiene algún documento cargado
+        has_docs = False
+        if document_manager and session_id:
+            try:
+                session_docs = await document_manager.document_repository.get_by_session(
+                    uuid.UUID(session_id)
+                )
+                has_docs = len(session_docs) > 0
+            except Exception:
+                pass
+
+        # El RAG solo se activa si la intención es de análisis/razonamiento/BI
+        # o si la consulta es general (default) pero la sesión actual tiene documentos.
+        RAG_ENABLED_INTENTS = {"analysis", "bi", "reasoning"}
+        should_run_rag = (model_key in RAG_ENABLED_INTENTS) or (model_key == "default" and has_docs)
+
+        if should_run_rag:
+            doc_context, rag_context = await asyncio.gather(
+                _get_doc_context(),
+                _get_rag_context(),
+            )
+        else:
+            doc_context = ""
+            rag_context = ""
 
         # Combinar contexto de documentos por sesión con contexto RAG global
         if rag_context:
@@ -477,7 +481,7 @@ async def process_chat(
 
                 top_chunks = []
                 for score, p in scored[:3]:
-                    if score > 0 or not top_chunks:
+                    if score > 0:
                         trimmed = p if len(p) <= 1500 else p[:1500] + "..."
                         top_chunks.append(
                             f"### Fragmento de {attachment_name}:\n{trimmed}"

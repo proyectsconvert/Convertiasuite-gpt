@@ -171,28 +171,59 @@ class SupabaseMemoryRepository(
             raise
 
     async def get_session_list(
-        self,
-        user_id: str,
-    ) -> list:
+    self,
+    user_id: str,
+    limit: int = 20,
+    cursor_updated_at: str | None = None,
+    cursor_id: str | None = None,
+) -> dict:
+        empty = {
+            "sessions": [],
+            "has_more": False,
+            "next_cursor_updated_at": None,
+            "next_cursor_id": None,
+        }
         try:
-            response = (
+            query = (
                 self.supabase.table("chat_sessions")
                 .select("*")
                 .eq("user_id", user_id)
                 .is_("deleted_at", "null")
-                .order("updated_at", desc=True)
+            )
+
+            if cursor_updated_at and cursor_id:
+                query = query.or_(
+                    f"updated_at.lt.{cursor_updated_at},"
+                    f"and(updated_at.eq.{cursor_updated_at},session_id.lt.{cursor_id})"
+                )
+
+            response = (
+                query.order("updated_at", desc=True)
+                .order("session_id", desc=True)
+                .limit(limit + 1)
                 .execute()
             )
 
-            return [
+            rows = response.data or []
+            has_more = len(rows) > limit
+            rows = rows[:limit]
+
+            sessions = [
                 {
                     "id": row["session_id"],
                     "title": row["title"],
                     "created_at": row["created_at"],
                     "updated_at": row["updated_at"],
                 }
-                for row in (response.data or [])
+                for row in rows
             ]
+
+            return {
+                "sessions": sessions,
+                "has_more": has_more,
+                "next_cursor_updated_at": rows[-1]["updated_at"] if has_more and rows else None,
+                "next_cursor_id": rows[-1]["session_id"] if has_more and rows else None,
+            }
 
         except Exception as e:
             logger.error(
@@ -200,8 +231,8 @@ class SupabaseMemoryRepository(
                 user_id,
                 str(e),
             )
-            return []
-
+            return empty
+        
     async def update_session(
         self,
         session_id: str,

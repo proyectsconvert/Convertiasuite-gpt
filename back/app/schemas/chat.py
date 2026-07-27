@@ -1,6 +1,8 @@
-from pydantic import BaseModel
-from typing import Optional, List
+from datetime import datetime
 from enum import Enum
+from typing import Optional, List
+from pydantic import BaseModel, Field
+
 
 
 class UserRole(str, Enum):
@@ -43,11 +45,10 @@ class MessageDTO(BaseModel):
     id: str
     role: str
     content: str
-    timestamp: str
-    attachments: Optional[List[AttachmentDTO]] = []
-    artifacts: Optional[List[ArtifactDTO]] = []
-    images: Optional[List[str]] = []
-
+    timestamp: datetime
+    attachments: List[AttachmentDTO] = Field(default_factory=list)
+    artifacts: List[ArtifactDTO] = Field(default_factory=list)
+    images: List[str] = Field(default_factory=list)
 
 class ChatHistoryResponse(BaseModel):
     messages: List[MessageDTO]
@@ -60,6 +61,13 @@ class SessionSummary(BaseModel):
     created_at: str
     updated_at: str
 
+class SessionCursor(BaseModel):
+    updated_at: datetime
+    id: str
+
 
 class SessionListResponse(BaseModel):
     sessions: List[SessionSummary]
+    has_more: bool = False
+    next_cursor_updated_at: Optional[str] = None
+    next_cursor_id: Optional[str] = None

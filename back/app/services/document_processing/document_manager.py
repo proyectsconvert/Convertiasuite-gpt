@@ -124,7 +124,7 @@ class DocumentManager:
 
             relevant_chunks = []
             for score, filename, chunk, is_tab in scored_chunks[:limit_chunks]:
-                if score > 0 or not relevant_chunks:
+                if score > 0:
                     max_len = 2500 if is_tab else 1500
                     trimmed_chunk = (
                         chunk

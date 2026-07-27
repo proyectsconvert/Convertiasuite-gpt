@@ -60,12 +60,35 @@ def _prepare_routing_text(message: str) -> str:
     return _strip_code_blocks(_strip_history_context(message)).lower().strip()
 
 
-def _is_generic_chat(message: str) -> bool:
+def is_generic_chat(message: str) -> bool:
     msg_lower = _prepare_routing_text(message)
     if not msg_lower:
         return False
-
     return any(re.fullmatch(pattern, msg_lower) for pattern in _GENERIC_CHAT_PATTERNS)
+
+
+def is_trivial_or_interjection(message: str) -> bool:
+    msg_lower = _prepare_routing_text(message)
+    if not msg_lower:
+        return True
+
+    # Mensajes ultra cortos (menos de 3 caracteres, ej: "mm", "si", "no", "ok", "?")
+    if len(msg_lower) < 3:
+        return True
+
+    # Si no contiene caracteres alfanuméricos (ej: "?", "!!!", "...")
+    if not re.search(r"[a-zA-Z0-9áéíóúñ]", msg_lower):
+        return True
+
+    # Respuestas cortas comunes e interjecciones conversacionales
+    common_short_replies = {
+        "si", "no", "ok", "okey", "vale", "bien", "gracias", "mmm", "ajá", "aja",
+        "ah", "eh", "chao", "adiós", "adios", "test", "hola"
+    }
+    if msg_lower in common_short_replies:
+        return True
+
+    return False
 
 
 async def route_model(
@@ -85,7 +108,7 @@ async def route_model(
         if user_role in ALLOWED_MODELS:
             return user_role
 
-    if _is_generic_chat(message):
+    if is_generic_chat(message):
         return DEFAULT_MODEL_KEY
 
     if intent_classifier is not None:
@@ -123,8 +146,6 @@ async def route_model(
     if matches_any(routing_text, KEYWORDS_LANDING):
         return "landing"
 
-    # Fallback: Si el mensaje actual es muy corto (ej: "mm", "si", "continua") y no clasifica,
-    # intentamos buscar la intención en el último mensaje del usuario del historial.
     if len(routing_text) < 15 and history:
         for item in reversed(history):
             role = item.get("role") if isinstance(item, dict) else getattr(item, "role", None)

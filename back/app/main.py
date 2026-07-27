@@ -30,6 +30,7 @@ from app.infra.clients.ollama_client import OllamaClient
 from app.infra.providers.ollama_provider import OllamaProvider
 from app.services.intent_classifier import IntentClassifier
 from app.rag.supabase_rag_repository import SupabaseRagRepository
+from app.rag.embending import warmup_embed_client
 
 logging.basicConfig(
     level=logging.INFO,
@@ -103,6 +104,7 @@ async def lifespan(app: FastAPI):
     logger.info("Application startup completed")
 
     asyncio.create_task(preload_ollama_models())
+    asyncio.create_task(warmup_embed_client())
 
     yield
 
@@ -196,3 +198,4 @@ app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(documents.router)
 app.include_router(admin.router)
+

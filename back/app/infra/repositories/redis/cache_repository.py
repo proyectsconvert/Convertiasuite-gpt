@@ -113,19 +113,52 @@ class RedisCacheRepository(
     async def get_session_list(
         self,
         user_id: str,
-    ) -> list:
+        limit: int = 20,
+        cursor_updated_at: str | None = None,
+        cursor_id: str | None = None,
+) -> dict:
+   
         key = self._user_sessions_key(user_id)
         session_ids = await self.redis.smembers(key)
-
         if not session_ids:
-            return []
+            return {
+                "sessions": [],
+                "has_more": False,
+                "next_cursor_updated_at": None,
+                "next_cursor_id": None,
+            }
 
         async with self.redis.pipeline() as pipe:
             for sid in session_ids:
                 pipe.hgetall(self._meta_key(sid))
             results = await pipe.execute()
 
-        return [data for data in results if data]
+        sessions = sorted(
+            [data for data in results if data],
+            key=lambda d: d.get("updated_at", ""),
+            reverse=True,
+        )
+
+        # Aplicar filtro por cursor (keyset pagination)
+        if cursor_updated_at and cursor_id:
+            sessions = [
+                s for s in sessions
+                if (s.get("updated_at", "") < cursor_updated_at)
+                or (
+                    s.get("updated_at", "") == cursor_updated_at
+                    and s.get("id", "") < cursor_id
+                )
+            ]
+
+        page = sessions[:limit]
+        has_more = len(sessions) > limit
+
+        return {
+            "sessions": page,
+            "has_more": has_more,
+            "next_cursor_updated_at": page[-1]["updated_at"] if has_more and page else None,
+            "next_cursor_id": page[-1]["id"] if has_more and page else None,
+        }
 
     async def update_session(
         self,

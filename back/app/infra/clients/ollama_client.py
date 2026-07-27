@@ -216,7 +216,7 @@ class OllamaClient:
                 "stream": True,
                 "keep_alive": -1,
             }
-            if think is not None:  # <-- NUEVO
+            if think is not None: 
                 payload["think"] = think
 
             options = {}

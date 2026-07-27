@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, File, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, File, UploadFile
 from fastapi.responses import StreamingResponse
 import logging
 import json
@@ -6,7 +6,7 @@ from datetime import datetime
 import re
 import uuid
 from typing import List
-
+from typing import Optional
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.memory_repository import IMemoryRepository
 from app.security.exceptions import SecurityException
@@ -134,13 +134,20 @@ async def send_message_stream(
 async def list_sessions(
     current_user: dict = Depends(get_current_user),
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
+    limit: int = Query(20, ge=1, le=100),
+    cursor_updated_at: Optional[str] = None,
+    cursor_id: Optional[str] = Query(None),
 ):
+    return await memory_repo.get_session_list(
+        user_id=current_user["id"],
+        limit=limit,
+        cursor_updated_at=cursor_updated_at,
+        cursor_id=cursor_id,
+    )
 
-    user_id = current_user["id"]
-
-    sessions = await memory_repo.get_session_list(user_id)
-
-    return SessionListResponse(sessions=sessions)
+    # user_id = current_user["id"]
+    # sessions = await memory_repo.get_session_list(user_id)
+    # return SessionListResponse(sessions=sessions)
 
 
 @router.post("/sessions", response_model=SessionSummary)
@@ -394,3 +401,4 @@ async def upload_audio(
             status_code=500,
             detail=f"Error al procesar y transcribir el audio: {str(e)}",
         )
+

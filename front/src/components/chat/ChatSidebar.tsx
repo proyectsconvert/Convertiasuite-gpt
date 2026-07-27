@@ -64,9 +64,18 @@ export default function ChatSidebar() {
     deleteSession,
     renameSession,
     setSessions,
+    appendSessions,
   } = useAppStore();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<{
+    updated_at: string;
+    id: string;
+  } | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -74,14 +83,56 @@ export default function ChatSidebar() {
   const editRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Initial load
   useEffect(() => {
     if (user?.id) {
       chatApi
         .getSessions()
-        .then((data) => setSessions(data.sessions))
+        .then((data) => {
+          setSessions(data.sessions);
+          setHasMore(data.has_more);
+          setNextCursor(
+            data.next_cursor_updated_at && data.next_cursor_id
+              ? { updated_at: data.next_cursor_updated_at, id: data.next_cursor_id }
+              : null,
+          );
+        })
         .catch(() => {});
     }
   }, [user?.id, setSessions]);
+
+  // Load more (infinite scroll)
+  const loadMore = useCallback(() => {
+    if (!hasMore || !nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    chatApi
+      .getSessions(nextCursor)
+      .then((data) => {
+        appendSessions(data.sessions);
+        setHasMore(data.has_more);
+        setNextCursor(
+          data.next_cursor_updated_at && data.next_cursor_id
+            ? { updated_at: data.next_cursor_updated_at, id: data.next_cursor_id }
+            : null,
+        );
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  }, [hasMore, nextCursor, loadingMore, appendSessions]);
+
+  // IntersectionObserver on sentinel
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMore();
+      },
+      { rootMargin: "100px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   const grouped = groupByDate(sessions);
 
@@ -337,6 +388,13 @@ export default function ChatSidebar() {
               Sin conversaciones.
               <br />
               Crea un nuevo chat para comenzar.
+            </div>
+          )}
+          {/* Sentinel for infinite scroll */}
+          <div ref={sentinelRef} className="h-1" />
+          {loadingMore && (
+            <div className="flex justify-center py-2">
+              <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
             </div>
           )}
         </div>

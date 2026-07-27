@@ -30,11 +30,7 @@ class OutputValidator:
         r"tu\s+propósito\s+es\s+ayudar\s+a\s+diferentes\s*$",
     ]
 
-    LANGUAGE_BLOCK_PATTERNS = [
-        r"[\u4e00-\u9fff]",  
-        r"[\uac00-\ud7af]", 
-        r"[\u3040-\u309f\u30a0-\u30ff]",  #
-    ]
+    LANGUAGE_BLOCK_PATTERNS = []
 
     FORMAT_BREAK_PATTERNS = [
         r"[\x00-\x08\x0b\x0c\x0e-\x1f]",
