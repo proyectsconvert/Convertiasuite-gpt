@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request, status, Depends
 from app.schemas.auth import (
     LoginRequest,
+    RefreshRequest,
     TokenResponse,
     ProfileUpdateRequest,
 )
@@ -170,18 +171,27 @@ async def change_password(
             detail="Error interno del servidor",
         )
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(request: Request):
+async def refresh_token(
+    request: Request,
+    body: RefreshRequest = None,
+):
+    # 1. Intentar extraer el token del header Authorization
+    token: str | None = None
     auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[len("Bearer "):].strip()
 
-    if not auth_header:
+    # 2. Fallback: leer del body JSON si el header no estaba presente o estaba vacío
+    if not token and body and body.refresh_token:
+        token = body.refresh_token
+
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Refresh token requerido",
+            detail="Refresh token requerido (envíelo en el header Authorization o en el body)",
         )
 
-    refresh_token = auth_header.replace("Bearer ", "")
-
-    auth_data = await auth_service.refresh_token(refresh_token)
+    auth_data = await auth_service.refresh_token(token)
 
     if not auth_data:
         raise HTTPException(
@@ -195,9 +205,18 @@ async def refresh_token(request: Request):
     user_metadata = user.user_metadata or {}
     app_metadata = user.app_metadata or {}
 
+    # Si Supabase no rota el refresh token, devolvemos el token original
+    # para que el frontend no pierda la sesión
+    new_refresh_token = session.refresh_token or token
+
+    logger.info(
+        "Token refreshed successfully user_id=%s",
+        user.id,
+    )
+
     return TokenResponse(
         access_token=session.access_token,
-        refresh_token=session.refresh_token,
+        refresh_token=new_refresh_token,
         token_type="bearer",
         expires_in=session.expires_in,
         user={
