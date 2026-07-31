@@ -11,16 +11,16 @@ from app.domain.contracts import PromptContract
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.message_repository import IMessageRepository
 from app.security.risk_scorer import risk_scorer
-from back.app.services.llm.model_router import route_model, build_routing_context, is_generic_chat, is_trivial_or_interjection
-from app.services.intent_classifier import IntentClassifier
-from back.app.services.chat.storage_service import upload_file_to_supabase
-from app.services.document_processing.document_manager import DocumentManager
-from app.services.document_processing.chunk_processor import (
+from app.services.llm.model_router import route_model, build_routing_context, is_generic_chat, is_trivial_or_interjection
+from app.services.chat.intent_classifier import IntentClassifier
+from app.services.chat.storage_service import upload_file_to_supabase
+from app.services.documents.document_processing.document_manager import DocumentManager
+from app.services.documents.document_processing.chunk_processor import (
     needs_chunking,
 )
 from app.domain.interfaces.rag_repository import IRagRepository
 from app.rag.embending import embed_text
-from app.services.document_generation.document_generator import DocumentGenerator
+from app.services.documents.document_generation.document_generator import DocumentGenerator
 from app.security.exceptions import (
     PolicyViolationException,
     SecurityException,
@@ -849,7 +849,7 @@ async def process_chat(
                     try:
                         tokens_in = len(request.message) // 4 if request.message else 0
                         tokens_out = len(full_response) // 4 if full_response else 0
-                        from back.app.services.usage.usage_service import record_usage
+                        from app.services.usage.usage_service import record_usage
 
                         asyncio.create_task(
                             record_usage(

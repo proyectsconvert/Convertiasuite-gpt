@@ -23,12 +23,12 @@ from app.infra.repositories.supabase.memory_repository import (
 from app.infra.repositories.supabase.document_repository import (
     SupabaseDocumentRepository,
 )
-from app.services.document_processing.document_manager import DocumentManager
+from app.services.documents.document_processing.document_manager import DocumentManager
 from app.security.rate_limiting import limiter
 from app.api import chat, auth, documents, admin
 from app.infra.clients.ollama_client import OllamaClient
 from app.infra.providers.ollama_provider import OllamaProvider
-from app.services.intent_classifier import IntentClassifier
+from app.services.chat.intent_classifier import IntentClassifier
 from app.rag.supabase_rag_repository import SupabaseRagRepository
 from app.rag.embending import warmup_embed_client
 
@@ -131,41 +131,88 @@ app.add_exception_handler(
 
 
 @app.get("/health")
-async def health_check():
+async def health_check(request: Request):
+
+    results: dict = {}
+    overall_healthy = True
+
+    # ── 1. Ollama ──────────────────────────────────────────────────────────────
+    ollama_ok = False
+    model_names: list = []
+    qwen_loaded = False
     try:
         client = OllamaClient()
-
-        # Verificar que Ollama responde
         response = await client.client.get(f"{client.base_url}/api/tags")
         response.raise_for_status()
-
         models = response.json().get("models", [])
         model_names = [m.get("name") for m in models]
-
         qwen_loaded = any("qwen2.5:7b" in name for name in model_names)
-
+        ollama_ok = True
         await client.close()
-
-        return {
-            "status": "healthy",
-            "ollama_available": True,
-            "models_available": model_names,
-            "qwen_loaded": qwen_loaded,
-            "message": (
-                "Sistema listo para consultas"
-                if qwen_loaded
-                else "Modelo cargándose..."
-            ),
-        }
-
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return {
-            "status": "unhealthy",
-            "ollama_available": False,
-            "error": str(e),
-            "message": "Ollama no está disponible",
-        }
+        logger.error("Health check — Ollama failed: %s", e)
+
+    results["ollama"] = {
+        "status": "ok" if ollama_ok else "error",
+        "models_available": model_names,
+        "qwen_loaded": qwen_loaded,
+    }
+    if not ollama_ok:
+        overall_healthy = False
+
+    # ── 2. Redis ───────────────────────────────────────────────────────────────
+    redis_ok = False
+    try:
+        redis_client = getattr(request.app.state, "cache", None)
+        if redis_client and hasattr(redis_client, "redis"):
+            pong = await redis_client.redis.ping()
+            redis_ok = bool(pong)
+        else:
+            redis_ok = False
+    except Exception as e:
+        logger.error("Health check — Redis failed: %s", e)
+
+    results["redis"] = {"status": "ok" if redis_ok else "error"}
+    if not redis_ok:
+        overall_healthy = False
+
+    # ── 3. Supabase ────────────────────────────────────────────────────────────
+    supabase_ok = False
+    try:
+        supabase_client = SupabaseClient()
+        # Query trivial — busca 1 fila de chat_sessions para verificar la conexión
+        await asyncio.to_thread(
+            lambda: supabase_client.db.table("chat_sessions")
+            .select("session_id")
+            .limit(1)
+            .execute()
+        )
+        supabase_ok = True
+    except Exception as e:
+        logger.error("Health check — Supabase failed: %s", e)
+
+    results["supabase"] = {"status": "ok" if supabase_ok else "error"}
+    if not supabase_ok:
+        overall_healthy = False
+
+    # ── Respuesta global ───────────────────────────────────────────────────────
+    if overall_healthy:
+        global_status = "healthy"
+        message = "Sistema listo para consultas" if qwen_loaded else "Sistema operativo — modelo cargándose"
+    else:
+        # Degradado si Ollama falla pero BD y cache están bien
+        if redis_ok and supabase_ok:
+            global_status = "degraded"
+            message = "Sistema degradado — Ollama no disponible"
+        else:
+            global_status = "unhealthy"
+            message = "Sistema no disponible — infraestructura crítica con errores"
+
+    return {
+        "status": global_status,
+        "message": message,
+        "services": results,
+    }
 
 
 @app.middleware("http")

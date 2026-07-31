@@ -12,8 +12,8 @@ from app.domain.interfaces.memory_repository import IMemoryRepository
 from app.security.exceptions import SecurityException
 from app.security.output_guard import get_safety_fallback
 from app.dependencies.auth import get_current_user
-from app.services.chat_service import process_chat
-from app.services.document_processing.document_manager import DocumentManager
+from app.services.chat.chat_service import process_chat
+from app.services.documents.document_processing.document_manager import DocumentManager
 from app.domain.interfaces.rag_repository import IRagRepository
 
 from app.schemas.chat import (
@@ -375,7 +375,7 @@ async def upload_file(
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
     document_manager: DocumentManager = Depends(get_document_manager),
 ):
-    from back.app.services.chat.upload_service import UploadService
+    from app.services.chat.upload_service import UploadService
 
     upload_service = UploadService(document_manager, memory_repo)
     return await upload_service.process_upload(

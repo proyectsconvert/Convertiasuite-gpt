@@ -2,7 +2,7 @@ import logging
 import asyncio
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.services.auth_service import AuthService
+from app.services.auth.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 

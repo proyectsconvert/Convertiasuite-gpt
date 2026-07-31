@@ -7,8 +7,8 @@ from uuid import UUID
 
 from app.domain.interfaces.memory_repository import IMemoryRepository
 from app.infra.repositories.redis.cache_repository import RedisCacheRepository
-from app.services.document_generation.document_generator import DocumentGenerator
-from app.services.document_processing.document_manager import DocumentManager
+from app.services.documents.document_generation.document_generator import DocumentGenerator
+from app.services.documents.document_processing.document_manager import DocumentManager
 
 logger = logging.getLogger(__name__)
 

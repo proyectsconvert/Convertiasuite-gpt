@@ -5,7 +5,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.domain.entities.document_content import DocumentContent, Section, TableData
-from app.services.document_generation.document_generator import DocumentGenerator
+from app.services.documents.document_generation.document_generator import DocumentGenerator
 
 
 def main():

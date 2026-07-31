@@ -9,7 +9,7 @@ from openpyxl.drawing.image import Image
 from app.core.files_config import BRAND_CONFIG
 from app.domain.entities.document_content import DocumentContent
 from app.domain.interfaces.document_builder import IDocumentBuilder
-from app.services.document_generation.template_engine import TemplateEngine
+from app.services.documents.document_generation.template_engine import TemplateEngine
 
 logger = logging.getLogger(__name__)
 

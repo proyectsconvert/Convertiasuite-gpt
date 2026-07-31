@@ -19,6 +19,7 @@ class FallbackResponseProvider:
             FallbackTemplate.SAFETY_BLOCK: (
                 "No puedo procesar esa solicitud porque violaría políticas de seguridad. "
                 "¿Hay algo más en lo que pueda ayudarte de forma segura?"
+                
             ),
             FallbackTemplate.JAILBREAK_DETECTED: (
                 "He detectado un intento de manipulación. "

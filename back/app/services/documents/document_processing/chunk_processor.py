@@ -1,14 +1,3 @@
-"""
-chunk_processor.py
-------------------
-Divide documentos tabulares grandes en fragmentos manejables para el modelo de IA.
-Evita el truncamiento silencioso actual (hard-cap de 32,000 caracteres en upload_service).
-
-Estrategia: Map-Reduce
-  1. Cada chunk se analiza independientemente (map).
-  2. Los resultados parciales se sintetizan en una respuesta final (reduce).
-"""
-
 import logging
 import os
 
@@ -23,15 +12,6 @@ def split_text_into_chunks(
     text: str,
     chunk_size: int = DEFAULT_CHUNK_CHARS,
 ) -> list[str]:
-    """
-    Divide un texto tabular en chunks respetando los saltos de línea.
-    Args:
-        text: Texto extraído del CSV/Excel.
-        chunk_size: Tamaño máximo de cada chunk en caracteres.
-
-    Returns:
-        Lista de strings, cada uno siendo un fragmento del texto original.
-    """
     if not text or len(text) <= chunk_size:
         return [text]
 

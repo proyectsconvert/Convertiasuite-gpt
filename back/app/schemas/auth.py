@@ -15,9 +15,14 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str | None = None
+
+
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
+    # Supabase no siempre rota el refresh token; se permite None para evitar ValidationError
+    refresh_token: str | None = None
     token_type: str = "bearer"
     expires_in: int
     user: UserInfo
