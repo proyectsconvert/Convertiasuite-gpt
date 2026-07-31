@@ -375,7 +375,7 @@ async def upload_file(
     memory_repo: IMemoryRepository = Depends(get_memory_repo),
     document_manager: DocumentManager = Depends(get_document_manager),
 ):
-    from app.services.upload_service import UploadService
+    from back.app.services.chat.upload_service import UploadService
 
     upload_service = UploadService(document_manager, memory_repo)
     return await upload_service.process_upload(

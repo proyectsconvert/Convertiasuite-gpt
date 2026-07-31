@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, R
 from fastapi.responses import StreamingResponse
 from app.dependencies.auth import get_current_user
 from app.services.document_processing.document_manager import DocumentManager
-from app.services.storage_service import upload_file_to_supabase
+from back.app.services.chat.storage_service import upload_file_to_supabase
 from app.services.document_generation.document_generator import DocumentGenerator
 from app.domain.entities.document_content import DocumentContent
 from app.domain.interfaces.memory_repository import IMemoryRepository

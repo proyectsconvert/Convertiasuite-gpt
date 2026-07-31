@@ -1,0 +1,13 @@
+{
+    "id": "back_skill",
+    "name": "Backend Skill",
+    "description": "Especialista en desarrollo backend",
+    "category": "Development",
+    "icon": "server",
+    "version": "1.0.0",
+    "tags": [
+        "python",
+        "java",
+        "api"
+    ]
+}

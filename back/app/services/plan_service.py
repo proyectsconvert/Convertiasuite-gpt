@@ -1,3 +1,4 @@
+'''
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -24,3 +25,4 @@ class PlanService:
 
     def get_plan_limits(self, plan_name: str | None) -> PlanLimits:
         return self._plans.get((plan_name or "free").lower(), self._plans["free"])
+'''
