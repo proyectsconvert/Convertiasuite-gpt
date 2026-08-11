@@ -6,6 +6,10 @@ import ChatHeader from "@/components/chat/ChatHeader";
 import MessageBubble from "@/components/chat/MessageBubble";
 import { chatApi, ChatMessage, documentsApi } from "@/services/api";
 import { normalizeChatContent } from "@/lib/artifact-utils";
+import { Bot } from "lucide-react";
+import VoiceAssistant from "@/components/voice/VoiceAssistant";
+import { voiceConversation } from "@/services/voiceConversation";
+import { Content } from "vaul";
 
 export default function ChatView() {
   const {
@@ -25,6 +29,14 @@ export default function ChatView() {
   const skipNextHistoryFetch = useRef(false);
   const activeAbortControllerRef = useRef<AbortController | null>(null);
   const activeRequestIdRef = useRef(0);
+const [voiceOpen,setVoiceOpen]=useState(false)
+const [voiceMode, setVoiceMode] = useState(false)
+const [callTranscript, setCallTranscript] = useState<
+{
+  role: "user" | "assistant";
+  content: String;
+}[]
+>([]);
 
   const normalizeUserMessage = (text: string) => {
     if (!text) return text;
@@ -50,9 +62,23 @@ export default function ChatView() {
 
   const isNewChat = !currentChatId;
 
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, isLoading, streamingContent]);
+  
+  useEffect(() => {
+  voiceConversation.registerSendhandler(
+    async (text) => {
+      await handleSend(
+        undefined,
+        undefined,
+        undefined,
+        text,
+      );
+    }
+  );
+}, []);
 
   const buildMessageWithArtifacts = (msg: ChatMessage): ChatMessage => {
     const content = msg.content || "";
@@ -99,11 +125,13 @@ export default function ChatView() {
         return;
       }
 
+      
       setMessages([]);
       chatApi
         .getHistory(currentChatId)
         .then((data) => {
           if (data.messages && Array.isArray(data.messages)) {
+            
             setMessages(data.messages.map(buildMessageWithArtifacts));
           }
         })
@@ -118,6 +146,7 @@ export default function ChatView() {
     filenames?: string[],
     attachmentTypes?: string[],
     customText?: string,
+    fromVoice = false
   ) => {
     const messageText = customText !== undefined ? customText : input;
     const normalizedMessageText = normalizeUserMessage(messageText);
@@ -145,6 +174,7 @@ export default function ChatView() {
         }
       }
     }
+    
 
     const sessionTitle =
       normalizedMessageText.trim().length > 0
@@ -161,6 +191,19 @@ export default function ChatView() {
       attachments: attachments,
       images: images,
     };
+
+    if(fromVoice){
+      setCallTranscript((prev)=>[
+
+        ...prev,
+        {
+          role:"user",
+
+          content:normalizedMessageText.trim(),
+        },
+      ]);
+    }
+    
 
     setStreamingContent("");
     setInput("");
@@ -185,14 +228,16 @@ export default function ChatView() {
         addSession(s);
 
         // Guardar el mensaje del usuario después de crear la sesión
+        if(!fromVoice){
         setMessages((prev) => [...prev, userMsg]);
-      } catch (e) {
+      }} catch (e) {
         console.error("Session error:", e);
         skipNextHistoryFetch.current = false;
       }
     } else {
+      if(!fromVoice){
       setMessages((prev) => [...prev, userMsg]);
-    }
+      }}
 
     try {
       let fullResponse = "";
@@ -220,10 +265,11 @@ export default function ChatView() {
 
         if (chunk.type === "chunk" && chunk.content) {
           fullResponse += chunk.content;
+          if (!fromVoice){
           setStreamingContent(fullResponse);
         }
       }
-
+    }
       if (
         !controller.signal.aborted &&
         requestId === activeRequestIdRef.current
@@ -232,20 +278,36 @@ export default function ChatView() {
           try {
             const history = await chatApi.getHistory(sid);
             if (history.messages && Array.isArray(history.messages)) {
+              if(!fromVoice){
               setMessages(history.messages.map(buildMessageWithArtifacts));
             } else {
+              if(!fromVoice){
               setMessages((prev) => [
                 ...prev,
-                {
+              {
                   id: `${Date.now()}-assistant`,
                   role: "assistant",
                   content: fullResponse,
                   timestamp: new Date().toISOString(),
                 },
               ]);
+            }}}
+            if (fullResponse.trim()) {
+              if(fromVoice){
+                setCallTranscript(prev =>[
+                  ...prev,
+                  {
+                    role:"assistant",
+                    content: fullResponse,
+                  },
+                ]);
+              }
+await voiceConversation.speak(fullResponse);
+  
             }
           } catch (historyError) {
             console.error("Error loading refreshed history:", historyError);
+            if(!fromVoice){
             setMessages((prev) => [
               ...prev,
               {
@@ -253,10 +315,24 @@ export default function ChatView() {
                 role: "assistant",
                 content: fullResponse,
                 timestamp: new Date().toISOString(),
-              },
-            ]);
+            },
+            ])};
+            if (fullResponse.trim()) {
+              if(fromVoice){
+                setCallTranscript(prev =>[
+                  ...prev,
+                  {
+                    role:"assistant",
+                    content:fullResponse,
+                  },
+                ]);
+              }
+await voiceConversation.speak(fullResponse);
+            }
           }
         } else {
+          
+         if(!fromVoice){ 
           setMessages((prev) => [
             ...prev,
             {
@@ -265,7 +341,19 @@ export default function ChatView() {
               content: fullResponse,
               timestamp: new Date().toISOString(),
             },
-          ]);
+          ])};
+          if (fullResponse.trim()) {
+            if(fromVoice){
+              setCallTranscript(prev =>[
+                ...prev,
+                {
+                  role: "assistant",
+                  content: fullResponse,
+                },
+              ]);
+            }
+  await voiceConversation.speak(fullResponse);
+          }
         }
       }
     } catch (e) {
@@ -275,7 +363,7 @@ export default function ChatView() {
     } finally {
       if (requestId === activeRequestIdRef.current) {
         setIsLoading(false);
-        if (!controller.signal.aborted) {
+        if (!fromVoice && !controller.signal.aborted) {
           setStreamingContent("");
         }
       }
@@ -346,9 +434,20 @@ export default function ChatView() {
             isLoading={isLoading}
             variant="welcome"
             onStop={handleStop}
+            onOpenVoice={()=>{
+              
+              setCallTranscript([]);
+              setVoiceMode(true);
+              setVoiceOpen(true);
+            
+            
+            }
+            }
           />
         </div>
+    
       </div>
+
     );
   }
 
@@ -357,7 +456,8 @@ export default function ChatView() {
       <ChatHeader />
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-4xl px-4 py-3 sm:px-5 lg:px-8">
-          {messages.map((m, index) => (
+          {!voiceMode &&
+          messages.map((m, index) => (
             <MessageBubble
               key={m.id}
               message={m}
@@ -366,7 +466,8 @@ export default function ChatView() {
               sessionId={currentChatId}
             />
           ))}
-          {streamingContent && (
+          {!voiceMode && streamingContent &&
+          !streamingContent && (
             <MessageBubble
               message={{
                 id: "streaming",
@@ -412,8 +513,43 @@ export default function ChatView() {
           isLoading={isLoading}
           variant="conversation"
           onStop={handleStop}
+          onOpenVoice={()=>{
+            
+            setVoiceMode(true);
+            
+            setVoiceOpen(true);
+            
+          }}
         />
+        
       </div>
+    {voiceOpen && (
+  <VoiceAssistant
+    onClose={()=>{
+      
+      setVoiceMode(false)
+      setVoiceOpen(false);
+    
+    }
+    }
+    onEndCall={()=>{
+      console.log(callTranscript);
+      setVoiceMode(false)
+      setVoiceOpen(false)
+    }}
+      onSendVoice={(text)=>{
+      handleSend(
+        undefined,
+        undefined,
+        undefined,
+        text
+      );
+
+    
+    }}
+  />
+)}
     </div>
+    
   );
 }

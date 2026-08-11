@@ -1,0 +1,1861 @@
+/* ===========================================================
+   IAVoice.css
+   ConvertIA Voice Assistant
+=========================================================== */
+
+/*=============================
+=            ROOT            =
+=============================*/
+
+:root{
+
+    --primary:#10b981;
+    --secondary:#22c55e;
+    --accent:#38bdf8;
+
+    --dark:#0f172a;
+    --dark-2:#111827;
+
+    --white:#ffffff;
+
+}
+
+
+/*=============================
+=        MAIN AVATAR         =
+=============================*/
+
+.assistant-avatar{
+
+    position:relative;
+
+    width:340px;
+    height:340px;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    margin:auto;
+
+}
+
+
+/*=============================
+=        BACKGROUND          =
+=============================*/
+
+.assistant-background{
+
+    position:absolute;
+
+    width:300px;
+    height:300px;
+
+    border-radius:50%;
+
+    background:
+
+    radial-gradient(circle,
+
+    rgba(16,185,129,.12),
+
+    rgba(16,185,129,.04),
+
+    transparent 80%);
+
+    filter:blur(45px);
+
+    z-index:-10;
+
+}
+
+
+/*=============================
+=          NEBULA           =
+=============================*/
+
+.nebula{
+
+    position:absolute;
+
+    width:380px;
+    height:380px;
+
+    border-radius:50%;
+
+    background:
+
+    radial-gradient(circle at 25% 30%,
+
+    rgba(16,185,129,.18),
+
+    transparent 45%),
+
+    radial-gradient(circle at 70% 40%,
+
+    rgba(34,197,94,.14),
+
+    transparent 45%),
+
+    radial-gradient(circle at 60% 80%,
+
+    rgba(6,182,212,.08),
+
+    transparent 40%);
+
+    filter:blur(60px);
+
+    animation:
+
+    nebulaMove 14s ease-in-out infinite alternate;
+
+    z-index:-9;
+
+}
+
+
+/*=============================
+=            HALO           =
+=============================*/
+
+.halo{
+
+    position:absolute;
+
+    width:280px;
+    height:280px;
+
+    border-radius:50%;
+
+    border:1px solid rgba(16,185,129,.18);
+
+    animation:
+
+    haloRotate 40s linear infinite;
+
+}
+
+
+/*=============================
+=          GLOW             =
+=============================*/
+
+.avatar-glow{
+
+    position:absolute;
+
+    width:170px;
+    height:170px;
+
+    border-radius:50%;
+
+    background:var(--primary);
+
+    filter:blur(70px);
+
+    opacity:.20;
+
+    animation:
+
+    glowPulse 4s ease-in-out infinite;
+
+}
+
+
+/*=============================
+=          RINGS            =
+=============================*/
+
+.ia-ring{
+
+    position:absolute;
+
+    border-radius:50%;
+
+    border:2px solid rgba(16,185,129,.25);
+
+}
+
+.ia-ring-1{
+
+    width:150px;
+    height:150px;
+
+    animation:
+
+    rotateSlow 14s linear infinite;
+
+}
+
+.ia-ring-2{
+
+    width:205px;
+    height:205px;
+
+    border-color:rgba(16,185,129,.18);
+
+    animation:
+
+    rotateReverse 20s linear infinite;
+
+}
+
+.ia-ring-3{
+
+    width:260px;
+    height:260px;
+
+    border-color:rgba(16,185,129,.10);
+
+    animation:
+
+    rotateSlow 30s linear infinite;
+
+}
+
+
+/*=============================
+=        AVATAR CORE        =
+=============================*/
+
+.avatar-core{
+
+    position:absolute;
+
+    width:120px;
+    height:120px;
+
+    border-radius:50%;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    overflow:hidden;
+
+    backdrop-filter:blur(20px);
+
+    background:
+
+    rgba(15,23,42,.75);
+
+    border:
+
+    2px solid var(--primary);
+
+    box-shadow:
+
+    0 0 25px rgba(16,185,129,.35),
+
+    0 0 60px rgba(16,185,129,.20),
+
+    inset 0 0 15px rgba(255,255,255,.04);
+
+}
+
+
+/*=============================
+=       ENERGY CORE         =
+=============================*/
+
+.energy-core{
+
+    position:absolute;
+
+    width:70px;
+    height:70px;
+
+    border-radius:50%;
+
+    background:
+
+    radial-gradient(circle,
+
+    rgba(16,185,129,.95),
+
+    rgba(16,185,129,.45),
+
+    transparent);
+
+    filter:blur(18px);
+
+    animation:
+
+    energyPulse 2.4s ease-in-out infinite;
+
+}
+
+
+/*=============================
+=       GLASS EFFECT        =
+=============================*/
+
+.glass-reflection{
+
+    position:absolute;
+
+    top:12px;
+    left:18px;
+
+    width:32px;
+    height:70px;
+
+    border-radius:50%;
+
+    background:
+
+    linear-gradient(
+
+    to bottom,
+
+    rgba(255,255,255,.45),
+
+    transparent);
+
+    transform:rotate(-20deg);
+
+    filter:blur(6px);
+
+    opacity:.65;
+
+}
+
+
+/*=============================
+=            LOGO           =
+=============================*/
+
+.avatar-core img{
+
+    position:relative;
+
+    width:62%;
+    height:62%;
+
+    object-fit:contain;
+
+    z-index:5;
+
+    animation:
+
+    breathe 4s ease-in-out infinite,
+
+    logoFloat 3s ease-in-out infinite;
+
+    filter:
+
+    drop-shadow(0 0 14px rgba(16,185,129,.55))
+
+    drop-shadow(0 0 25px rgba(16,185,129,.25));
+
+}
+/*==========================================================
+=                     SCANNER
+==========================================================*/
+
+.avatar-scanner{
+
+    position:absolute;
+
+    width:130px;
+    height:130px;
+
+    border-radius:50%;
+
+    overflow:hidden;
+
+    pointer-events:none;
+
+}
+
+.avatar-scanner::before{
+
+    content:"";
+
+    position:absolute;
+
+    top:-100%;
+
+    left:0;
+
+    width:100%;
+    height:100%;
+
+    background:
+
+    linear-gradient(
+
+        to bottom,
+
+        transparent,
+
+        rgba(255,255,255,.35),
+
+        transparent
+
+    );
+
+    animation:scannerMove 4s linear infinite;
+
+}
+
+
+/*==========================================================
+=                    PARTICLES
+==========================================================*/
+
+.particles{
+
+    position:absolute;
+
+    width:100%;
+    height:100%;
+
+    animation:orbit 18s linear infinite;
+
+}
+
+.particles span{
+
+    position:absolute;
+
+    width:6px;
+    height:6px;
+
+    border-radius:50%;
+
+    background:var(--primary);
+
+    box-shadow:
+
+    0 0 8px var(--primary),
+
+    0 0 18px var(--primary);
+
+    animation:
+
+    particleGlow 2s ease-in-out infinite;
+
+}
+
+.particles span:nth-child(1){
+
+    top:15%;
+    left:50%;
+
+}
+
+.particles span:nth-child(2){
+
+    top:30%;
+    right:18%;
+
+}
+
+.particles span:nth-child(3){
+
+    right:15%;
+    bottom:28%;
+
+}
+
+.particles span:nth-child(4){
+
+    bottom:15%;
+    left:48%;
+
+}
+
+.particles span:nth-child(5){
+
+    left:18%;
+    bottom:35%;
+
+}
+
+.particles span:nth-child(6){
+
+    left:18%;
+    top:28%;
+
+}
+
+
+/*==========================================================
+=                  FLOATING PARTICLES
+==========================================================*/
+
+.floating-particles{
+
+    position:absolute;
+
+    width:100%;
+    height:100%;
+
+    overflow:hidden;
+
+}
+
+.floating-particles span{
+
+    position:absolute;
+
+    width:3px;
+    height:3px;
+
+    border-radius:50%;
+
+    background:white;
+
+    opacity:.4;
+
+    animation:floatingParticle 8s linear infinite;
+
+}
+
+.floating-particles span:nth-child(1){
+
+left:15%;
+animation-delay:0s;
+
+}
+
+.floating-particles span:nth-child(2){
+
+left:35%;
+animation-delay:2s;
+
+}
+
+.floating-particles span:nth-child(3){
+
+left:55%;
+animation-delay:4s;
+
+}
+
+.floating-particles span:nth-child(4){
+
+left:75%;
+animation-delay:6s;
+
+}
+
+
+/*==========================================================
+=                  VOICE WAVE
+==========================================================*/
+
+.voice-wave{
+
+    position:absolute;
+
+    bottom:30px;
+
+    display:flex;
+
+    gap:6px;
+
+}
+
+.voice-wave span{
+
+    width:5px;
+
+    height:14px;
+
+    border-radius:20px;
+
+    background:var(--primary);
+
+}
+
+
+/*==========================================================
+=                    STATUS
+==========================================================*/
+
+.assistant-status{
+
+    position:absolute;
+
+    bottom:-45px;
+
+    color:var(--primary);
+
+    font-size:15px;
+
+    letter-spacing:2px;
+
+    font-weight:600;
+
+    text-transform:uppercase;
+
+}
+
+
+/*==========================================================
+=                   STATES
+==========================================================*/
+
+.assistant-avatar.idle{
+
+    --primary:#10b981;
+
+}
+
+.assistant-avatar.listening{
+
+    --primary:#38bdf8;
+
+}
+
+.assistant-avatar.thinking{
+
+    --primary:#facc15;
+
+}
+
+.assistant-avatar.speaking{
+
+    --primary:#a855f7;
+
+}
+
+
+/*==========================================================
+=                LISTENING
+==========================================================*/
+
+.assistant-avatar.listening .ia-ring{
+
+    animation:
+
+    listeningPulse 1.2s infinite;
+
+}
+
+.assistant-avatar.listening .energy-core{
+
+    animation:
+
+    energyFast 1s infinite;
+
+}
+
+
+/*==========================================================
+=                  THINKING
+==========================================================*/
+
+.assistant-avatar.thinking .ia-ring{
+
+    animation:
+
+    rotateSlow 3s linear infinite;
+
+}
+
+.assistant-avatar.thinking .avatar-core{
+
+    filter:brightness(1.08);
+
+}
+
+
+/*==========================================================
+=                 SPEAKING
+==========================================================*/
+
+.assistant-avatar.speaking .voice-wave span{
+
+    animation:
+
+    voice .35s infinite alternate;
+
+}
+
+.assistant-avatar.speaking .avatar-glow{
+
+    animation:
+
+    glowSpeak .6s infinite;
+
+}
+
+.assistant-avatar.speaking .ia-ring{
+
+    animation:
+
+    speakingPulse .8s infinite;
+
+}
+
+.assistant-avatar.speaking .energy-core{
+
+    animation:
+
+    energyFast .5s infinite;
+
+}
+/*==========================================================
+=                     ANIMATIONS
+==========================================================*/
+
+@keyframes rotateSlow{
+
+from{
+
+transform:rotate(0deg);
+
+}
+
+to{
+
+transform:rotate(360deg);
+
+}
+
+}
+
+@keyframes rotateReverse{
+
+from{
+
+transform:rotate(360deg);
+
+}
+
+to{
+
+transform:rotate(0deg);
+
+}
+
+}
+
+
+/*----------------------------------------------------------
+ Glow
+----------------------------------------------------------*/
+
+@keyframes glowPulse{
+
+0%,100%{
+
+transform:scale(.9);
+
+opacity:.20;
+
+}
+
+50%{
+
+transform:scale(1.20);
+
+opacity:.55;
+
+}
+
+}
+
+@keyframes glowSpeak{
+
+0%{
+
+opacity:.35;
+
+transform:scale(1);
+
+}
+
+100%{
+
+opacity:.75;
+
+transform:scale(1.35);
+
+}
+
+}
+
+
+/*----------------------------------------------------------
+ Nebula
+----------------------------------------------------------*/
+
+@keyframes nebulaMove{
+
+0%{
+
+transform:
+translate(-8px,-5px)
+scale(1);
+
+}
+
+100%{
+
+transform:
+translate(10px,8px)
+scale(1.08);
+
+}
+
+}
+
+
+/*----------------------------------------------------------
+ Halo
+----------------------------------------------------------*/
+
+@keyframes haloRotate{
+
+from{
+
+transform:rotate(0deg);
+
+}
+
+to{
+
+transform:rotate(360deg);
+
+}
+
+}
+
+
+/*----------------------------------------------------------
+ Scanner
+----------------------------------------------------------*/
+
+@keyframes scannerMove{
+
+0%{
+
+top:-100%;
+
+}
+
+100%{
+
+top:100%;
+
+}
+
+}
+
+
+/*----------------------------------------------------------
+ Logo
+----------------------------------------------------------*/
+
+@keyframes breathe{
+
+0%,100%{
+
+transform:scale(1);
+
+}
+
+50%{
+
+transform:scale(1.06);
+
+}
+
+}
+
+@keyframes logoFloat{
+
+0%,100%{
+
+transform:
+translateY(0);
+
+}
+
+50%{
+
+transform:
+translateY(-6px);
+
+}
+
+}
+
+
+/*----------------------------------------------------------
+ Energy Core
+----------------------------------------------------------*/
+
+@keyframes energyPulse{
+
+0%{
+
+transform:scale(.80);
+
+opacity:.45;
+
+}
+
+50%{
+
+transform:scale(1.35);
+
+opacity:1;
+
+}
+
+100%{
+
+transform:scale(.80);
+
+opacity:.45;
+
+}
+
+}
+
+@keyframes energyFast{
+
+0%{
+
+transform:scale(.90);
+
+}
+
+50%{
+
+transform:scale(1.50);
+
+}
+
+100%{
+
+transform:scale(.90);
+
+}
+
+}
+
+
+/*----------------------------------------------------------
+ Voice Bars
+----------------------------------------------------------*/
+
+@keyframes voice{
+
+0%{
+
+height:12px;
+
+}
+
+100%{
+
+height:45px;
+
+}
+
+}
+
+
+/*----------------------------------------------------------
+ Rings
+----------------------------------------------------------*/
+
+@keyframes listeningPulse{
+
+0%{
+
+transform:scale(1);
+
+opacity:.9;
+
+}
+
+100%{
+
+transform:scale(1.22);
+
+opacity:0;
+
+}
+
+}
+
+@keyframes speakingPulse{
+
+0%{
+
+transform:scale(1);
+
+opacity:.7;
+
+}
+
+50%{
+
+transform:scale(1.08);
+
+opacity:1;
+
+}
+
+100%{
+
+transform:scale(1);
+
+opacity:.7;
+
+}
+
+}
+
+
+/*----------------------------------------------------------
+ Orbit
+----------------------------------------------------------*/
+
+@keyframes orbit{
+
+from{
+
+transform:rotate(0deg);
+
+}
+
+to{
+
+transform:rotate(360deg);
+
+}
+
+}
+
+
+/*----------------------------------------------------------
+ Floating particles
+----------------------------------------------------------*/
+
+@keyframes floatingParticle{
+
+0%{
+
+transform:
+
+translateY(40px)
+
+scale(.5);
+
+opacity:0;
+
+}
+
+20%{
+
+opacity:.8;
+
+}
+
+80%{
+
+opacity:.8;
+
+}
+
+100%{
+
+transform:
+
+translateY(-80px)
+
+scale(1.3);
+
+opacity:0;
+
+}
+
+}
+
+
+/*----------------------------------------------------------
+ Particle Glow
+----------------------------------------------------------*/
+
+@keyframes particleGlow{
+
+0%,100%{
+
+opacity:.35;
+
+transform:scale(.7);
+
+}
+
+50%{
+
+opacity:1;
+
+transform:scale(2);
+
+}
+
+}
+
+
+/*==========================================================
+=                    RESPONSIVE
+==========================================================*/
+
+@media(max-width:768px){
+
+.assistant-avatar{
+
+width:270px;
+height:270px;
+
+}
+
+.avatar-core{
+
+width:95px;
+height:95px;
+
+}
+
+.ia-ring-1{
+
+width:120px;
+height:120px;
+
+}
+
+.ia-ring-2{
+
+width:170px;
+height:170px;
+
+}
+
+.ia-ring-3{
+
+width:220px;
+height:220px;
+
+}
+
+.assistant-background{
+
+width:230px;
+height:230px;
+
+}
+
+.nebula{
+
+width:280px;
+height:280px;
+
+}
+
+.avatar-core img{
+
+width:58%;
+height:58%;
+
+}
+
+.assistant-status{
+
+font-size:13px;
+
+}
+
+}
+
+
+/*==========================================================
+=                  PERFORMANCE
+==========================================================*/
+
+.avatar-core,
+.ia-ring,
+.avatar-glow,
+.nebula,
+.particles,
+.energy-core{
+
+will-change:
+transform,
+opacity;
+
+}
+
+/* ================================
+   ESTADOS DE OLIVIA
+================================ */
+
+
+.assistant-avatar{
+    transition: all .5s ease;
+}
+
+
+/* IDLE */
+
+.assistant-avatar.idle .avatar-glow{
+    animation: idleGlow 4s infinite;
+}
+
+
+/* LISTENING */
+
+.assistant-avatar.listening .avatar-glow{
+
+    background:#22d3ee;
+    animation:
+    listenPulse 1.2s infinite;
+
+}
+
+
+.assistant-avatar.listening .ia-ring{
+
+    border-color:
+    rgba(34,211,238,.6);
+
+    animation-duration:
+    4s;
+
+}
+
+
+
+/* THINKING */
+
+.assistant-avatar.thinking .avatar-glow{
+
+    background:#facc15;
+
+    animation:
+    thinkingPulse 2s infinite;
+
+}
+
+
+.assistant-avatar.thinking .ia-ring{
+
+    border-color:
+    rgba(250,204,21,.5);
+
+}
+
+
+/* SPEAKING */
+
+
+.assistant-avatar.speaking .avatar-glow{
+
+    background:#a855f7;
+
+    animation:
+    speakPulse .8s infinite;
+
+}
+
+
+.assistant-avatar.speaking .voice-wave span{
+
+    animation:
+    voiceWave .35s infinite alternate;
+
+}
+
+
+
+/* ================================
+   ANIMACIONES
+================================ */
+
+
+@keyframes idleGlow{
+
+0%,100%{
+transform:scale(.9);
+opacity:.3;
+}
+
+50%{
+transform:scale(1.1);
+opacity:.5;
+}
+
+}
+
+
+
+@keyframes listenPulse{
+
+0%{
+transform:scale(.9);
+opacity:.4;
+}
+
+50%{
+transform:scale(1.35);
+opacity:.8;
+}
+
+100%{
+transform:scale(.9);
+opacity:.4;
+}
+
+}
+
+
+
+@keyframes thinkingPulse{
+
+
+0%{
+transform:rotate(0deg) scale(1);
+}
+
+50%{
+transform:rotate(180deg) scale(1.1);
+}
+
+100%{
+transform:rotate(360deg) scale(1);
+}
+
+
+}
+
+
+
+
+@keyframes speakPulse{
+
+
+0%{
+transform:scale(1);
+opacity:.5;
+}
+
+
+50%{
+transform:scale(1.45);
+opacity:.9;
+}
+
+
+100%{
+transform:scale(1);
+opacity:.5;
+}
+
+
+}
+
+
+
+
+@keyframes voiceWave{
+
+
+from{
+height:8px;
+}
+
+
+to{
+height:45px;
+}
+
+
+}
+
+/* REACCION AL VOLUMEN */
+
+.avatar-core{
+
+    transition:
+    transform .08s linear;
+
+}
+
+
+.assistant-avatar.listening .avatar-core{
+
+    filter:
+    drop-shadow(0 0 25px #22d3ee);
+
+}
+
+
+.assistant-avatar.listening .particles span{
+
+    animation:
+    particleVoice .5s infinite alternate;
+
+}
+
+
+
+@keyframes particleVoice{
+
+
+from{
+
+    transform:
+    translateY(0)
+    scale(.8);
+
+}
+
+
+to{
+
+    transform:
+    translateY(-20px)
+    scale(1.3);
+
+}
+
+}
+
+/* OLIVIA HABLANDO */
+
+.assistant-avatar.speaking .avatar-core{
+
+    animation:
+    assistantTalking .25s infinite alternate;
+
+}
+
+
+.assistant-avatar.speaking .ia-ring{
+
+    animation-duration:
+    3s;
+
+}
+
+
+@keyframes assistantTalking{
+
+from{
+
+    transform:
+    scale(1);
+
+}
+
+
+to{
+
+    transform:
+    scale(1.12);
+
+}
+
+}
+
+/* ===========================
+   OLIVIA HABLANDO
+=========================== */
+
+
+.assistant-avatar.assistant-speaking 
+.avatar-core{
+
+
+animation:
+voiceTalking .35s infinite alternate;
+
+box-shadow:
+0 0 50px rgba(168,85,247,.8);
+
+}
+
+
+
+.assistant-avatar.assistant-speaking
+.avatar-glow{
+
+background:
+#a855f7;
+
+animation:
+assistantGlow .8s infinite;
+
+}
+
+
+
+.assistant-avatar.assistant-speaking
+.ia-ring{
+
+
+border-color:
+rgba(168,85,247,.7);
+
+
+animation-duration:
+3s;
+
+}
+
+
+
+
+.assistant-avatar.assistant-speaking
+.voice-wave span{
+
+background:#a855f7;
+
+animation:
+voiceBars .35s infinite alternate;
+
+}
+
+
+
+@keyframes voiceTalking{
+
+
+from{
+
+transform:
+scale(1);
+
+}
+
+
+to{
+
+transform:
+scale(1.12);
+
+}
+
+}
+
+
+
+@keyframes assistantGlow{
+
+
+0%{
+
+opacity:.4;
+transform:scale(.9);
+
+}
+
+
+50%{
+
+opacity:1;
+transform:scale(1.3);
+
+}
+
+
+100%{
+
+opacity:.4;
+transform:scale(.9);
+
+}
+
+
+}
+
+
+
+@keyframes voiceBars{
+
+
+from{
+
+height:10px;
+
+}
+
+
+to{
+
+height:50px;
+
+}
+
+
+}
+
+/* TIMEPO */
+.call-info{
+
+display:flex;
+flex-direction:column;
+align-items:center;
+gap:8px;
+
+}
+
+
+.call-info p{
+
+color:#34d399;
+
+font-size:14px;
+
+letter-spacing:.15em;
+
+text-transform:uppercase;
+
+}
+
+
+.call-info span{
+
+font-size:28px;
+
+font-weight:700;
+
+color:white;
+
+font-family:monospace;
+
+text-shadow:
+0 0 20px rgba(16,185,129,.8);
+
+}
+
+/* =========================
+   END CALL BUTTON
+========================= */
+
+
+.end-call-button{
+
+display:flex;
+
+align-items:center;
+
+gap:14px;
+
+
+padding:14px 26px;
+
+
+border-radius:999px;
+
+
+background:
+linear-gradient(
+135deg,
+#dc2626,
+#991b1b
+);
+
+
+border:1px solid rgba(255,255,255,.15);
+
+
+color:white;
+
+
+cursor:pointer;
+
+
+transition:.35s;
+
+
+box-shadow:
+
+0 0 25px rgba(220,38,38,.45);
+
+
+position:relative;
+
+
+overflow:hidden;
+
+
+}
+
+
+
+.end-call-button::before{
+
+
+content:"";
+
+
+position:absolute;
+
+
+inset:0;
+
+
+background:
+linear-gradient(
+90deg,
+transparent,
+rgba(255,255,255,.25),
+transparent
+);
+
+
+transform:translateX(-100%);
+
+
+transition:.5s;
+
+
+}
+
+
+
+
+.end-call-button:hover::before{
+
+transform:translateX(100%);
+
+}
+
+
+
+
+.end-call-button:hover{
+
+
+transform:scale(1.05);
+
+
+box-shadow:
+
+0 0 40px rgba(220,38,38,.75);
+
+
+}
+
+
+
+
+.end-call-button:active{
+
+
+transform:scale(.95);
+
+
+}
+
+
+
+
+.end-call-circle{
+
+
+width:42px;
+
+height:42px;
+
+
+border-radius:50%;
+
+
+background:rgba(0,0,0,.25);
+
+
+display:flex;
+
+align-items:center;
+
+justify-content:center;
+
+
+animation:endPulse 2s infinite;
+
+
+}
+
+
+
+.end-call-text{
+
+
+display:flex;
+
+flex-direction:column;
+
+
+align-items:flex-start;
+
+
+}
+
+
+
+.end-call-text span{
+
+
+font-size:15px;
+
+
+font-weight:700;
+
+
+}
+
+
+
+.end-call-text small{
+
+
+font-size:11px;
+
+
+opacity:.7;
+
+
+}
+
+
+
+
+@keyframes endPulse{
+
+
+0%{
+
+box-shadow:
+0 0 0 0 rgba(255,0,0,.5);
+
+}
+
+
+70%{
+
+box-shadow:
+0 0 0 12px rgba(255,0,0,0);
+
+}
+
+
+100%{
+
+box-shadow:
+0 0 0 0 rgba(255,0,0,0);
+
+}
+
+
+}

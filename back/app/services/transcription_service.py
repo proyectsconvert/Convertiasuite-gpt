@@ -5,6 +5,8 @@ import io
 import subprocess
 import tempfile
 import logging
+import shutil
+
 from vosk import Model, KaldiRecognizer
 
 logger = logging.getLogger(__name__)
@@ -37,6 +39,7 @@ def transcribe_audio(audio_bytes: bytes) -> str:
     temp_out_path = temp_in_path + ".wav"
 
     try:
+        
         cmd = [
             "ffmpeg",
             "-y",
@@ -99,5 +102,6 @@ def transcribe_audio(audio_bytes: bytes) -> str:
         return transcript
 
     except Exception as e:
-        logger.error(f"Vosk transcription error: {e}")
+        import traceback
+        traceback.print_exc()
         raise

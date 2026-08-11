@@ -3,6 +3,7 @@ FROM python:3.11-slim
 # Install system dependencies for WeasyPrint
 RUN apt-get update && apt-get install -y \
     gcc \
+    ffmpeg \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
     libharfbuzz0b \

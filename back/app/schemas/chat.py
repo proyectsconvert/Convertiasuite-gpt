@@ -26,6 +26,13 @@ class ChatRequest(BaseModel):
     attachment_name: Optional[str] = None
     model_config = {"use_enum_values": True}
 
+class VoiceChatRequest(BaseModel):
+    message:str
+    user_role: UserRole=UserRole.default
+    call_id:Optional[str]=None
+
+    model_config = {"use_enum_values":True}
+
 
 class AttachmentDTO(BaseModel):
     id: Optional[str] = None

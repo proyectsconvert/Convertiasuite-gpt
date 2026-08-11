@@ -14,5 +14,11 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^26.1.2"
+  },
+  "dependencies": {
+    "framer-motion": "^13.0.0"
+  }
 }
