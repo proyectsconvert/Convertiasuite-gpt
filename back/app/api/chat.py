@@ -22,6 +22,7 @@ from app.schemas.chat import (
     SessionListResponse,
     SessionSummary,
     MessageDTO,
+    VoiceChatRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,8 +52,10 @@ def get_rag_repository(request: Request) -> IRagRepository | None:
 async def sse_message(event_type: str, data: dict) -> str:
     return f"data: {json.dumps({'type': event_type, **data})}\n\n"
 
+       
 
 @router.post("/stream")
+
 async def send_message_stream(
     request: ChatRequest,
     http_request: Request,
@@ -128,6 +131,37 @@ async def send_message_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+@router.post("/voice-stream")
+async def send_voice_stream(
+    request: VoiceChatRequest,
+    http_request:Request,
+    current_user : dict = Depends(get_current_user),
+    llm_provider : ILlmProvider = Depends(get_llm_provider),
+    memory_repo : IMemoryRepository = Depends(get_memory_repo),
+    document_manager: DocumentManager = Depends(get_document_manager),
+    intent_classifier = Depends(get_intent_classifier),
+    rag_repository: IRagRepository | None = Depends(get_rag_repository,)
+):
+    chat_request = ChatRequest(
+        message=request.message,
+        user_role=request.user_role,
+        session_id=request.call_id,
+    )
+    stream, model, session_id = await process_chat(
+        chat_request,
+        llm_provider,
+        memory_repo,
+        user_id=current_user["id"],
+        document_manager=document_manager,
+        intent_classifier=intent_classifier,
+        rag_repository=rag_repository,
+    )
+
+    return{
+        "status":"ok",
+        "session_id": session_id,
+    }
 
 
 @router.get("/sessions", response_model=SessionListResponse)

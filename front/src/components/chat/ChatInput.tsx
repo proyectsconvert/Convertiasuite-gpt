@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from "react";
+import VoiceAssistant from "@/components/voice/VoiceAssistant";
 import {
   Send,
   Paperclip,
@@ -12,12 +13,14 @@ import {
   FileCode,
   FileSpreadsheet,
   File as FileIcon,
+  Bot,
 } from "lucide-react";
 
 import { useAppStore } from "@/store/appStore";
 import { useToast } from "@/hooks/use-toast";
 import { AnimatePresence, motion } from "framer-motion";
 import { chatApi } from "@/services/api";
+import { text } from "stream/consumers";
 
 interface ChatInputProps {
   value: string;
@@ -30,6 +33,7 @@ interface ChatInputProps {
   isLoading: boolean;
   variant?: "welcome" | "conversation";
   onStop?: () => void;
+  onOpenVoice : ()=>void;
 }
 
 type UploadState = "idle" | "uploading" | "recording";
@@ -138,11 +142,13 @@ export default function ChatInput({
   onChange,
   onSend,
   isLoading,
-  variant = "conversation",
+  variant,
   onStop,
+  onOpenVoice,
 }: ChatInputProps) {
   const { selectedModel, currentChatId } = useAppStore();
   const { toast } = useToast();
+  
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -717,7 +723,25 @@ export default function ChatInput({
                     <Paperclip className="w-4 h-4" />
                   )}
                 </button>
-
+{/* VOICE ASSISTANT BUTTON */}
+<button
+  type="button"
+  onClick={onOpenVoice}
+  className="
+    p-1.5
+    rounded-full
+    bg-gradient-to-r
+    from-[#1aeda1]
+    to-[#bab8ff]
+    hover:scale-110
+    hover:brightness-90
+    transition-all
+    duration-200
+    shadow-sm
+  "
+>
+  <Bot className="w-4 h-4 text-black" />
+</button>
                 {/* MIC BUTTON */}
                 <button
                   type="button"
@@ -771,8 +795,14 @@ export default function ChatInput({
               </div>
             </div>
           </motion.div>
-        )}
+       
+       
+       )}
       </AnimatePresence>
+
+ 
+ 
+    
 
       <p className="text-center text-[11px] text-muted-foreground/50 mt-2">
         convert-IA puede cometer errores.
