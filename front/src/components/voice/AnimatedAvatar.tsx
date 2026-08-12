@@ -1,16 +1,19 @@
+import { useAppStore } from "@/store/appStore";
 import "./IAVoice.css";
 
 interface AnimatedAvatarProps {
   status?: "idle" | "listening" | "thinking" | "speaking";
-volume?:number;
-assistantSpeaking?:boolean;
+  volume?: number;
+  assistantSpeaking?: boolean;
 }
 
 export default function AnimatedAvatar({
   status = "idle",
-  volume=0,
-  assistantSpeaking=false
+  volume = 0,
+  assistantSpeaking = false
 }: AnimatedAvatarProps) {
+  const { darkMode } = useAppStore();
+
   return (
     <div className={`assistant-avatar 
     ${status}
@@ -30,20 +33,17 @@ export default function AnimatedAvatar({
       <div className="ring ia-ring ia-ring-3"></div>
 
       <div className="avatar-core"
-      
-      style={{
-        transform:
-        status==="listening"
-        ? `scale(${1 + volume / 80})`
-    : undefined
-      }}
-      
-      
+        style={{
+          transform:
+            status === "listening"
+              ? `scale(${1 + volume / 80})`
+              : undefined
+        }}
       >
-
-        <img
-          src="/02 simbolo-verde-blanco.png"
-          alt="OlivIA"
+        <img 
+          src="/favicon.ico" 
+          className="w-26 h-26 object-contain z-20 select-none pointer-events-none" 
+          alt="convert-IA" 
         />
 
         <div className="energy-core"></div>

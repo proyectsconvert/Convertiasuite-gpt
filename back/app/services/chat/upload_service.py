@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 from uuid import UUID
 from fastapi import UploadFile, HTTPException
-from app.services.document_processing.document_manager import DocumentManager
+from app.services.documents.document_processing.document_manager import DocumentManager
 from app.domain.interfaces.attachment_repository import IAttachmentRepository
 
 logger = logging.getLogger(__name__)

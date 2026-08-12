@@ -1,0 +1,13 @@
+	
+    {
+    "id": "reclutamiento_skill",
+    "name": "Screening_CVs",
+    "description": "Proceso de revisión y filtrado de currículums",
+    "category": "R&S",
+    "icon": "search-check",
+    "version": "1.0.0",
+    "tags": [
+        "CVs",
+        "Filtrado"
+    ]
+}

@@ -11,16 +11,16 @@ from app.domain.contracts import PromptContract
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.domain.interfaces.message_repository import IMessageRepository
 from app.security.risk_scorer import risk_scorer
-from app.services.llm.model_router import route_model, build_routing_context, is_generic_chat, is_trivial_or_interjection
-from app.services.chat.intent_classifier import IntentClassifier
-from app.services.chat.storage_service import upload_file_to_supabase
-from app.services.documents.document_processing.document_manager import DocumentManager
-from app.services.documents.document_processing.chunk_processor import (
+from app.services.model_router import route_model, build_routing_context, is_generic_chat, is_trivial_or_interjection
+from app.services.intent_classifier import IntentClassifier
+from app.services.storage_service import upload_file_to_supabase
+from app.services.document_processing.document_manager import DocumentManager
+from app.services.document_processing.chunk_processor import (
     needs_chunking,
 )
 from app.domain.interfaces.rag_repository import IRagRepository
 from app.rag.embending import embed_text
-from app.services.documents.document_generation.document_generator import DocumentGenerator
+from app.services.document_generation.document_generator import DocumentGenerator
 from app.security.exceptions import (
     PolicyViolationException,
     SecurityException,
@@ -77,6 +77,8 @@ def _extract_document_generation_request(response_text: str) -> tuple[str, dict 
         logger.debug(f"No document generation request found: {e}")
 
     return response_text, None
+
+
 
 
 async def _generate_and_attach_document(
@@ -186,6 +188,30 @@ async def _persist_messages(
             session_id,
             str(e),
         )
+async def load_chat_history(
+        memory_repo,
+        voice_session_id:str,
+):
+    history = await memory_repo.get_messages(voice_session_id) or []
+    history= truncate_history_by_tokens(
+        history,
+        max_tokens= 2000,
+    )
+
+    sanitize_history = []
+
+    for msg in history:
+        try:
+            msg_obj = Message.from_dict(msg) if isinstance(msg,dict) else msg
+            sanitize_history.append(msg_obj)
+        except Exception as e:
+            logger.warning(
+                "History sanitize error session=%s error =%s",
+                voice_session_id,
+                str(e),
+            )
+    return sanitize_history
+
 
 
 async def process_chat(
@@ -849,7 +875,7 @@ async def process_chat(
                     try:
                         tokens_in = len(request.message) // 4 if request.message else 0
                         tokens_out = len(full_response) // 4 if full_response else 0
-                        from app.services.usage.usage_service import record_usage
+                        from app.services.usage_service import record_usage
 
                         asyncio.create_task(
                             record_usage(
@@ -956,3 +982,62 @@ async def process_chat(
         )
 
         raise
+<<<<<<< Updated upstream:back/app/services/chat_service.py
+
+async def process_voice_chat(
+        request,
+        llm_provider:ILlmProvider,
+        memory_repo,
+        user_id:str,
+        document_manager:DocumentManager | None=None,
+        intent_classifier: IntentClassifier | None = None,
+        rag_repository: IRagRepository | None = None,
+):
+    call_id = request.call_id
+
+    if not call_id:
+        call_id = await memory_repo.create_voice_call(
+
+            user_id = user_id,
+            title = request.message[:40],
+        )
+
+        logger.info(
+            "Voice call created call_Id=%s user_id=%s",
+            call_id,
+            user_id
+        )
+    else:
+        call = await memory_repo.get_voice_call(call_id)
+
+        if not call:
+            raise SecurityException("La llamda no existe")
+
+        if str(call["user_id"])!=user_id:
+            raise SecurityException(
+                "No tienes permiso para acccender a esta llamdada"
+            )
+    voice_history= await memory_repo.load_voice_history(call_id)
+
+    menssage=[]
+
+    for msg in voice_history:
+            menssage.append(
+                Message(
+                    id= msg["id"],
+                    role=msg["role"],
+                    content=msg["content"],
+                    timestamp=datetime.fromisoformat(msg["created_at"]),
+                )
+            )
+
+    user_message= Message(
+                id=str(uuid.uuid4()),
+                role="user",
+                content=request.message,
+                timestamp=datetime.now(UTC),
+            )
+
+    menssage.append(user_message)
+=======
+>>>>>>> Stashed changes:back/app/services/chat/chat_service.py

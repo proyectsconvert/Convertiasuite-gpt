@@ -145,6 +145,7 @@ const [callTranscript, setCallTranscript] = useState<
     extractedContexts?: string[],
     filenames?: string[],
     attachmentTypes?: string[],
+    skillPrompt?: string,
     customText?: string,
     fromVoice = false
   ) => {
@@ -242,8 +243,16 @@ const [callTranscript, setCallTranscript] = useState<
     try {
       let fullResponse = "";
       // Combine all contexts for the message
-      const combinedContexts =
-        extractedContexts?.join("\n\n---\n\n") || undefined;
+      const contextParts: string[] = [];
+      if (skillPrompt) {
+        contextParts.push(`[SKILL PROMPT]\n${skillPrompt}`);
+      }
+      if (extractedContexts) {
+        contextParts.push(...extractedContexts);
+      }
+      const combinedContexts = contextParts.length > 0
+        ? contextParts.join("\n\n---\n\n")
+        : undefined;
       const messageType = attachmentTypes?.[0];
       const firstName = filenames?.[0];
 
@@ -302,8 +311,9 @@ const [callTranscript, setCallTranscript] = useState<
                   },
                 ]);
               }
-await voiceConversation.speak(fullResponse);
-  
+              if (voiceConversation.isConversationActive()) {
+                await voiceConversation.speak(fullResponse);
+              }
             }
           } catch (historyError) {
             console.error("Error loading refreshed history:", historyError);
@@ -327,7 +337,9 @@ await voiceConversation.speak(fullResponse);
                   },
                 ]);
               }
-await voiceConversation.speak(fullResponse);
+              if (voiceConversation.isConversationActive()) {
+                await voiceConversation.speak(fullResponse);
+              }
             }
           }
         } else {
@@ -352,7 +364,9 @@ await voiceConversation.speak(fullResponse);
                 },
               ]);
             }
-  await voiceConversation.speak(fullResponse);
+            if (voiceConversation.isConversationActive()) {
+              await voiceConversation.speak(fullResponse);
+            }
           }
         }
       }
@@ -379,7 +393,7 @@ await voiceConversation.speak(fullResponse);
       const customEvent = e as CustomEvent<string>;
       const text = customEvent.detail;
       if (text && !isLoading) {
-        handleSend(undefined, undefined, undefined, text);
+        handleSend(undefined, undefined, undefined, undefined, text);
       }
     };
 

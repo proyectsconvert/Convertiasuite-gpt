@@ -1,0 +1,10 @@
+
+  {
+    "id": "file_folder_classifier",
+    "name": "File_Folder_Classifier",
+    "description": "Analiza el contenido o metadatos de archivos/reportes para determinar su categoría, departamento y la estructura de carpetas de destino adecuada.",
+    "category": "BI",
+    "icon": "folder-tree",
+    "version": "1.0.0",
+    "tags": ["Organización", "Clasificación", "Archivos", "Automatización"]
+  }

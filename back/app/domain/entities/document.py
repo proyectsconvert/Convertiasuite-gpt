@@ -68,8 +68,11 @@ class ParsedContent:
             parts.append(f"### {section.title}\n{section.content}")
 
         for table in self.tables:
-            header_str = " | ".join(table.headers)
-            rows_str = "\n".join([" | ".join(row) for row in table.rows])
+            # Ensure headers and row cells are strings and replace None with empty string
+            safe_headers = [str(h) if h is not None else "" for h in table.headers]
+            header_str = " | ".join(safe_headers)
+            safe_rows = [ [str(cell) if cell is not None else "" for cell in row] for row in table.rows ]
+            rows_str = "\n".join([" | ".join(row) for row in safe_rows])
             parts.append(f"Table: {table.name or 'Unnamed'}\n{header_str}\n{rows_str}")
 
         return "\n\n".join(parts)

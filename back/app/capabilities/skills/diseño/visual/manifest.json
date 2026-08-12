@@ -1,0 +1,15 @@
+{
+  "id": "visual_editing_ai",
+  "name": "Visual_Editing_AI",
+  "description": "Edita y retoca imágenes existentes, genera elementos visuales, crea fondos y modifica composiciones utilizando modelos de IA Generativa mediante prompts.",
+  "category": "Diseño",
+  "icon": "image",
+  "version": "1.0.0",
+  "tags": [
+    "Edición",
+    "Retoque",
+    "IA Generativa",
+    "Photoshop",
+    "Prompt-to-Image"
+  ]
+}

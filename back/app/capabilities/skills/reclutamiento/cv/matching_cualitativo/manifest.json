@@ -1,0 +1,13 @@
+	
+    {
+    "id": "matching_cualitativo",
+    "name": "Matching_Cualitativo",
+    "description": "Comparar la experiencia real del candidato con la descripción del cargo, identificando transferencia de habilidades aunque no usen las mismas palabras clave.",
+    "category": "R&S",
+    "icon": "file-text",
+    "version": "1.0.0",
+    "tags": [
+        "CVs",
+        "Filtrado"
+    ]
+}

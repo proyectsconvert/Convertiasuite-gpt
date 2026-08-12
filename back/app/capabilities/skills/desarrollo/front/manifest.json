@@ -1,0 +1,14 @@
+{
+    "id": "front_skill",
+    "name": "Copiloto_frontend",
+    "description": "Especialista en desarrollo Frontend y diseño de interfaces",
+    "category": "Desarrollo",
+    "icon": "layout",
+    "version": "1.0.0",
+    "tags": [
+        "Vue",
+        "React",
+        "Desarrollo front",
+        "Interfaces"
+    ]
+}

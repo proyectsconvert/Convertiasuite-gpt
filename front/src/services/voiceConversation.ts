@@ -35,6 +35,18 @@ class VoiceConversation{
         }
         await this.onSend(text);
     }
+    async speak(text:string){
+        if (!this.conversationActive) {
+            console.log("Se omite la voz porque la conversación no está activa");
+            return;
+        }
+
+        hablar(
+            text,
+            () => this.onAssistantStart(),
+            () => this.onAssistantEnd(),
+        );
+    }
     onAssistantStart(){
         this.assistantSpeaking = true;
         this.onSpeakingChnage?.(true);
@@ -46,11 +58,5 @@ class VoiceConversation{
         console.log("La IA terminó de hablar")
     }
 
-    async speak(text:string){
-        hablar(text,
-        () => this.onAssistantStart(),
-        ()=> this.onAssistantEnd()
-        );
-    }
 }
 export const voiceConversation = new VoiceConversation();

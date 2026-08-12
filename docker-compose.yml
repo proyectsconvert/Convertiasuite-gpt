@@ -36,6 +36,7 @@ services:
  
     volumes:
       - ./back:/app
+      - vosk_data:/opt/vosk-models
  
     working_dir: /app
  
@@ -57,3 +58,4 @@ services:
  
 volumes:
   redis_data:
+  vosk_data:

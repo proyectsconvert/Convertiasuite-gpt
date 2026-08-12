@@ -1,0 +1,15 @@
+{
+  "id": "report_download_automation",
+  "name": "Report_Download_Automation",
+  "description": "Genera scripts de automatización (Python/Playwright/Selenium) para la navegación, autenticación y descarga automática de reportes web.",
+  "category": "BI",
+  "icon": "download-cloud",
+  "version": "1.0.0",
+  "tags": [
+    "Scraping",
+    "RPA",
+    "Python",
+    "Automation",
+    "Reportería"
+  ]
+}

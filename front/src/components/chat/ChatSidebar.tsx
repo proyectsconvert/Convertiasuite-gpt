@@ -9,12 +9,13 @@ import {
   Pencil,
   LogOut,
   Settings,
-  User,
   Sun,
   Moon,
   Star,
   Shield,
-  FileText,
+  MessageSquare,
+  Folder,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -65,7 +66,9 @@ export default function ChatSidebar() {
     renameSession,
     setSessions,
     appendSessions,
+    setCommandOpen,
   } = useAppStore();
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -175,278 +178,335 @@ export default function ChatSidebar() {
     setMenuOpenId(null);
   };
 
-  /* ─── Collapsed ─── */
-  if (!chatSidebarOpen) {
-    return (
-      <motion.div
-        initial={{ width: 0, opacity: 0 }}
-        animate={{ width: 52, opacity: 1 }}
-        exit={{ width: 0, opacity: 0 }}
-        transition={{ duration: 0.15, ease: "easeInOut" }}
-        className="h-full bg-sidebar border-r border-sidebar-border flex flex-col items-center py-3 gap-1.5"
-      >
-        <button
-          onClick={toggleChatSidebar}
-          className="p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
-          aria-label="Expandir"
-        >
-          <PanelLeft className="w-4 h-4 text-sidebar-foreground" />
-        </button>
-        <button
-          onClick={handleNewChat}
-          className="p-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
-          aria-label="Nuevo chat"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
-        <div className="flex-1" />
-        <button
-          onClick={toggleDarkMode}
-          className="p-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent transition-colors"
-          aria-label="Tema"
-        >
-          {darkMode ? (
-            <Sun className="w-4 h-4" />
-          ) : (
-            <Moon className="w-4 h-4" />
-          )}
-        </button>
-        {user?.role?.toLowerCase() === "admin" && (
-          <button
-            onClick={() => navigate("/app/admin")}
-            className="p-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent transition-colors"
-            aria-label="Panel Admin"
-          >
-            <Shield className="w-4 h-4" />
-          </button>
-        )}
-        <button
-          onClick={() => navigate("/app/settings")}
-          className="p-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent transition-colors"
-          aria-label="Configuración"
-        >
-          <Settings className="w-4 h-4" />
-        </button>
-      </motion.div>
-    );
-  }
+  const isChatActive = location.pathname === "/app/chat";
+  const isDocActive = location.pathname.startsWith("/app/documents");
+  const isSkillsActive = location.pathname.startsWith("/app/skills");
+  const isSettingsActive = location.pathname.startsWith("/app/settings");
+  const userInitial = (user?.name?.[0] || user?.email?.[0] || "U").toUpperCase();
 
-  /* ─── Expanded ─── */
   return (
     <>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.15 }}
-        className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm md:hidden"
-        onClick={toggleChatSidebar}
-      />
-      <motion.div
-        initial={{ x: -280, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        exit={{ x: -280, opacity: 0 }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
-        className="fixed inset-y-0 left-0 z-40 h-full w-[85vw] max-w-[260px] bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden md:static md:w-[260px]"
-      >
-        {/* Header */}
-        <div className="h-13 px-3 flex items-center justify-between flex-shrink-0 border-b border-sidebar-border/50">
-          <div className="flex items-center gap-2">
-            <img
-              src={darkMode ? "/favicon.ico" : "/logo-dark.ico"}
-              className="w-9 h-9 rounded-xl"
-              alt="convert-IA"
-            />
-          </div>
-          <button
+      {/* Mobile Backdrop Overlay */}
+      <AnimatePresence>
+        {chatSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
             onClick={toggleChatSidebar}
-            className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground"
-            aria-label="Colapsar"
-          >
-            <PanelLeftClose className="w-4 h-4" />
-          </button>
-        </div>
+          />
+        )}
+      </AnimatePresence>
 
-        {/* New chat + search */}
-        <div className="px-2 py-2 space-y-1 flex-shrink-0">
-          <button
-            onClick={handleNewChat}
-            className="w-full flex items-center gap-2 h-9 px-3 rounded-lg border border-border/40 text-sm text-foreground hover:bg-sidebar-accent transition-colors"
-          >
-            <Plus className="w-4 h-4 text-muted-foreground" />
-            <span>Nuevo chat</span>
-          </button>
-          <button
-            onClick={() => useAppStore.getState().setCommandOpen(true)}
-            className="w-full flex items-center gap-2 px-3 h-8 rounded-lg text-xs text-muted-foreground hover:bg-sidebar-accent transition-colors"
-          >
-            <Search className="w-3.5 h-3.5" />
-            <span>Buscar...</span>
-            <span className="ml-auto text-[10px] bg-secondary/80 px-1.5 py-0.5 rounded font-mono">
-              ⌘K
-            </span>
-          </button>
-          <button
-            onClick={() => navigate("/app/documents")}
-            className="w-full flex items-center gap-2 h-9 px-3 rounded-lg border border-border/40 text-sm text-foreground hover:bg-sidebar-accent transition-colors"
-          >
-            <FileText className="w-4 h-4 text-muted-foreground" />
-            <span>Documentos</span>
-          </button>
-        </div>
-
-        {/* Chat history */}
-        <div className="flex-1 overflow-y-auto px-2 scrollbar-thin">
-          {grouped.length > 0 ? (
-            grouped.map((g) => (
-              <div key={g.label} className="mb-2">
-                <div className="text-[10px] text-muted-foreground/70 px-2 py-1 font-semibold uppercase tracking-wider">
-                  {g.label}
-                </div>
-                <div className="space-y-px">
-                  {g.items.map((c) => (
-                    <div key={c.id} className="relative group">
-                      {editingId === c.id ? (
-                        <div className="px-1 py-0.5">
-                          <input
-                            ref={editRef}
-                            value={editTitle}
-                            onChange={(e) => setEditTitle(e.target.value)}
-                            onBlur={() => handleRename(c.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleRename(c.id);
-                              if (e.key === "Escape") setEditingId(null);
-                            }}
-                            className="w-full px-2 py-1 text-[13px] rounded border border-primary bg-background text-foreground outline-none"
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-0 group w-full min-w-0">
-                          <button
-                            onClick={() => handleChatClick(c.id)}
-                            className={`flex-1 min-w-0 text-left px-2.5 py-1.5 rounded-lg text-[13px] transition-all duration-100 flex items-center gap-1.5 ${
-                              currentChatId === c.id &&
-                              location.pathname === "/app/chat"
-                                ? "bg-sidebar-accent text-foreground"
-                                : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
-                            }`}
-                          >
-                            {c.favorite && (
-                              <Star className="w-3 h-3 text-warning flex-shrink-0 fill-warning" />
-                            )}
-                            <span className="truncate flex-1">{c.title}</span>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setMenuOpenId(menuOpenId === c.id ? null : c.id);
-                            }}
-                            className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-secondary transition-all flex-shrink-0"
-                            aria-label="Opciones"
-                          >
-                            <MoreHorizontal className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
-
-                      <AnimatePresence>
-                        {menuOpenId === c.id && (
-                          <motion.div
-                            ref={menuRef}
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ duration: 0.1 }}
-                            className="absolute right-0 top-7 z-50 w-36 rounded-lg border border-border bg-popover p-1 shadow-lg"
-                          >
-                            <button
-                              onClick={() => {
-                                setEditTitle(c.title);
-                                setEditingId(c.id);
-                                setMenuOpenId(null);
-                              }}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-md hover:bg-secondary transition-colors text-foreground"
-                            >
-                              <Pencil className="w-3 h-3" /> Renombrar
-                            </button>
-                            <button
-                              onClick={() => handleDelete(c.id)}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-md hover:bg-destructive/10 transition-colors text-destructive"
-                            >
-                              <Trash2 className="w-3 h-3" /> Eliminar
-                            </button>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-12 text-xs text-muted-foreground/60 px-4">
-              Sin conversaciones.
-              <br />
-              Crea un nuevo chat para comenzar.
-            </div>
-          )}
-          {/* Sentinel for infinite scroll */}
-          <div ref={sentinelRef} className="h-1" />
-          {loadingMore && (
-            <div className="flex justify-center py-2">
-              <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-            </div>
-          )}
-        </div>
-
-        {/* User footer */}
-        <div className="px-3 py-2.5 border-t border-sidebar-border flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center flex-shrink-0">
-              <User className="w-3.5 h-3.5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[12px] font-medium text-foreground truncate">
-                {user?.name || "Usuario"}
-              </div>
-            </div>
+      <div className="flex h-full max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40">
+        {/* ─── PRIMARY NAV RAIL (THIN ICON BAR) ─── */}
+        <aside className="w-[58px] h-full bg-sidebar/95 border-r border-sidebar-border/60 flex flex-col items-center justify-between py-3 flex-shrink-0 z-20">
+          {/* Top Rail Actions */}
+          <div className="flex flex-col items-center gap-3">
+            {/* Original App Logo */}
             <button
-              onClick={toggleDarkMode}
-              className="p-1 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground"
-              aria-label="Tema"
+              onClick={() => navigate("/app/chat")}
+              className="p-0.5 rounded-xl hover:opacity-90 transition-transform active:scale-95 flex items-center justify-center"
+              title="convert-IA"
             >
-              {darkMode ? (
-                <Sun className="w-3.5 h-3.5" />
+              <img
+                src={darkMode ? "/favicon.ico" : "/logo-dark.ico"}
+                className="w-9 h-9 rounded-xl object-contain"
+                alt="convert-IA"
+              />
+            </button>
+
+            {/* Sidebar Toggle */}
+            <button
+              onClick={toggleChatSidebar}
+              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/70 transition-colors"
+              title={chatSidebarOpen ? "Colapsar panel" : "Expandir panel"}
+            >
+              {chatSidebarOpen ? (
+                <PanelLeftClose className="w-4 h-4" />
               ) : (
-                <Moon className="w-3.5 h-3.5" />
+                <PanelLeft className="w-4 h-4" />
               )}
             </button>
-            {user?.role?.toLowerCase() === "admin" && (
-              <button
-                onClick={() => navigate("/app/admin")}
-                className="p-1 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground"
-                aria-label="Panel Admin"
-              >
-                <Shield className="w-3.5 h-3.5" />
-              </button>
-            )}
+
+            <div className="w-6 h-[1px] bg-sidebar-border/40 my-0.5" />
+
+            {/* Navigation Icons */}
             <button
-              onClick={() => navigate("/app/settings")}
-              className="p-1 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground"
-              aria-label="Config"
+              onClick={() => navigate("/app/chat")}
+              className={`p-2.5 rounded-xl transition-all ${
+                isChatActive
+                  ? "bg-primary/15 text-primary border border-primary/30 shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
+              }`}
+              title="Chats"
             >
-              <Settings className="w-3.5 h-3.5" />
+              <MessageSquare className="w-4 h-4" />
             </button>
+
             <button
-              onClick={logout}
-              className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-              aria-label="Salir"
+              onClick={() => navigate("/app/documents")}
+              className={`p-2.5 rounded-xl transition-all ${
+                isDocActive
+                  ? "bg-primary/15 text-primary border border-primary/30 shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
+              }`}
+              title="Documentos"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <Folder className="w-4 h-4" />
+            </button>
+
+
+             <button
+              onClick={() => navigate("/app/skills")}
+              className={`p-2.5 rounded-xl transition-all ${
+                isSkillsActive
+                  ? "bg-primary/15 text-primary border border-primary/30 shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
+              }`}
+              title="Skills"
+            >
+            <SlidersHorizontal className="w-4 h-4" />
             </button>
           </div>
-        </div>
-      </motion.div>
+
+          {/* Bottom Rail Actions */}
+          <div className="flex flex-col items-center gap-2.5">
+            <button
+              onClick={() => navigate("/app/settings")}
+              className={`p-2 rounded-xl transition-colors ${
+                isSettingsActive
+                  ? "text-primary bg-primary/15"
+                  : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/70"
+              }`}
+              title="Configuración"
+            >
+              <Settings className="w-4.5 h-4.5" />
+            </button>
+
+            {/* User Avatar Circle */}
+            <button
+              onClick={() => navigate("/app/settings")}
+              className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#1aeda1] to-[#bab8ff] text-slate-950 font-bold flex items-center justify-center text-xs shadow-md shadow-[#1aeda1]/20 hover:scale-105 transition-transform overflow-hidden"
+              title={user?.name || user?.email || "Usuario"}
+            >
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                userInitial
+              )}
+            </button>
+          </div>
+        </aside>
+
+        {/* ─── EXPANDABLE CHAT HISTORY PANEL ─── */}
+        <AnimatePresence initial={false}>
+          {chatSidebarOpen && (
+            <motion.aside
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 260, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="h-full bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden flex-shrink-0 z-10"
+            >
+              {/* Header / New Chat + Search */}
+              <div className="p-3.5 space-y-2.5 flex-shrink-0">
+                {/* Vibrant Custom Gradient New Chat Button (#1aeda1 to #bab8ff) */}
+                <button
+                  onClick={handleNewChat}
+                  className="w-full flex items-center justify-center gap-2 h-10 px-4 rounded-full bg-gradient-to-r from-[#1aeda1] to-[#bab8ff] text-slate-950 font-semibold text-xs tracking-wide shadow-md shadow-[#1aeda1]/20 hover:brightness-105 hover:shadow-lg hover:shadow-[#1aeda1]/30 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>Nuevo chat</span>
+                </button>
+
+                {/* Search Bar Input Pill */}
+                <button
+                  onClick={() => setCommandOpen(true)}
+                  className="w-full flex items-center gap-2 h-8 px-3 rounded-full bg-sidebar-accent/50 border border-sidebar-border/60 text-xs text-muted-foreground hover:bg-sidebar-accent transition-colors text-left"
+                >
+                  <Search className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="truncate flex-1">Buscar...</span>
+                  <span className="text-[10px] bg-secondary/80 px-1.5 py-0.2 rounded font-mono text-muted-foreground">
+                    ⌘K
+                  </span>
+                </button>
+              </div>
+
+              {/* Chat Sessions History List */}
+              <div className="flex-1 overflow-y-auto px-3 scrollbar-thin space-y-3">
+                {grouped.length > 0 ? (
+                  grouped.map((g) => (
+                    <div key={g.label}>
+                      <div className="text-[11px] text-muted-foreground/70 px-2 py-1 font-medium">
+                        {g.label}
+                      </div>
+                      <div className="space-y-0.5 mt-0.5">
+                        {g.items.map((c) => (
+                          <div key={c.id} className="relative group">
+                            {editingId === c.id ? (
+                              <div className="px-1 py-0.5">
+                                <input
+                                  ref={editRef}
+                                  value={editTitle}
+                                  onChange={(e) => setEditTitle(e.target.value)}
+                                  onBlur={() => handleRename(c.id)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") handleRename(c.id);
+                                    if (e.key === "Escape") setEditingId(null);
+                                  }}
+                                  className="w-full px-2.5 py-1 text-xs rounded-lg border border-primary bg-background text-foreground outline-none shadow-sm"
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex items-center group w-full min-w-0">
+                                <button
+                                  onClick={() => handleChatClick(c.id)}
+                                  className={`flex-1 min-w-0 text-left px-2.5 py-1.5 rounded-lg text-xs transition-all flex items-center gap-2 ${
+                                    currentChatId === c.id && isChatActive
+                                      ? "bg-sidebar-accent text-foreground font-medium"
+                                      : "text-muted-foreground/90 hover:bg-sidebar-accent/50 hover:text-foreground"
+                                  }`}
+                                >
+                                  {c.favorite && (
+                                    <Star className="w-3 h-3 text-warning flex-shrink-0 fill-warning" />
+                                  )}
+                                  <span className="truncate flex-1">
+                                    {c.title}
+                                  </span>
+                                </button>
+
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMenuOpenId(
+                                      menuOpenId === c.id ? null : c.id,
+                                    );
+                                  }}
+                                  className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-secondary transition-all flex-shrink-0 text-muted-foreground hover:text-foreground"
+                                  aria-label="Opciones"
+                                >
+                                  <MoreHorizontal className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Dropdown Options Menu */}
+                            <AnimatePresence>
+                              {menuOpenId === c.id && (
+                                <motion.div
+                                  ref={menuRef}
+                                  initial={{ opacity: 0, scale: 0.95 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.95 }}
+                                  transition={{ duration: 0.1 }}
+                                  className="absolute right-0 top-7 z-50 w-36 rounded-xl border border-border bg-popover p-1 shadow-lg"
+                                >
+                                  <button
+                                    onClick={() => {
+                                      setEditTitle(c.title);
+                                      setEditingId(c.id);
+                                      setMenuOpenId(null);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg hover:bg-secondary transition-colors text-foreground"
+                                  >
+                                    <Pencil className="w-3 h-3" /> Renombrar
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(c.id)}
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg hover:bg-destructive/10 transition-colors text-destructive"
+                                  >
+                                    <Trash2 className="w-3 h-3" /> Eliminar
+                                  </button>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-xs text-muted-foreground/60 px-4">
+                    Sin conversaciones.
+                    <br />
+                    Crea un nuevo chat para comenzar.
+                  </div>
+                )}
+                <div ref={sentinelRef} className="h-1" />
+                {loadingMore && (
+                  <div className="flex justify-center py-2">
+                    <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                  </div>
+                )}
+              </div>
+
+              {/* Bottom User Info & Footer Actions */}
+              <div className="px-3 py-2.5 border-t border-sidebar-border/60 flex-shrink-0 flex items-center gap-2">
+                {/* User Avatar Circle */}
+                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#1aeda1] to-[#bab8ff] text-slate-950 font-bold flex items-center justify-center text-[11px] flex-shrink-0 shadow-sm overflow-hidden">
+                  {user?.avatar ? (
+                    <img
+                      src={user.avatar}
+                      alt={user.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    userInitial
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-foreground truncate">
+                    {user?.name || user?.email || "Usuario"}
+                  </div>
+                </div>
+
+                {/* Dark Mode Toggle Button */}
+                <button
+                  onClick={toggleDarkMode}
+                  className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground hover:text-foreground"
+                  aria-label="Alternar tema"
+                  title="Cambiar tema"
+                >
+                  {darkMode ? (
+                    <Sun className="w-3.5 h-3.5 text-primary" />
+                  ) : (
+                    <Moon className="w-3.5 h-3.5" />
+                  )}
+                </button>
+
+                {/* Admin Panel Button */}
+                {user?.role?.toLowerCase() === "admin" && (
+                  <button
+                    onClick={() => navigate("/app/admin")}
+                    className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground hover:text-foreground"
+                    title="Panel Admin"
+                  >
+                    <Shield className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {/* Logout Button */}
+                <button
+                  onClick={logout}
+                  className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                  title="Cerrar sesión"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </motion.aside>
+          )}
+        </AnimatePresence>
+      </div>
     </>
   );
 }
+

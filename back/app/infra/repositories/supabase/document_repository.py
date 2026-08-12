@@ -79,7 +79,17 @@ class SupabaseDocumentRepository(IDocumentRepository):
                 .execute()
             )
 
-            return [self._row_to_document(row) for row in response.data]
+            rows = response.data or []
+            documents = []
+            for row in rows:
+                try:
+                    documents.append(self._row_to_document(row))
+                except Exception as row_err:
+                    logger.exception("Failed to parse document row: %s", row)
+                    # skip malformed row
+                    continue
+
+            return documents
 
         except Exception as e:
             if self._is_missing_document_storage_error(e):
@@ -102,7 +112,16 @@ class SupabaseDocumentRepository(IDocumentRepository):
                 .execute()
             )
 
-            return [self._row_to_document(row) for row in response.data]
+            rows = response.data or []
+            documents = []
+            for row in rows:
+                try:
+                    documents.append(self._row_to_document(row))
+                except Exception as row_err:
+                    logger.exception("Failed to parse document row for user: %s", row)
+                    continue
+
+            return documents
 
         except Exception as e:
             if self._is_missing_document_storage_error(e):
@@ -275,6 +294,13 @@ class SupabaseDocumentRepository(IDocumentRepository):
     def _row_to_document(row: dict) -> Document:
         from datetime import datetime
 
+        # Normalize tags from the DB row: ensure a list of strings and filter out None
+        raw_tags = row.get("tags", []) or []
+        try:
+            tags = [str(t) for t in raw_tags if t is not None]
+        except Exception:
+            tags = []
+
         return Document(
             id=UUID(row["id"]),
             type=DocumentType(row["type"]),
@@ -287,6 +313,6 @@ class SupabaseDocumentRepository(IDocumentRepository):
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
             embeddings=json.loads(row.get("embeddings", "{}")),
-            tags=row.get("tags", []),
+            tags=tags,
             metadata=json.loads(row.get("metadata", "{}")),
         )

@@ -1,0 +1,15 @@
+{
+  "id": "ui_ux_prototype_generator",
+  "name": "UI_UX_Prototype_Generator",
+  "description": "Genera estructuras de wireframes detalladas, flujos de usuario (user flows) y descripciones funcionales de prototipos a partir de requerimientos de producto.",
+  "category": "Diseño",
+  "icon": "layout",
+  "version": "1.0.0",
+  "tags": [
+    "UI",
+    "UX",
+    "Wireframe",
+    "Figma",
+    "Prototipo"
+  ]
+}

@@ -157,10 +157,7 @@ export default function LandingPage() {
         <div className="container relative z-10 py-20 lg:py-32">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }} className="space-y-8">
-              <div className="flex items-center gap-3 mb-4">
-                <img src="/favicon.ico" className="w-9 h-9 rounded-xl" alt="convert-IA" />
-                <span className="text-xl font-display font-bold text-white tracking-tight">convert-IA</span>
-              </div>
+            
 
               {/* Rotating pill */}
               <div className="inline-flex min-h-[2.25rem] max-w-full items-center overflow-hidden rounded-full border border-primary/30 bg-primary/5 px-4 py-1.5 text-sm text-primary break-normal text-pretty"

@@ -4,7 +4,6 @@ import { X, Mic, Square } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { chatApi } from "@/services/api"
 import { voiceConversation } from "@/services/voiceConversation";
-import { set } from "date-fns";
 import AnimatedAvatar  from "./AnimatedAvatar";
 import { Value } from "@radix-ui/react-select";
 
@@ -175,15 +174,29 @@ const stopListening = () =>{
     try{
       setStatus("thinking");
       const response = await chatApi.uploadAudio(formData);
-      console.log("respuesta",response)
-      setText(response.transcript);
-      if(response.transcript.trim()){
-        await voiceConversation.send(
-          response.transcript
-        )
-      }
+      console.log("respuesta pipeline voz", response);
+      setText(response.transcript || response.response_text || "");
 
-    }catch(error){
+      // Si el backend devolvió audio base64 de Qwen TTS, reproducirlo directamente
+      if (response.audio_base64) {
+        setStatus("speaking");
+        const audio = new Audio(`data:audio/wav;base64,${response.audio_base64}`);
+        audio.onended = () => setStatus("idle");
+        audio.onerror = () => {
+          console.warn("Error al reproducir audio de Qwen TTS, fallback a síntesis local");
+          if (response.response_text) {
+            voiceConversation.speak(response.response_text);
+          }
+          setStatus("idle");
+        };
+        await audio.play();
+      } else if (response.response_text) {
+        // Fallback a síntesis del navegador si Qwen TTS no devolvió audio
+        await voiceConversation.speak(response.response_text);
+      } else if (response.transcript?.trim()) {
+        await voiceConversation.send(response.transcript);
+      }
+    } catch (error) {
       console.error(error);
       setStatus("idle");
     }
@@ -244,9 +257,8 @@ const detectarSilencio = ()=>{
       if (speechDetectedRef.current && volumen<5){
         if(!silenceTimeRef.current){
           silenceTimeRef.current = window.setTimeout(() => {
-            
             stopListening();
-          }, 700);
+          }, 700) as unknown as number;
         
       }
     }else {

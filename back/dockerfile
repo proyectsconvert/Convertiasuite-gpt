@@ -16,6 +16,16 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Download full/heavy Vosk Spanish model (~1.4GB, cached layer)
+RUN mkdir -p /opt/vosk-models && \
+    apt-get update && apt-get install -y --no-install-recommends wget unzip && \
+    wget -q --show-progress -O /tmp/vosk-model-es-0.42.zip \
+      https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip && \
+    unzip -q /tmp/vosk-model-es-0.42.zip -d /opt/vosk-models/ && \
+    rm /tmp/vosk-model-es-0.42.zip && \
+    apt-get purge -y wget unzip && apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 

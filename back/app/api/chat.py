@@ -420,19 +420,67 @@ async def upload_file(
 @router.post("/upload-audio")
 async def upload_audio(
     file: UploadFile = File(...),
+    session_id: str = Form(None),
     current_user: dict = Depends(get_current_user),
 ):
+    """
+    Flujo de voz a voz completo:
+    1. Ingesta de audio -> Transcripción con Vosk STT
+    2. Transcripción -> Razonamiento con Ollama (modelo default)
+    3. Respuesta en texto -> Síntesis de voz con Qwen TTS
+    """
     try:
-        from app.services.transcription_service import transcribe_audio
+        import base64
+        from app.services.meetings.transcription_service import transcribe_audio
+        from app.infra.clients.tts_client import QwenTTSClient
+        from app.infra.clients.ollama_client import OllamaClient
 
         contents = await file.read()
-        transcript = transcribe_audio(contents)
 
-        return {"transcript": transcript}
+        # 1. Ingesta de audio -> Transcripción
+        transcript = transcribe_audio(contents)
+        logger.info(f"[Voice Pipeline] Transcripción obtenida: '{transcript}'")
+
+        if not transcript or not transcript.strip():
+            return {
+                "transcript": "",
+                "response_text": "No se pudo entender el audio.",
+                "audio_base64": None,
+            }
+
+        # 2. Transcripción -> Razonamiento con Ollama (qwen2.5:7b)
+        ollama = OllamaClient()
+        response_text = await ollama.generate_chat(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Eres un asistente de voz conciso y profesional. Responde de forma clara y directa sin usar formato markdown ni viñetas, ya que tu respuesta será leída por un sintetizador de voz.",
+                },
+                {"role": "user", "content": transcript},
+            ],
+            model="qwen2.5:7b",
+            temperature=0.7,
+        )
+        logger.info(f"[Voice Pipeline] Respuesta de Ollama: '{response_text}'")
+
+        # 3. Respuesta -> Qwen TTS
+        tts_client = QwenTTSClient()
+        audio_bytes = await tts_client.generate_speech(response_text)
+
+        audio_base64 = None
+        if audio_bytes:
+            audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+
+        return {
+            "transcript": transcript,
+            "response_text": response_text,
+            "audio_base64": audio_base64,
+        }
     except Exception as e:
-        logger.error(f"Error in upload_audio: {e}")
+        logger.error(f"Error in upload_audio: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error al procesar y transcribir el audio: {str(e)}",
+            detail=f"Error en el procesamiento de voz: {str(e)}",
         )
+
 

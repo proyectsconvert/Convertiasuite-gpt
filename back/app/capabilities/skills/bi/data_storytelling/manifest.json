@@ -1,0 +1,15 @@
+{
+  "id": "query_optimization_dax_sql",
+  "name": "Query_Optimizer_DAX_SQL",
+  "description": "Genera, refactoriza y optimiza medidas en DAX, código M para Power Query y consultas SQL para tableros de Power BI o libros de Excel.",
+  "category": "BI",
+  "icon": "code",
+  "version": "1.0.0",
+  "tags": [
+    "DAX",
+    "SQL",
+    "Power BI",
+    "Excel",
+    "Power Query"
+  ]
+}

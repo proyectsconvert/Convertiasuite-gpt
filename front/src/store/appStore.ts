@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { SessionSummary, authApi, ChatMessage, type DocumentArtifact, setTokenRefreshListener, documentsApi, clearSession } from "@/services/api";
+import { SessionSummary, authApi, ChatMessage, type DocumentArtifact, setTokenRefreshListener, documentsApi, clearSession, type Skill } from "@/services/api";
 import { extractAllArtifacts } from "@/lib/artifact-utils";
 
 export type AppView =
@@ -66,6 +66,11 @@ interface AppState {
   artifactsPanelOpen: boolean;
   activeArtifact: ChatArtifact | null;
 
+  /* Skills */
+  skills: Skill[];
+  enabledSkillIds: string[];
+  activeSkillPrompt: string | null;
+
   /* Actions */
   setView: (view: AppView) => void;
   setAuthTab: (tab: AuthTab) => void;
@@ -125,6 +130,11 @@ interface AppState {
     artifact: ChatArtifact | null
   ) => void;
 
+  /* Skills */
+  setSkills: (skills: Skill[]) => void;
+  toggleSkill: (skillId: string) => void;
+  setActiveSkillPrompt: (prompt: string | null) => void;
+
   login: (
     email: string,
     password: string
@@ -166,6 +176,10 @@ export const useAppStore = create<AppState>()(
 
       artifactsPanelOpen: false,
       activeArtifact: null,
+
+      skills: [],
+      enabledSkillIds: [],
+      activeSkillPrompt: null,
 
       /* UI ACTIONS */
 
@@ -281,7 +295,24 @@ export const useAppStore = create<AppState>()(
                 : s
           ),
         })),
-    
+
+      /* SKILLS */
+
+      setSkills: (skills) =>
+        set({ skills }),
+
+      toggleSkill: (skillId) =>
+        set((state) => {
+          const isEnabled = state.enabledSkillIds.includes(skillId);
+          return {
+            enabledSkillIds: isEnabled
+              ? state.enabledSkillIds.filter((id) => id !== skillId)
+              : [...state.enabledSkillIds, skillId],
+          };
+        }),
+
+      setActiveSkillPrompt: (prompt) =>
+        set({ activeSkillPrompt: prompt }),
 
       /* ARTIFACTS */
 
@@ -483,6 +514,8 @@ export const useAppStore = create<AppState>()(
         darkMode: state.darkMode,
         selectedModel:
           state.selectedModel,
+        enabledSkillIds:
+          state.enabledSkillIds,
       }),
     }
   )

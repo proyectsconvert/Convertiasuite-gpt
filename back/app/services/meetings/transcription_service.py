@@ -17,14 +17,35 @@ _model = None
 def get_model() -> Model:
     global _model
     if _model is None:
-        model_path = os.path.normpath(
-            os.path.join(
-                os.path.dirname(__file__), "..", "vosk_models", "vosk-model-es-0.42"
+        # Priority: env var > Docker path > local relative path
+        candidates = [
+            os.environ.get("VOSK_MODEL_PATH", ""),
+            "/opt/vosk-models/vosk-model-es-0.42",
+            "/opt/vosk-models/vosk-model-small-es-0.42",
+            os.path.normpath(
+                os.path.join(
+                    os.path.dirname(__file__), "..", "vosk_models", "vosk-model-small-es-0.42"
+                )
+            ),
+            os.path.normpath(
+                os.path.join(
+                    os.path.dirname(__file__), "..", "vosk_models", "vosk-model-small-es-0.42"
+                )
+            ),
+        ]
+        model_path = None
+        for path in candidates:
+            if path and os.path.exists(path):
+                model_path = path
+                break
+
+        if model_path is None:
+            searched = ", ".join(p for p in candidates if p)
+            raise FileNotFoundError(
+                f"Vosk model not found. Searched: {searched}"
             )
-        )
+
         logger.info(f"Loading Vosk model from: {model_path}")
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Vosk model not found at: {model_path}")
         _model = Model(model_path)
         logger.info("Vosk model loaded successfully.")
     return _model

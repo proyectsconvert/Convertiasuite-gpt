@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     # External Services
     ollama_base_url: str
+    qwen_tts_url: str 
     redis_url: str
     supabase_url: str = ""
     supabase_key: str = ""

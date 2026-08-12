@@ -15,11 +15,11 @@ import {
   Clock,
   HardDrive,
   ChevronDown,
-  X,
   Tag,
   Info,
   FolderOpen,
   Plus,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -72,50 +72,50 @@ const FILE_TYPE_CONFIG: Record<
 > = {
   pdf: {
     icon: FileText,
-    color: "text-red-500",
-    bg: "bg-red-500/10",
+    color: "text-rose-600 dark:text-rose-400",
+    bg: "bg-rose-500/10",
     label: "PDF",
   },
   docx: {
     icon: FileText,
-    color: "text-blue-500",
-    bg: "bg-blue-500/10",
+    color: "text-teal-600 dark:text-teal-400",
+    bg: "bg-teal-500/10",
     label: "Word",
   },
   doc: {
     icon: FileText,
-    color: "text-blue-500",
-    bg: "bg-blue-500/10",
+    color: "text-teal-600 dark:text-teal-400",
+    bg: "bg-teal-500/10",
     label: "Word",
   },
   xlsx: {
     icon: FileSpreadsheet,
-    color: "text-green-500",
-    bg: "bg-green-500/10",
+    color: "text-emerald-600 dark:text-emerald-400",
+    bg: "bg-emerald-500/10",
     label: "Excel",
   },
   xls: {
     icon: FileSpreadsheet,
-    color: "text-green-500",
-    bg: "bg-green-500/10",
+    color: "text-emerald-600 dark:text-emerald-400",
+    bg: "bg-emerald-500/10",
     label: "Excel",
   },
   csv: {
     icon: FileSpreadsheet,
-    color: "text-emerald-500",
+    color: "text-emerald-600 dark:text-emerald-400",
     bg: "bg-emerald-500/10",
     label: "CSV",
   },
   pptx: {
     icon: FileImage,
-    color: "text-orange-500",
-    bg: "bg-orange-500/10",
+    color: "text-amber-600 dark:text-amber-400",
+    bg: "bg-amber-500/10",
     label: "PowerPoint",
   },
   ppt: {
     icon: FileImage,
-    color: "text-orange-500",
-    bg: "bg-orange-500/10",
+    color: "text-amber-600 dark:text-amber-400",
+    bg: "bg-amber-500/10",
     label: "PowerPoint",
   },
   txt: {
@@ -126,14 +126,14 @@ const FILE_TYPE_CONFIG: Record<
   },
   md: {
     icon: FileCode,
-    color: "text-purple-500",
+    color: "text-purple-600 dark:text-purple-400",
     bg: "bg-purple-500/10",
     label: "Markdown",
   },
   json: {
     icon: FileCode,
-    color: "text-yellow-500",
-    bg: "bg-yellow-500/10",
+    color: "text-cyan-600 dark:text-cyan-400",
+    bg: "bg-cyan-500/10",
     label: "JSON",
   },
 };
@@ -219,17 +219,20 @@ function EmptyState({ onUpload }: { onUpload: () => void }) {
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col items-center justify-center py-24 text-center"
     >
-      <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
-        <FolderOpen className="w-10 h-10 text-primary" />
+      <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4 text-muted-foreground border border-border/40">
+        <FolderOpen className="w-8 h-8" />
       </div>
-      <h3 className="text-lg font-semibold text-foreground mb-2">
+      <h3 className="text-base font-semibold text-foreground mb-1.5">
         Mi unidad está vacía
       </h3>
-      <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+      <p className="text-xs text-muted-foreground mb-6 max-w-xs leading-relaxed">
         Sube archivos para tenerlos disponibles desde cualquier lugar y
         compartirlos con la IA.
       </p>
-      <Button onClick={onUpload} className="gap-2">
+      <Button
+        onClick={onUpload}
+        className="gap-2 h-9 px-4 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs shadow-sm"
+      >
         <Plus className="w-4 h-4" />
         Subir primer archivo
       </Button>
@@ -273,7 +276,7 @@ function DetailModal({
             <div className="flex flex-wrap gap-1.5">
               {doc.tags.map((tag) => (
                 <Badge key={tag} variant="secondary" className="text-xs gap-1">
-                  <Tag className="w-3 h-3" />
+                  <Tag className="w-3 h-3 text-muted-foreground" />
                   {tag}
                 </Badge>
               ))}
@@ -331,7 +334,7 @@ function DetailModal({
           {/* Actions */}
           <div className="flex gap-2 pt-1">
             <Button
-              className="flex-1 gap-2"
+              className="flex-1 gap-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-medium"
               onClick={() => onDownload(doc.id, doc.filename)}
             >
               <Download className="w-4 h-4" />
@@ -339,7 +342,7 @@ function DetailModal({
             </Button>
             <Button
               variant="destructive"
-              className="gap-2"
+              className="gap-2 rounded-lg"
               onClick={() => {
                 onDelete(doc.id);
                 onClose();
@@ -377,13 +380,13 @@ function GridCard({
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.15 }}
-      className="group relative rounded-xl border border-border/40 bg-card hover:border-primary/30 hover:shadow-md hover:shadow-primary/5 transition-all duration-200 cursor-pointer overflow-hidden"
+      className="group relative rounded-xl border border-border/40 bg-card hover:border-primary/40 hover:shadow-sm transition-all duration-200 cursor-pointer overflow-hidden"
       onClick={() => onSelect(doc)}
     >
       {/* File icon area */}
       <div className="flex flex-col items-center justify-center pt-7 pb-4 px-4">
-        <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center mb-3", cfg.bg)}>
-          <Icon className={cn("w-7 h-7", cfg.color)} />
+        <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center mb-3 transition-transform group-hover:scale-105", cfg.bg)}>
+          <Icon className={cn("w-6 h-6", cfg.color)} />
         </div>
         <p className="text-xs font-medium text-center text-foreground line-clamp-2 leading-tight px-1">
           {doc.filename}
@@ -393,11 +396,11 @@ function GridCard({
 
       {/* Type badge */}
       <div className="px-3 pb-3 flex items-center gap-1.5">
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 text-muted-foreground font-normal">
           {cfg.label}
         </Badge>
         {doc.tags.slice(0, 1).map((tag) => (
-          <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0 truncate max-w-[60px]">
+          <Badge key={tag} variant="outline" className="text-[10px] px-1.5 py-0 truncate max-w-[60px] text-muted-foreground">
             {tag}
           </Badge>
         ))}
@@ -413,14 +416,14 @@ function GridCard({
             <Button
               size="icon"
               variant="ghost"
-              className="h-7 w-7 rounded-full bg-background/80 backdrop-blur-sm shadow-sm"
+              className="h-7 w-7 rounded-lg bg-background/80 backdrop-blur-sm shadow-sm hover:bg-secondary"
             >
               <MoreVertical className="w-3.5 h-3.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuContent align="end" className="w-44 rounded-xl">
             <DropdownMenuItem onClick={() => onSelect(doc)} className="gap-2">
-              <Info className="w-4 h-4" />
+              <Info className="w-4 h-4 text-muted-foreground" />
               Ver detalles
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -485,7 +488,7 @@ function ListRow({
         </div>
       </div>
 
-      <Badge variant="outline" className="text-[10px] hidden sm:flex">
+      <Badge variant="secondary" className="text-[10px] hidden sm:flex text-muted-foreground font-normal">
         {cfg.label}
       </Badge>
 
@@ -503,13 +506,13 @@ function ListRow({
       >
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="icon" variant="ghost" className="h-7 w-7">
+            <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg">
               <MoreVertical className="w-3.5 h-3.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuContent align="end" className="w-44 rounded-xl">
             <DropdownMenuItem onClick={() => onSelect(doc)} className="gap-2">
-              <Info className="w-4 h-4" />
+              <Info className="w-4 h-4 text-muted-foreground" />
               Ver detalles
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -746,16 +749,16 @@ export default function DocumentsView() {
       </AnimatePresence>
 
       {/* ── Left Sidebar ── */}
-      <aside className="hidden lg:flex flex-col w-56 flex-shrink-0 border-r border-border/50 py-4 px-3 gap-1">
+      <aside className="hidden lg:flex flex-col w-56 flex-shrink-0 border-r border-border/50 py-4 px-3 gap-1 bg-sidebar">
         {/* New button */}
         <Button
-          className="gap-2 mb-4 shadow-sm"
+          className="gap-2 mb-4 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 h-9 font-medium text-xs shadow-sm border-none"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
         >
           {uploading ? (
             <>
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
               Subiendo...
             </>
           ) : (
@@ -773,10 +776,10 @@ export default function DocumentsView() {
               key={id}
               onClick={() => setSection(id)}
               className={cn(
-                "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
                 section === id
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "bg-sidebar-accent text-foreground font-semibold"
+                  : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
               )}
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
@@ -810,7 +813,7 @@ export default function DocumentsView() {
           <div className="lg:hidden flex items-center gap-2 mr-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-1 h-8">
+                <Button variant="ghost" size="sm" className="gap-1 h-8 rounded-lg">
                   {navItems.find((n) => n.id === section)?.label}
                   <ChevronDown className="w-3 h-3" />
                 </Button>
@@ -822,7 +825,7 @@ export default function DocumentsView() {
                     onClick={() => setSection(id)}
                     className="gap-2"
                   >
-                    <Icon className="w-4 h-4" />
+                    <Icon className="w-4 h-4 text-muted-foreground" />
                     {label}
                   </DropdownMenuItem>
                 ))}
@@ -837,7 +840,7 @@ export default function DocumentsView() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar en Mi unidad..."
-              className="pl-9 h-9 bg-muted/50 border-border/50 focus:bg-background"
+              className="pl-9 h-8 rounded-lg bg-muted/40 border-border/50 focus:bg-background text-xs"
             />
             {search && (
               <button
@@ -853,20 +856,20 @@ export default function DocumentsView() {
           {fileTypes.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-1.5 hidden sm:flex">
-                  <Tag className="w-3.5 h-3.5" />
+                <Button variant="outline" size="sm" className="h-8 gap-1.5 hidden sm:flex rounded-lg text-xs border-border/50">
+                  <Tag className="w-3.5 h-3.5 text-muted-foreground" />
                   {typeFilter ? getFileConfig(typeFilter).label : "Tipo"}
                   <ChevronDown className="w-3 h-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
+              <DropdownMenuContent className="rounded-xl">
                 <DropdownMenuItem onClick={() => setTypeFilter("")}>
                   Todos
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {fileTypes.map((t) => (
                   <DropdownMenuItem key={t} onClick={() => setTypeFilter(t)} className="gap-2">
-                    <span className={cn("text-xs font-medium", getFileConfig(t).color)}>
+                    <span className="text-xs font-medium">
                       {getFileConfig(t).label}
                     </span>
                   </DropdownMenuItem>
@@ -876,35 +879,37 @@ export default function DocumentsView() {
           )}
 
           {/* View toggle */}
-          <div className="flex rounded-lg border border-border/50 overflow-hidden">
+          <div className="flex rounded-lg border border-border/40 overflow-hidden p-0.5 bg-muted/30">
             <button
               onClick={() => setViewMode("grid")}
               className={cn(
-                "p-2 transition-colors",
+                "p-1.5 rounded transition-all",
                 viewMode === "grid"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted"
+                  ? "bg-background text-foreground shadow-xs font-medium"
+                  : "text-muted-foreground hover:bg-muted/50"
               )}
+              title="Vista en cuadrícula"
             >
-              <LayoutGrid className="w-4 h-4" />
+              <LayoutGrid className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => setViewMode("list")}
               className={cn(
-                "p-2 transition-colors",
+                "p-1.5 rounded transition-all",
                 viewMode === "list"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted"
+                  ? "bg-background text-foreground shadow-xs font-medium"
+                  : "text-muted-foreground hover:bg-muted/50"
               )}
+              title="Vista en lista"
             >
-              <List className="w-4 h-4" />
+              <List className="w-3.5 h-3.5" />
             </button>
           </div>
 
           {/* Mobile upload button */}
           <Button
             size="sm"
-            className="lg:hidden gap-1.5 h-9"
+            className="lg:hidden gap-1.5 h-8 rounded-lg bg-primary text-primary-foreground font-medium text-xs"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
@@ -915,12 +920,12 @@ export default function DocumentsView() {
 
         {/* ── Section heading ── */}
         <div className="px-5 pt-4 pb-2 flex-shrink-0">
-          <h2 className="text-sm font-semibold text-foreground">
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
             {section === "my-drive" ? "Mi unidad" : "Recientes"}
             {!loading && (
-              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                {filteredDocs.length} archivo{filteredDocs.length !== 1 ? "s" : ""}
-                {typeFilter && ` · ${getFileConfig(typeFilter).label}`}
+              <span className="text-xs font-normal text-muted-foreground">
+                ({filteredDocs.length} archivo{filteredDocs.length !== 1 ? "s" : ""}
+                {typeFilter && ` · ${getFileConfig(typeFilter).label}`})
               </span>
             )}
           </h2>

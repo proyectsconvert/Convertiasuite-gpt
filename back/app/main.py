@@ -25,7 +25,7 @@ from app.infra.repositories.supabase.document_repository import (
 )
 from app.services.documents.document_processing.document_manager import DocumentManager
 from app.security.rate_limiting import limiter
-from app.api import chat, auth, documents, admin
+from app.api import chat, auth, documents, admin, skills
 from app.infra.clients.ollama_client import OllamaClient
 from app.infra.providers.ollama_provider import OllamaProvider
 from app.services.chat.intent_classifier import IntentClassifier
@@ -245,4 +245,5 @@ app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(documents.router)
 app.include_router(admin.router)
+app.include_router(skills.router)
 

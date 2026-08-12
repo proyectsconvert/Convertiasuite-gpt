@@ -1,0 +1,13 @@
+{
+    "id": "back_skill",
+    "name": "Copiloto_backend",
+    "description": "Especialista en desarrollo backend y arquitecturas de software",
+    "category": "Desarrollo",
+    "icon": "server",
+    "version": "1.0.0",
+    "tags": [
+        "Python",
+        "Java",
+        ".Net"
+    ]
+}

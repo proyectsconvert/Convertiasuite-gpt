@@ -29,12 +29,11 @@ def matches_document_filters(
 ):
     if search:
         needle = search.lower()
+        # Protect against None values in parsed content or tags
+        searchable_text = (doc.parsed_content.to_searchable_text() or "").lower()
+        tags_joined = " ".join([str(t) for t in getattr(doc, "tags", []) if t]).lower()
         haystack = " ".join(
-            [
-                getattr(doc, "filename", "").lower(),
-                doc.parsed_content.to_searchable_text().lower(),
-                " ".join(getattr(doc, "tags", [])).lower(),
-            ]
+            [getattr(doc, "filename", "").lower(), searchable_text, tags_joined]
         )
         if needle not in haystack:
             return False
@@ -205,18 +204,64 @@ async def list_user_documents(
 
         filtered = []
         for doc in documents:
-            if matches_document_filters(
-                doc,
-                search=search,
-                type=type,
-                tag=tag,
-                area=area,
-                user=user,
-                date_from=date_from,
-                date_to=date_to,
-                current_user=current_user,
-            ):
-                filtered.append(doc)
+            # Defensive sanitization: ensure tags is a list of strings
+            try:
+                raw_tags = getattr(doc, "tags", []) or []
+                doc.tags = [str(t) for t in raw_tags if t is not None]
+            except Exception:
+                doc.tags = []
+
+            # Defensive sanitization for parsed_content text and tables
+            try:
+                if getattr(doc, "parsed_content", None) is None:
+                    from app.domain.entities.document import ParsedContent
+
+                    doc.parsed_content = ParsedContent(text="")
+                else:
+                    doc.parsed_content.text = str(getattr(doc.parsed_content, "text", "") or "")
+                    # sanitize tables if present
+                    for table in getattr(doc.parsed_content, "tables", []) or []:
+                        try:
+                            table.headers = [str(h) if h is not None else "" for h in getattr(table, "headers", [])]
+                            table.rows = [[str(c) if c is not None else "" for c in row] for row in getattr(table, "rows", [])]
+                        except Exception:
+                            continue
+
+            except Exception:
+                pass
+
+            try:
+                if matches_document_filters(
+                    doc,
+                    search=search,
+                    type=type,
+                    tag=tag,
+                    area=area,
+                    user=user,
+                    date_from=date_from,
+                    date_to=date_to,
+                    current_user=current_user,
+                ):
+                    filtered.append(doc)
+            except Exception as e:
+                # Log document context to help find None values causing join errors
+                try:
+                    doc_id = str(getattr(doc, "id", None))
+                    tags = getattr(doc, "tags", None)
+                    parsed_text_len = len((getattr(doc, "parsed_content", None) or {}).get("text", "")) if isinstance(getattr(doc, "parsed_content", None), dict) else len(getattr(doc, "parsed_content", None).text or "")
+                except Exception:
+                    doc_id = getattr(doc, "id", None)
+                    tags = getattr(doc, "tags", None)
+                    parsed_text_len = None
+
+                logger.exception(
+                    "Error filtering document %s (tags=%r, parsed_text_len=%r): %s",
+                    doc_id,
+                    tags,
+                    parsed_text_len,
+                    str(e),
+                )
+                continue
 
         return {
             "count": len(filtered),
