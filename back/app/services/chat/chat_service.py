@@ -982,7 +982,7 @@ async def process_chat(
         )
 
         raise
-<<<<<<< Updated upstream:back/app/services/chat_service.py
+
 
 async def process_voice_chat(
         request,
@@ -1039,5 +1039,5 @@ async def process_voice_chat(
             )
 
     menssage.append(user_message)
-=======
->>>>>>> Stashed changes:back/app/services/chat/chat_service.py
+
+

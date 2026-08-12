@@ -431,7 +431,7 @@ async def upload_audio(
     """
     try:
         import base64
-        from app.services.meetings.transcription_service import transcribe_audio
+        from app.services.transcription_service import transcribe_audio
         from app.infra.clients.tts_client import QwenTTSClient
         from app.infra.clients.ollama_client import OllamaClient
 
