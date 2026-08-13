@@ -24,12 +24,14 @@ class ChatRequest(BaseModel):
     extracted_context: Optional[str] = None
     attachment_type: Optional[str] = None
     attachment_name: Optional[str] = None
+    functional_role: Optional[str] = None
     model_config = {"use_enum_values": True}
 
 class VoiceChatRequest(BaseModel):
     message:str
     user_role: UserRole=UserRole.default
     call_id:Optional[str]=None
+    functional_role: Optional[str] = None
 
     model_config = {"use_enum_values":True}
 

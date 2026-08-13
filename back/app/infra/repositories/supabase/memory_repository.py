@@ -1,6 +1,6 @@
 import uuid
 import logging
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from typing import Optional
 
 from app.domain.interfaces.session_repository import ISessionRepository
@@ -10,6 +10,7 @@ from app.domain.interfaces.ai_generated_files import IAIGeneratedFilesRepository
 from app.infra.clients.supabase_client import SupabaseClient
 
 logger = logging.getLogger(__name__)
+UTC = timezone.utc
 
 
 class SupabaseMemoryRepository(
@@ -492,135 +493,116 @@ class SupabaseMemoryRepository(
             )
             return False
 
-async def create_voice_calkl(
-
+    async def create_voice_call(
         self,
-        user_id : str,
-        title : str,
-        call_id:str | None=None,
+        user_id: str,
+        session_id: str | None,
+        title: str,
+        call_id: str | None = None,
+    ) -> str:
+        try:
+            call_id = call_id or str(uuid.uuid4())
+            payload = {
+                "id": call_id,
+                "user_id": user_id,
+                "session_id": session_id,
+                "title": title,
+                "status": "active",
+                "created_at": self._now(),
+                "updated_at": self._now(),
+            }
+            self.supabase.table("voice_calls").insert(payload).execute()
+            return call_id
+        except Exception as e:
+            logger.exception("Error creating voice call user_id=%s", user_id)
+            raise
 
-)-> str:
-    try:
-        call_id= call_id or str(uuid.uuid4())
-        (
-            self.supabase.table("voice_calls")
-            .insert(
-                {
-                    "id": call_id,
-                    "user_id": user_id,
-                    "title": title,
-                    "status":"active",
-                }
+    async def get_voice_call(self, call_id: str) -> dict | None:
+        try:
+            response = (
+                self.supabase.table("voice_calls")
+                .select("*")
+                .eq("id", call_id)
+                .maybe_single()
+                .execute()
             )
-            .excute()
-        )
-        return call_id
-    except Exception as e:
-        logger.error(
-            "Error creating voice call error=%s",
-            str>(e),
-        )
-        raise
-async def get_voice_call(
-        self,
-        call_id:str,
+            return response.data if response and hasattr(response, "data") else None
+        except Exception as e:
+            logger.exception("Error fetching voice call=%s", call_id)
+            return None
 
-)-> dict| None:
-    try:
-        response =(
-            self.supabase.table("voice_calls")
-            .select("*")
-            .eq("id", call_id)
-            .maybe_single()
-            .execute()
-        )
-        return response.data if response else None
-    except Exception as e:
-        logger.error(
-            "Error fetching voice call=%s error=%s",
-            call_id,
-            str(e)
-        )
-        return None
-async def save_voice_message(
+    async def save_voice_message(
         self,
-        call_Id:str,
-        role:str,
-        content:str,
-)-> None:
-    try:
-        (
-            self.supabase.table("voice_call_messages")
-            .insert(
-                {
-                    "call_id":call_Id,
-                    "role":role,
-                    "content":content,
-                }
+        call_id: str,
+        session_id: str | None,
+        role: str,
+        content: str | None = None,
+        audio_path: str | None = None,
+        transcript: str | None = None,
+        transcript_json: dict | None = None,
+        seq: int | None = None,
+        is_final: bool = False,
+        metadata: dict | None = None,
+    ) -> str:
+        try:
+            message_id = str(uuid.uuid4())
+            payload = {
+                "id": message_id,
+                "call_id": call_id,
+                "session_id": session_id,
+                "role": role,
+                "content": content,
+                "audio_path": audio_path,
+                "transcript": transcript,
+                "transcript_json": transcript_json or metadata or None,
+                "seq": seq or 0,
+                "is_final": is_final,
+                "metadata": metadata,
+                "created_at": self._now(),
+            }
+            self.supabase.table("voice_call_messages").insert(payload).execute()
+            return message_id
+        except Exception as e:
+            logger.exception("Error saving voice message for call=%s", call_id)
+            raise
+
+    async def load_voice_history(self, call_id: str) -> list:
+        try:
+            response = (
+                self.supabase.table("voice_call_messages")
+                .select("*")
+                .eq("call_id", call_id)
+                .order("created_at", desc=False)
+                .execute()
             )
-            .excute()
-        )
-    except Exception as e:
-        logger.error(
-            "Error saving voice message call=%s error=%s",
-            call_Id,
-            str(e),
-        )
-        raise
-async def load_voice_history(
-        self,
-        call_id:str,
+            return response.data or []
+        except Exception as e:
+            logger.exception("Error loading voice history call=%s", call_id)
+            return []
 
-)-> list:
-    try:
-        response =(
-            self.supabase.table("voice_call_messages")
-            .select("*")
-            .eq("call_id",call_id)
-            .order("create_at")
-            .execute()
-        )
-        return response.data or []
-    except Exception as e:
-        logger.error(
-            " Error loading voice history call=%s error =%s",
-            call_id,
-            str(e),
-        )
-        return[]
-async def finish_voice_call(
-        self,
-        call_id:str,
+    async def finish_voice_call(self, call_id: str) -> None:
+        try:
+            call = await self.get_voice_call(call_id)
+            if not call:
+                return
+            started = call.get("started_at")
+            duration = None
+            if started:
+                try:
+                    started_dt = datetime.fromisoformat(started.replace("Z", "+00:00"))
+                    duration = int((datetime.now(timezone.utc) - started_dt).total_seconds())
+                except Exception:
+                    duration = None
 
-)-> None:
-    try:
-        call= await self.get_voice_call(call_id)
+            update = {
+                "ended_at": self._now(),
+                "status": "finished",
+                "updated_at": self._now(),
+            }
+            if duration is not None:
+                update["duration_seconds"] = duration
 
-        if not call:
-            return
-        started = datetime.fromisoformat(
-            call["started_at"].replace("Z","+00:00")
-        )
-        duration=int(
-            (datetime.now(UTC)-started).total_seconds()
-        )
-        (
-            self.supabase.table("voice_calls")
-            .update(
-                {
-                    "ended_at":self._now(),
-                    "duration_seconds":duration,
-                    "status":"finished",
-                }
-            )
-            .eq("id", call_id)
-            .excute()
-
-        )
-    except Exception as e:
-        logger.error(
-            "Error finishing voice call=%s error=%s",
-            call_id,
-            str(e),
-        )
-        raise
+            self.supabase.table("voice_calls").update(update).eq("id", call_id).execute()
+        except Exception as e:
+            logger.exception("Error finishing voice call=%s", call_id)
+            raise

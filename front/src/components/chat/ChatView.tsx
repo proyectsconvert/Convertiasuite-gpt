@@ -74,7 +74,9 @@ const [callTranscript, setCallTranscript] = useState<
         undefined,
         undefined,
         undefined,
+        undefined,
         text,
+        true,
       );
     }
   );
@@ -206,6 +208,12 @@ const [callTranscript, setCallTranscript] = useState<
     }
     
 
+    if (!fromVoice && voiceConversation.isConversationActive()) {
+      voiceConversation.stop();
+      setVoiceMode(false);
+      setVoiceOpen(false);
+    }
+
     setStreamingContent("");
     setInput("");
     setIsLoading(true);
@@ -265,6 +273,7 @@ const [callTranscript, setCallTranscript] = useState<
           extracted_context: combinedContexts,
           attachment_type: messageType,
           attachment_name: firstName,
+          functional_role: user?.functional_role,
         },
         { signal: controller.signal },
       )) {
@@ -287,37 +296,67 @@ const [callTranscript, setCallTranscript] = useState<
           try {
             const history = await chatApi.getHistory(sid);
             if (history.messages && Array.isArray(history.messages)) {
-              if(!fromVoice){
-              setMessages(history.messages.map(buildMessageWithArtifacts));
+              if (!fromVoice) {
+                setMessages(history.messages.map(buildMessageWithArtifacts));
+              }
             } else {
-              if(!fromVoice){
+              if (!fromVoice) {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: `${Date.now()}-assistant`,
+                    role: "assistant",
+                    content: fullResponse,
+                    timestamp: new Date().toISOString(),
+                  },
+                ]);
+              }
+            }
+
+            if (fullResponse.trim()) {
+              if (fromVoice) {
+                setCallTranscript((prev) => [
+                  ...prev,
+                  {
+                    role: "assistant",
+                    content: fullResponse,
+                  },
+                ]);
+              }
+              if (fromVoice && voiceConversation.isConversationActive()) {
+                await voiceConversation.speak(fullResponse);
+              }
+            }
+          } catch (historyError) {
+            console.error("Error loading refreshed history:", historyError);
+            if (!fromVoice) {
               setMessages((prev) => [
                 ...prev,
-              {
+                {
                   id: `${Date.now()}-assistant`,
                   role: "assistant",
                   content: fullResponse,
                   timestamp: new Date().toISOString(),
                 },
               ]);
-            }}}
+            }
             if (fullResponse.trim()) {
-              if(fromVoice){
-                setCallTranscript(prev =>[
+              if (fromVoice) {
+                setCallTranscript((prev) => [
                   ...prev,
                   {
-                    role:"assistant",
+                    role: "assistant",
                     content: fullResponse,
                   },
                 ]);
               }
-              if (voiceConversation.isConversationActive()) {
+              if (fromVoice && voiceConversation.isConversationActive()) {
                 await voiceConversation.speak(fullResponse);
               }
             }
-          } catch (historyError) {
-            console.error("Error loading refreshed history:", historyError);
-            if(!fromVoice){
+          }
+        } else {
+          if (!fromVoice) {
             setMessages((prev) => [
               ...prev,
               {
@@ -325,38 +364,12 @@ const [callTranscript, setCallTranscript] = useState<
                 role: "assistant",
                 content: fullResponse,
                 timestamp: new Date().toISOString(),
-            },
-            ])};
-            if (fullResponse.trim()) {
-              if(fromVoice){
-                setCallTranscript(prev =>[
-                  ...prev,
-                  {
-                    role:"assistant",
-                    content:fullResponse,
-                  },
-                ]);
-              }
-              if (voiceConversation.isConversationActive()) {
-                await voiceConversation.speak(fullResponse);
-              }
-            }
+              },
+            ]);
           }
-        } else {
-          
-         if(!fromVoice){ 
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `${Date.now()}-assistant`,
-              role: "assistant",
-              content: fullResponse,
-              timestamp: new Date().toISOString(),
-            },
-          ])};
           if (fullResponse.trim()) {
-            if(fromVoice){
-              setCallTranscript(prev =>[
+            if (fromVoice) {
+              setCallTranscript((prev) => [
                 ...prev,
                 {
                   role: "assistant",
@@ -364,7 +377,7 @@ const [callTranscript, setCallTranscript] = useState<
                 },
               ]);
             }
-            if (voiceConversation.isConversationActive()) {
+            if (fromVoice && voiceConversation.isConversationActive()) {
               await voiceConversation.speak(fullResponse);
             }
           }
@@ -480,8 +493,7 @@ const [callTranscript, setCallTranscript] = useState<
               sessionId={currentChatId}
             />
           ))}
-          {!voiceMode && streamingContent &&
-          !streamingContent && (
+          {!voiceMode && streamingContent && (
             <MessageBubble
               message={{
                 id: "streaming",

@@ -71,7 +71,10 @@ const speechDetectedRef =useRef(false);
     startListening();
     return ()=>{
       voiceConversation.stop();
-
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+      cleanupMediaStreams();
     };
    }, []);
 
@@ -148,81 +151,91 @@ detectarSilencio();
 };
 
 
-const stopListening = () =>{
-  const recorder = mediaRecorderRef.current;
-
-  if(!recorder || recorder.state !== "recording" ) return;
-
-  recorder.onstop = async ()=>{
-    console.log("Grabación detenida");
-    console.log(audioChunksRef.current)
-
-    const audioBlob = new Blob(
-      audioChunksRef.current,
-      {
-        type:"audio/webm",
-      }
-    );
-
-    const formData = new FormData();
-
-    formData.append(
-      "file",
-      audioBlob,
-      "audio.webm"
-    );
-    try{
-      setStatus("thinking");
-      const response = await chatApi.uploadAudio(formData);
-      console.log("respuesta pipeline voz", response);
-      setText(response.transcript || response.response_text || "");
-
-      // Si el backend devolvió audio base64 de Qwen TTS, reproducirlo directamente
-      if (response.audio_base64) {
-        setStatus("speaking");
-        const audio = new Audio(`data:audio/wav;base64,${response.audio_base64}`);
-        audio.onended = () => setStatus("idle");
-        audio.onerror = () => {
-          console.warn("Error al reproducir audio de Qwen TTS, fallback a síntesis local");
-          if (response.response_text) {
-            voiceConversation.speak(response.response_text);
-          }
-          setStatus("idle");
-        };
-        await audio.play();
-      } else if (response.response_text) {
-        // Fallback a síntesis del navegador si Qwen TTS no devolvió audio
-        await voiceConversation.speak(response.response_text);
-      } else if (response.transcript?.trim()) {
-        await voiceConversation.send(response.transcript);
-      }
-    } catch (error) {
-      console.error(error);
-      setStatus("idle");
-    }
-    streamRef.current
-    ?.getTracks()
-    .forEach(track =>track.stop());
-
-    mediaRecorderRef.current = null;
-    streamRef.current=null;
-
-    if (animationFrameRef.current){
+  const cleanupMediaStreams = () => {
+    if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
-
-    if (silenceTimeRef.current){
+    if (silenceTimeRef.current) {
       clearTimeout(silenceTimeRef.current);
-      silenceTimeRef.current=null;
+      silenceTimeRef.current = null;
     }
-
-    audioContextRef.current.close();
-    audioContextRef.current = null;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
     analyserRef.current = null;
   };
-  recorder.stop();
-}
+
+const callIdRef = useRef<string | null>(null);
+
+  const stopListening = () => {
+    const recorder = mediaRecorderRef.current;
+
+    if (!recorder || recorder.state !== "recording") {
+      cleanupMediaStreams();
+      return;
+    }
+
+    recorder.onstop = async () => {
+      console.log("Grabación detenida");
+
+      const audioBlob = new Blob(audioChunksRef.current, {
+        type: "audio/webm",
+      });
+
+      const formData = new FormData();
+      formData.append("file", audioBlob, "audio.webm");
+      if (callIdRef.current) {
+        formData.append("call_id", callIdRef.current);
+      }
+
+      try {
+        setStatus("thinking");
+        const response = await chatApi.uploadAudio(formData);
+        console.log("respuesta pipeline voz", response);
+        if (response.call_id) {
+          callIdRef.current = response.call_id;
+        }
+        setText(response.transcript || response.response_text || "");
+
+        if (!voiceConversation.isConversationActive()) {
+          setStatus("idle");
+          return;
+        }
+
+        if (response.audio_base64) {
+          setStatus("speaking");
+          const audio = new Audio(`data:audio/wav;base64,${response.audio_base64}`);
+          audio.onended = () => setStatus("idle");
+          audio.onerror = () => {
+            console.warn("Error al reproducir audio de Qwen TTS, fallback a síntesis local");
+            if (response.response_text) {
+              voiceConversation.speak(response.response_text);
+            }
+            setStatus("idle");
+          };
+          await audio.play();
+        } else if (response.response_text) {
+          // Fallback a síntesis del navegador si Qwen TTS no devolvió audio
+          await voiceConversation.speak(response.response_text);
+        } else if (response.transcript?.trim()) {
+          await voiceConversation.send(response.transcript);
+        }
+      } catch (error) {
+        console.error(error);
+        setStatus("idle");
+      } finally {
+        cleanupMediaStreams();
+        mediaRecorderRef.current = null;
+      }
+    };
+    recorder.stop();
+  };
 
 const detectarSilencio = ()=>{
 
@@ -510,7 +523,10 @@ bg-black/60
 onClick={()=>{
 
     voiceConversation.stop();
-
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+    cleanupMediaStreams();
     onEndCall();
 
 }}

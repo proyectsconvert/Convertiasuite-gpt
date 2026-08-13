@@ -36,6 +36,7 @@ from app.services.prompts.response_validator import (
 )
 
 from app.services.prompts.prompt_templates import render_landing_wrapper
+from app.services.prompts.role_mapper import map_functional_role_to_llm_role
 
 from app.security.output_guard import (
     OutputValidationAction,
@@ -227,6 +228,12 @@ async def process_chat(
     request_start = time.perf_counter()
     session_id = request.session_id
     trace_id = str(uuid.uuid4())
+    
+    # Map functional_role to user_role if provided
+    if getattr(request, "functional_role", None):
+        mapped_role = map_functional_role_to_llm_role(request.functional_role)
+        if mapped_role:
+            request.user_role = mapped_role
 
     try:
         if not session_id:
@@ -994,6 +1001,12 @@ async def process_voice_chat(
         rag_repository: IRagRepository | None = None,
 ):
     call_id = request.call_id
+
+    # Map functional_role to user_role if provided
+    if getattr(request, "functional_role", None):
+        mapped_role = map_functional_role_to_llm_role(request.functional_role)
+        if mapped_role:
+            request.user_role = mapped_role
 
     if not call_id:
         call_id = await memory_repo.create_voice_call(

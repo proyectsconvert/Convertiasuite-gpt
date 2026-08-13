@@ -421,34 +421,61 @@ async def upload_file(
 async def upload_audio(
     file: UploadFile = File(...),
     session_id: str = Form(None),
+    call_id: str = Form(None),
     current_user: dict = Depends(get_current_user),
 ):
-    """
-    Flujo de voz a voz completo:
-    1. Ingesta de audio -> Transcripción con Vosk STT
-    2. Transcripción -> Razonamiento con Ollama (modelo default)
-    3. Respuesta en texto -> Síntesis de voz con Qwen TTS
-    """
+
     try:
         import base64
+        import uuid
         from app.services.transcription_service import transcribe_audio
         from app.infra.clients.tts_client import QwenTTSClient
         from app.infra.clients.ollama_client import OllamaClient
+        from app.infra.repositories.supabase.memory_repository import SupabaseMemoryRepository
+        from app.services.storage_service import upload_file_to_supabase
 
         contents = await file.read()
 
-        # 1. Ingesta de audio -> Transcripción
+        # 1. Transcripción con Vosk
         transcript = transcribe_audio(contents)
         logger.info(f"[Voice Pipeline] Transcripción obtenida: '{transcript}'")
 
         if not transcript or not transcript.strip():
             return {
+                "call_id": call_id,
                 "transcript": "",
                 "response_text": "No se pudo entender el audio.",
                 "audio_base64": None,
             }
 
-        # 2. Transcripción -> Razonamiento con Ollama (qwen2.5:7b)
+        memory_repo = SupabaseMemoryRepository()
+        user_id = current_user["id"]
+
+        # 2. Asegurar llamada activa en voice_calls
+        if not call_id:
+            call_id = await memory_repo.create_voice_call(
+                user_id=user_id,
+                session_id=session_id,
+                title=transcript[:40],
+            )
+            logger.info(f"Voice call created id={call_id} user={user_id}")
+
+        # 3. Guardar audio en Supabase Storage
+        audio_filename = f"voice_{uuid.uuid4()}.webm"
+        storage_path = f"voice_audios/{call_id}/{audio_filename}"
+        audio_url = upload_file_to_supabase(contents, storage_path, bucket="ai_files")
+
+        # 4. Guardar mensaje del usuario en voice_call_messages
+        await memory_repo.save_voice_message(
+            call_id=call_id,
+            session_id=session_id,
+            role="user",
+            content=transcript,
+            transcript=transcript,
+            audio_path=audio_url or storage_path,
+        )
+
+        # 5. Razonamiento con Ollama
         ollama = OllamaClient()
         response_text = await ollama.generate_chat(
             messages=[
@@ -463,7 +490,16 @@ async def upload_audio(
         )
         logger.info(f"[Voice Pipeline] Respuesta de Ollama: '{response_text}'")
 
-        # 3. Respuesta -> Qwen TTS
+        # 6. Guardar mensaje del asistente en voice_call_messages
+        await memory_repo.save_voice_message(
+            call_id=call_id,
+            session_id=session_id,
+            role="assistant",
+            content=response_text,
+            transcript=response_text,
+        )
+
+        # 7. Respuesta -> Qwen TTS
         tts_client = QwenTTSClient()
         audio_bytes = await tts_client.generate_speech(response_text)
 
@@ -472,6 +508,7 @@ async def upload_audio(
             audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
 
         return {
+            "call_id": call_id,
             "transcript": transcript,
             "response_text": response_text,
             "audio_base64": audio_base64,
@@ -480,7 +517,29 @@ async def upload_audio(
         logger.error(f"Error in upload_audio: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error en el procesamiento de voz: {str(e)}",
+            detail=f"Error en el flujo de voz: {str(e)}",
         )
 
+@router.post("/transcribe-audio")
+async def transcribe_audio_endpoint(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Endpoint para transcripción pura de audio a texto (STT).
+    Se usa para el botón de micrófono en el chat input (dictado).
+    """
+    try:
+        from app.services.transcription_service import transcribe_audio
 
+        contents = await file.read()
+        transcript = transcribe_audio(contents)
+        logger.info(f"[Dictation STT] Transcripción obtenida: '{transcript}'")
+
+        return {"transcript": transcript or ""}
+    except Exception as e:
+        logger.error(f"Error in transcribe_audio_endpoint: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al transcribir el audio: {str(e)}",
+        )

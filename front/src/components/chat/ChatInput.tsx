@@ -587,7 +587,7 @@ export default function ChatInput({
     }
   };
 
-  // AUDIO UPLOAD
+  // AUDIO UPLOAD (Dictado de chat)
   const uploadAudio = async (blob: Blob, browserTranscript: string) => {
     const hasBrowserTranscript = !!browserTranscript;
 
@@ -596,14 +596,14 @@ export default function ChatInput({
     }
 
     try {
-      const formData = new FormData();
-      formData.append(
-        "file",
-        new File([blob], "recording.webm", { type: "audio/webm" }),
-      );
-
       if (!hasBrowserTranscript) {
-        const response = await chatApi.uploadAudio(formData);
+        const formData = new FormData();
+        formData.append(
+          "file",
+          new File([blob], "recording.webm", { type: "audio/webm" }),
+        );
+
+        const response = await chatApi.transcribeAudio(formData);
         if (response.transcript) {
           onChange(
             value
@@ -611,10 +611,6 @@ export default function ChatInput({
               : response.transcript,
           );
         }
-      } else {
-        chatApi.uploadAudio(formData).catch((err) => {
-          console.error("Error al subir audio de fondo:", err);
-        });
       }
     } catch (error) {
       console.error("Error al procesar audio:", error);
