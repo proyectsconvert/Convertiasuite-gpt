@@ -162,6 +162,53 @@ async def send_voice_stream(
         "status":"ok",
         "session_id": session_id,
     }
+@router.get("/voice-greeting")
+async def voice_greeting(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Genera el saludo inicial de OlivIA según la hora del día.
+    El texto se convierte directamente a voz usando Qwen TTS.
+    """
+    try:
+        import base64
+        from app.infra.clients.tts_client import QwenTTSClient
+
+        now = datetime.now()
+        hour = now.hour
+
+        if 5 <= hour < 12:
+            greeting = "Buenos días, soy OlivIA. ¿En qué puedo ayudarte?"
+        elif 12 <= hour < 19:
+            greeting = "Buenas tardes, soy OlivIA. ¿En qué puedo ayudarte?"
+        else:
+            greeting = "Buenas noches, soy OlivIA. ¿En qué puedo ayudarte?"
+
+        tts_client = QwenTTSClient()
+
+        audio_bytes = await tts_client.generate_speech(greeting)
+
+        audio_base64 = None
+
+        if audio_bytes:
+            audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+
+        return {
+            "text": greeting,
+            "audio_base64": audio_base64,
+        }
+
+    except Exception as e:
+        logger.error(
+            f"Error generando saludo de OlivIA: {e}",
+            exc_info=True,
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo generar el saludo de OlivIA",
+        )
+
 
 
 @router.get("/sessions", response_model=SessionListResponse)
@@ -467,8 +514,15 @@ async def upload_audio(
 
         # 3. Guardar audio en Supabase Storage
         audio_filename = f"voice_{uuid.uuid4()}.webm"
-        storage_path = f"voice_audios/{call_id}/{audio_filename}"
-        audio_url = upload_file_to_supabase(contents, storage_path, bucket="ai_files")
+        
+        audio_url = await upload_file_to_supabase(
+            memory_repo = memory_repo,
+            session_id = call_id,
+            filename = audio_filename,
+            file_bytes = contents,
+            content_type = "audio/webm",
+
+            )
 
         # 4. Guardar mensaje del usuario en voice_call_messages
         await memory_repo.save_voice_message(
@@ -477,7 +531,7 @@ async def upload_audio(
             role="user",
             content=transcript,
             transcript=transcript,
-            audio_path=audio_url or storage_path,
+            audio_path=audio_url or audio_filename,
         )
 
         # 5. Razonamiento con Ollama
@@ -548,52 +602,5 @@ async def transcribe_audio_endpoint(
         raise HTTPException(
             status_code=500,
             detail=f"Error al transcribir el audio: {str(e)}",
-        )
-
-@router.get("/voice-greeting")
-async def voice_greeting(
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Genera el saludo inicial de OlivIA según la hora del día.
-    El texto se convierte directamente a voz usando Qwen TTS.
-    """
-    try:
-        import base64
-        from app.infra.clients.tts_client import QwenTTSClient
-
-        now = datetime.now()
-        hour = now.hour
-
-        if 5 <= hour < 12:
-            greeting = "Buenos días, soy OlivIA. ¿En qué puedo ayudarte?"
-        elif 12 <= hour < 19:
-            greeting = "Buenas tardes, soy OlivIA. ¿En qué puedo ayudarte?"
-        else:
-            greeting = "Buenas noches, soy OlivIA. ¿En qué puedo ayudarte?"
-
-        tts_client = QwenTTSClient()
-
-        audio_bytes = await tts_client.generate_speech(greeting)
-
-        audio_base64 = None
-
-        if audio_bytes:
-            audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
-
-        return {
-            "text": greeting,
-            "audio_base64": audio_base64,
-        }
-
-    except Exception as e:
-        logger.error(
-            f"Error generando saludo de OlivIA: {e}",
-            exc_info=True,
-        )
-
-        raise HTTPException(
-            status_code=500,
-            detail="No se pudo generar el saludo de OlivIA",
         )
 

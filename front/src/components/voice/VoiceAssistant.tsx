@@ -21,7 +21,7 @@ export default function VoiceAssistant({ onClose, onSendVoice, onEndCall }: Prop
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [callTime, setCallTime] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
-
+  const [callStarted, setCallStarted] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -77,10 +77,10 @@ export default function VoiceAssistant({ onClose, onSendVoice, onEndCall }: Prop
 }, []);
 
   useEffect(() => {
-    if (!voiceConversation.isConversationActive()) return;
+    if (!callStarted) return;
     const timer = setInterval(() => setCallTime((prev) => prev + 1), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [callStarted]);
 
   const formatTime = (seconds: number) => {
     const min = Math.floor(seconds / 60);
@@ -113,7 +113,7 @@ const playGreeting = async () => {
 
         // Ahora sí activamos la conversación
         voiceConversation.start();
-
+        setCallStarted(true);
         setStatus("idle");
       };
 
@@ -269,7 +269,7 @@ const playGreeting = async () => {
         setStatus("thinking");
         const response = await chatApi.uploadAudio(formData);
 
-        if (response.call_id) callIdRef.current = response.call_id;
+        if (response.call_id){ callIdRef.current = response.call_id;}
         if (response.transcript?.trim()) setUserText(response.transcript);
         if (response.response_text?.trim()) setAssistantText(response.response_text);
 
