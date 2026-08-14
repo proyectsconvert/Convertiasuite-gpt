@@ -427,7 +427,12 @@ async def upload_audio(
 
     try:
         import base64
+
         import uuid
+
+        import base64
+        from app.infra.clients.tts_client import QwenTTSClient
+
         from app.services.transcription_service import transcribe_audio
         from app.infra.clients.tts_client import QwenTTSClient
         from app.infra.clients.ollama_client import OllamaClient
@@ -520,6 +525,7 @@ async def upload_audio(
             detail=f"Error en el flujo de voz: {str(e)}",
         )
 
+
 @router.post("/transcribe-audio")
 async def transcribe_audio_endpoint(
     file: UploadFile = File(...),
@@ -543,3 +549,51 @@ async def transcribe_audio_endpoint(
             status_code=500,
             detail=f"Error al transcribir el audio: {str(e)}",
         )
+
+@router.get("/voice-greeting")
+async def voice_greeting(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Genera el saludo inicial de OlivIA según la hora del día.
+    El texto se convierte directamente a voz usando Qwen TTS.
+    """
+    try:
+        import base64
+        from app.infra.clients.tts_client import QwenTTSClient
+
+        now = datetime.now()
+        hour = now.hour
+
+        if 5 <= hour < 12:
+            greeting = "Buenos días, soy OlivIA. ¿En qué puedo ayudarte?"
+        elif 12 <= hour < 19:
+            greeting = "Buenas tardes, soy OlivIA. ¿En qué puedo ayudarte?"
+        else:
+            greeting = "Buenas noches, soy OlivIA. ¿En qué puedo ayudarte?"
+
+        tts_client = QwenTTSClient()
+
+        audio_bytes = await tts_client.generate_speech(greeting)
+
+        audio_base64 = None
+
+        if audio_bytes:
+            audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+
+        return {
+            "text": greeting,
+            "audio_base64": audio_base64,
+        }
+
+    except Exception as e:
+        logger.error(
+            f"Error generando saludo de OlivIA: {e}",
+            exc_info=True,
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo generar el saludo de OlivIA",
+        )
+

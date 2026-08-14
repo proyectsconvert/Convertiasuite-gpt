@@ -576,23 +576,6 @@ animation-delay:6s;
 =                    STATUS
 ==========================================================*/
 
-.assistant-status{
-
-    position:absolute;
-
-    bottom:-45px;
-
-    color:var(--primary);
-
-    font-size:15px;
-
-    letter-spacing:2px;
-
-    font-weight:600;
-
-    text-transform:uppercase;
-
-}
 
 
 /*==========================================================

@@ -71,17 +71,6 @@ export default function AnimatedAvatar({
 
       </div>
 
-      <div className="assistant-status">
-
-        {status === "idle" && "EN ESPERA"}
-
-        {status === "listening" && "ESCUCHANDO..."}
-
-        {status === "thinking" && "PENSANDO..."}
-
-        {status === "speaking" && "HABLANDO..."}
-
-      </div>
 
     </div>
   );
