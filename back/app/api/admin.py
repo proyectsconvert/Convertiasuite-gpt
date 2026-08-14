@@ -8,6 +8,7 @@ from collections import defaultdict
 
 from app.dependencies.auth import get_current_user, require_admin
 from app.infra.clients.supabase_client import SupabaseClient
+from app.schemas.admin import InviteUserRequest
 
 logger = logging.getLogger(__name__)
 
@@ -425,3 +426,155 @@ async def get_metrics(
             status_code=500,
             detail=f"Error interno del servidor al procesar las métricas: {str(e)}",
         )
+
+
+@router.post("/users/invite")
+async def invite_user(
+    body: InviteUserRequest,
+    request: Request,
+    current_user: dict = Depends(require_admin),
+):
+    try:
+        supabase = SupabaseClient().db
+
+        user_metadata = {
+            "name": body.name or body.email.split("@")[0],
+            "full_name": body.name or body.email.split("@")[0],
+            "role": body.role,
+        }
+        if body.area:
+            user_metadata["area"] = body.area
+        if body.functional_role:
+            user_metadata["functional_role"] = body.functional_role
+
+        if body.password:
+            auth_res = supabase.auth.admin.create_user({
+                "email": body.email,
+                "password": body.password,
+                "email_confirm": True,
+                "user_metadata": user_metadata,
+            })
+            action_type = "creado"
+        else:
+            auth_res = supabase.auth.admin.invite_user_by_email(
+                body.email,
+                options={"data": user_metadata}
+            )
+            action_type = "invitado"
+
+        new_user = getattr(auth_res, "user", None) or auth_res
+
+        if new_user and hasattr(new_user, "id"):
+            u_id = new_user.id
+            p_data = {"user_id": u_id}
+            if body.name:
+                p_data["full_name"] = body.name
+            supabase.table("profiles").upsert(p_data).execute()
+
+            dep_id = None
+            if body.area:
+                try:
+                    dep_res = (
+                        supabase.table("departments")
+                        .select("department_id")
+                        .or_(f"department_name.eq.{body.area},nombre.eq.{body.area}")
+                        .execute()
+                    )
+                except Exception:
+                    dep_res = (
+                        supabase.table("departments")
+                        .select("department_id")
+                        .eq("department_name", body.area)
+                        .execute()
+                    )
+                if dep_res.data:
+                    dep_id = dep_res.data[0]["department_id"]
+                else:
+                    try:
+                        dep_insert = (
+                            supabase.table("departments")
+                            .insert({"department_name": body.area, "nombre": body.area})
+                            .execute()
+                        )
+                    except Exception:
+                        try:
+                            dep_insert = (
+                                supabase.table("departments")
+                                .insert({"nombre": body.area})
+                                .execute()
+                            )
+                        except Exception:
+                            dep_insert = (
+                                supabase.table("departments")
+                                .insert({"department_name": body.area})
+                                .execute()
+                            )
+                    if dep_insert.data:
+                        dep_id = dep_insert.data[0]["department_id"]
+
+            pos_id = None
+            if body.functional_role:
+                pos_res = (
+                    supabase.table("positions")
+                    .select("position_id")
+                    .eq("position_name", body.functional_role)
+                    .execute()
+                )
+                if pos_res.data:
+                    pos_id = pos_res.data[0]["position_id"]
+                else:
+                    pos_insert = (
+                        supabase.table("positions")
+                        .insert(
+                            {
+                                "position_name": body.functional_role,
+                                "department_id": dep_id,
+                            }
+                        )
+                        .execute()
+                    )
+                    if pos_insert.data:
+                        pos_id = pos_insert.data[0]["position_id"]
+
+            role_id = None
+            try:
+                role_res = (
+                    supabase.table("roles")
+                    .select("role_id")
+                    .ilike("role_name", body.role)
+                    .execute()
+                )
+                if role_res.data:
+                    role_id = role_res.data[0]["role_id"]
+            except Exception:
+                pass
+
+            emp_data = {"user_id": u_id, "work_email": body.email}
+            if dep_id is not None:
+                emp_data["department_id"] = dep_id
+            if pos_id is not None:
+                emp_data["position_id"] = pos_id
+            if role_id is not None:
+                emp_data["role_id"] = role_id
+            supabase.table("employee_profiles").upsert(emp_data).execute()
+
+        try:
+            cache_client = request.app.state.cache.redis
+            await cache_client.delete("admin:metrics")
+        except Exception:
+            pass
+
+        return {
+            "status": "success",
+            "action": action_type,
+            "message": f"Usuario {action_type} exitosamente.",
+            "email": body.email,
+        }
+
+    except Exception as e:
+        logger.error(f"Error invitar/crear usuario: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error al procesar usuario: {str(e)}",
+        )
+

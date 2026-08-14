@@ -13,6 +13,10 @@ import {
   RefreshCw,
   TrendingUp,
   Clock,
+  UserPlus,
+  X,
+  Mail,
+  Lock,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -75,6 +79,52 @@ export default function AdminDashboard() {
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [sortField, setSortField] = useState<keyof UserMetric>("total_cost");
   const [sortAsc, setSortAsc] = useState<boolean>(false);
+
+  // Modal state for user invitation
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteRole, setInviteRole] = useState("user");
+  const [inviteArea, setInviteArea] = useState("");
+  const [inviteFunctionalRole, setInviteFunctionalRole] = useState("");
+  const [invitePassword, setInvitePassword] = useState("");
+  const [submittingInvite, setSubmittingInvite] = useState(false);
+
+  const handleInviteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteEmail.trim()) {
+      toast.error("El correo electrónico es obligatorio");
+      return;
+    }
+    try {
+      setSubmittingInvite(true);
+      const res = await adminApi.inviteUser({
+        email: inviteEmail.trim(),
+        name: inviteName.trim() || undefined,
+        role: inviteRole,
+        area: inviteArea.trim() || undefined,
+        functional_role: inviteFunctionalRole.trim() || undefined,
+        password: invitePassword ? invitePassword : undefined,
+      });
+
+      toast.success(res.message || "Operación realizada exitosamente.");
+      setIsInviteModalOpen(false);
+      setInviteEmail("");
+      setInviteName("");
+      setInviteRole("user");
+      setInviteArea("");
+      setInviteFunctionalRole("");
+      setInvitePassword("");
+
+      // Refrescar tabla
+      fetchMetrics(true);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Error al procesar la invitación del usuario.");
+    } finally {
+      setSubmittingInvite(false);
+    }
+  };
 
   const fetchMetrics = async (showRefreshToast = false) => {
     if (showRefreshToast) setRefreshing(true);
@@ -643,16 +693,25 @@ export default function AdminDashboard() {
               </p>
             </div>
 
-            {/* Search Input */}
-            <div className="relative w-full max-w-xs">
-              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Buscar por nombre, email o área..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 rounded-xl border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-all"
-              />
+            {/* Search Input and Invite Button */}
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => setIsInviteModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-all shadow-sm shrink-0"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                Invitar Usuario
+              </button>
+              <div className="relative flex-1 sm:w-64">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre, email o área..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-4 py-1.5 rounded-xl border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                />
+              </div>
             </div>
           </div>
 
@@ -796,6 +855,148 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* ─── INVITE USER MODAL ─── */}
+      {isInviteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-border/40 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Invitar / Crear Usuario</h3>
+                  <p className="text-[11px] text-muted-foreground">Añadir un nuevo miembro a la plataforma</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsInviteModalOpen(false)}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleInviteSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                  Correo Electrónico *
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="usuario@convertia.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                  Nombre Completo
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej. María Pérez"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                    Rol de Plataforma
+                  </label>
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="user">Usuario (Standard)</option>
+                    <option value="admin">Administrador</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                    Área / Departamento
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej. Marketing, BI"
+                    value={inviteArea}
+                    onChange={(e) => setInviteArea(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                  Rol Funcional (Cargo)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej. Especialista en Talento, Desarrollador Frontend"
+                  value={inviteFunctionalRole}
+                  onChange={(e) => setInviteFunctionalRole(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                  Contraseña Inicial <span className="font-normal text-muted-foreground/70">(Opcional)</span>
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    type="password"
+                    placeholder="En blanco para enviar link por correo"
+                    value={invitePassword}
+                    onChange={(e) => setInvitePassword(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border/40">
+                <button
+                  type="button"
+                  onClick={() => setIsInviteModalOpen(false)}
+                  className="px-3 py-1.5 rounded-xl border border-border text-muted-foreground hover:text-foreground transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingInvite}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all disabled:opacity-50"
+                >
+                  {submittingInvite ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <UserPlus className="w-3.5 h-3.5" />
+                  )}
+                  {submittingInvite ? "Procesando..." : invitePassword ? "Crear Usuario" : "Enviar Invitación"}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
