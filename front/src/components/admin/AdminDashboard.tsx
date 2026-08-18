@@ -107,7 +107,16 @@ export default function AdminDashboard() {
         password: invitePassword ? invitePassword : undefined,
       });
 
-      toast.success(res.message || "Operación realizada exitosamente.");
+      if (res.temp_password) {
+        // El SMTP no está configurado — mostrar contraseña temporal al admin
+        const credMsg = `✅ Usuario creado exitosamente.\n\n⚠️ El servidor de correo no está configurado, así que NO se envió ningún email.\n\nComparte estas credenciales de forma segura:\n\n📧 Correo: ${res.email}\n🔑 Contraseña temporal: ${res.temp_password}\n\nEl usuario debe cambiar su contraseña al iniciar sesión.`;
+        navigator.clipboard?.writeText(`Correo: ${res.email}\nContraseña temporal: ${res.temp_password}`).catch(() => {});
+        alert(credMsg);
+        toast.success("Usuario creado. Credenciales copiadas al portapapeles.");
+      } else {
+        toast.success(res.message || "Operación realizada exitosamente.");
+      }
+
       setIsInviteModalOpen(false);
       setInviteEmail("");
       setInviteName("");
@@ -120,7 +129,15 @@ export default function AdminDashboard() {
       fetchMetrics(true);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Error al procesar la invitación del usuario.");
+      let msg = err.message || "Error al procesar la invitación del usuario.";
+      if (msg.includes("HTTP ") && msg.includes("{")) {
+        try {
+          const jsonStart = msg.indexOf("{");
+          const parsed = JSON.parse(msg.slice(jsonStart));
+          if (parsed.detail) msg = typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail);
+        } catch (_) {}
+      }
+      toast.error(msg);
     } finally {
       setSubmittingInvite(false);
     }
@@ -131,7 +148,10 @@ export default function AdminDashboard() {
     else setLoading(true);
 
     try {
-      const response = await adminApi.getMetrics(selectedUserId || undefined);
+      const response = await adminApi.getMetrics(
+        selectedUserId || undefined,
+        days || undefined
+      );
       setData(response);
     } catch (error) {
       console.error("Error loading metrics:", error);
@@ -160,9 +180,10 @@ export default function AdminDashboard() {
     ? data.by_user
         .filter(
           (u) =>
-            u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            u.department.toLowerCase().includes(searchTerm.toLowerCase()),
+            (selectedUserId ? u.user_id === selectedUserId : true) &&
+            (u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              u.department.toLowerCase().includes(searchTerm.toLowerCase())),
         )
         .sort((a, b) => {
           const valA = a[sortField];

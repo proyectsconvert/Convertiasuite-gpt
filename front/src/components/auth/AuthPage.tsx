@@ -53,24 +53,7 @@ export default function AuthPage() {
     }
   }
 
-  async function handleMicrosoftLogin() {
-    try {
-      setIsLoading(true);
-      setError("");
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'azure',
-        options: {
-          scopes: 'email',
-          redirectTo: window.location.origin + '/app/chat'
-        }
-      });
-      if (error) throw error;
-    } catch (err: any) {
-      console.error(err);
-      setError("Error al iniciar sesión con Microsoft.");
-      setIsLoading(false);
-    }
-  }
+
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -254,31 +237,7 @@ export default function AuthPage() {
               </Button>
             </form>
 
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-muted-foreground/20" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  O continuar con
-                </span>
-              </div>
-            </div>
 
-            <Button
-              variant="outline"
-              type="button"
-              disabled={isLoading}
-              className="w-full h-11 font-medium bg-[#2F2F2F] hover:bg-[#3F3F3F] text-white border-none"
-              onClick={handleMicrosoftLogin}
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" alt="Microsoft" className="w-4 h-4 mr-2" />
-              )}
-              Cuenta Corporativa Microsoft
-            </Button>
 
             <div className="text-center pt-4">
                 <Link

@@ -48,3 +48,8 @@ model/
 #api.ts
 api.ts
 front/src/services/api.ts
+
+
+#bd
+supabase/
+supabase/migrations/

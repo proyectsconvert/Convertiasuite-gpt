@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 import logging
 import asyncio
 import json
+import secrets
+import string
 from datetime import datetime, timezone, timedelta
 import dateutil.parser
 from collections import defaultdict
@@ -22,6 +24,7 @@ router = APIRouter(
 async def get_metrics(
     request: Request,
     user_id: str | None = None,
+    days: int | None = None,
     current_user: dict = Depends(require_admin),
 ):
 
@@ -142,6 +145,21 @@ async def get_metrics(
         roles = roles_res.data or []
         departments = deps_res.data or []
         models = models_res.data or []
+
+        if days:
+            now_utc = datetime.now(timezone.utc)
+            cutoff_date = now_utc - timedelta(days=days)
+            filtered_usage = []
+            for row in usage:
+                try:
+                    dt = dateutil.parser.isoparse(row.get("created_at"))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    if dt >= cutoff_date:
+                        filtered_usage.append(row)
+                except Exception:
+                    filtered_usage.append(row)
+            usage = filtered_usage
 
         models_dict = {m["model_id"]: m for m in models}
         profiles_dict = {p["user_id"]: p for p in profiles}
@@ -447,73 +465,56 @@ async def invite_user(
         if body.functional_role:
             user_metadata["functional_role"] = body.functional_role
 
-        if body.password:
-            auth_res = supabase.auth.admin.create_user({
-                "email": body.email,
-                "password": body.password,
-                "email_confirm": True,
-                "user_metadata": user_metadata,
-            })
-            action_type = "creado"
-        else:
-            auth_res = supabase.auth.admin.invite_user_by_email(
-                body.email,
-                options={"data": user_metadata}
-            )
-            action_type = "invitado"
-
-        new_user = getattr(auth_res, "user", None) or auth_res
-
-        if new_user and hasattr(new_user, "id"):
-            u_id = new_user.id
-            p_data = {"user_id": u_id}
-            if body.name:
-                p_data["full_name"] = body.name
-            supabase.table("profiles").upsert(p_data).execute()
-
-            dep_id = None
-            if body.area:
-                try:
-                    dep_res = (
-                        supabase.table("departments")
-                        .select("department_id")
-                        .or_(f"department_name.eq.{body.area},nombre.eq.{body.area}")
-                        .execute()
-                    )
-                except Exception:
-                    dep_res = (
-                        supabase.table("departments")
-                        .select("department_id")
-                        .eq("department_name", body.area)
-                        .execute()
-                    )
+        # 1. Asegurar Departamento
+        dep_id = None
+        if body.area:
+            try:
+                dep_res = (
+                    supabase.table("departments")
+                    .select("department_id")
+                    .eq("department_name", body.area)
+                    .execute()
+                )
                 if dep_res.data:
                     dep_id = dep_res.data[0]["department_id"]
                 else:
-                    try:
-                        dep_insert = (
-                            supabase.table("departments")
-                            .insert({"department_name": body.area, "nombre": body.area})
-                            .execute()
-                        )
-                    except Exception:
-                        try:
-                            dep_insert = (
-                                supabase.table("departments")
-                                .insert({"nombre": body.area})
-                                .execute()
-                            )
-                        except Exception:
-                            dep_insert = (
-                                supabase.table("departments")
-                                .insert({"department_name": body.area})
-                                .execute()
-                            )
+                    dep_insert = (
+                        supabase.table("departments")
+                        .insert({"department_name": body.area})
+                        .execute()
+                    )
                     if dep_insert.data:
                         dep_id = dep_insert.data[0]["department_id"]
+            except Exception as e:
+                logger.warning(f"Error con departamento: {e}")
 
-            pos_id = None
-            if body.functional_role:
+        # 2. Asegurar Rol
+        role_id = None
+        if body.role:
+            try:
+                role_res = (
+                    supabase.table("roles")
+                    .select("role_id")
+                    .ilike("role_name", body.role)
+                    .execute()
+                )
+                if role_res.data:
+                    role_id = role_res.data[0]["role_id"]
+                else:
+                    role_insert = (
+                        supabase.table("roles")
+                        .insert({"role_name": body.role})
+                        .execute()
+                    )
+                    if role_insert.data:
+                        role_id = role_insert.data[0]["role_id"]
+            except Exception as e:
+                logger.warning(f"Error con rol: {e}")
+
+        # 3. Asegurar Posición
+        pos_id = None
+        if body.functional_role:
+            try:
                 pos_res = (
                     supabase.table("positions")
                     .select("position_id")
@@ -535,28 +536,142 @@ async def invite_user(
                     )
                     if pos_insert.data:
                         pos_id = pos_insert.data[0]["position_id"]
+            except Exception as e:
+                logger.warning(f"Error con posición: {e}")
 
-            role_id = None
+        # 4. Chequear y crear usuario
+        existing_user = None
+        try:
+            auth_users = supabase.auth.admin.list_users()
+            if auth_users:
+                for u in auth_users:
+                    if getattr(u, "email", "").lower() == body.email.lower():
+                        existing_user = u
+                        break
+        except Exception as list_err:
+            logger.warning(f"Error checking existing users in auth: {list_err}")
+
+        action_type = "creado"
+        new_user = None
+        temp_password = None
+
+        if existing_user:
+            u_id = existing_user.id
+            update_data = {
+                "user_metadata": user_metadata,
+                "app_metadata": {"role": body.role}
+            }
+            if body.password:
+                update_data["password"] = body.password
             try:
-                role_res = (
-                    supabase.table("roles")
-                    .select("role_id")
-                    .ilike("role_name", body.role)
-                    .execute()
-                )
-                if role_res.data:
-                    role_id = role_res.data[0]["role_id"]
-            except Exception:
-                pass
+                auth_res = supabase.auth.admin.update_user_by_id(u_id, update_data)
+                new_user = getattr(auth_res, "user", None) or auth_res
+            except Exception as upd_err:
+                logger.warning(f"Error updating existing user by id: {upd_err}")
+                new_user = existing_user
+            action_type = "actualizado"
+        else:
+            if body.password:
+                try:
+                    auth_res = supabase.auth.admin.create_user({
+                        "email": body.email,
+                        "password": body.password,
+                        "email_confirm": True,
+                        "user_metadata": user_metadata,
+                        "app_metadata": {"role": body.role}
+                    })
+                    new_user = getattr(auth_res, "user", None) or auth_res
+                    action_type = "creado"
+                except Exception as create_err:
+                    logger.warning(f"create_user failed, trying invite_user_by_email fallback: {create_err}")
+                    try:
+                        auth_res = supabase.auth.admin.invite_user_by_email(
+                            body.email,
+                            options={"data": user_metadata}
+                        )
+                        new_user = getattr(auth_res, "user", None) or auth_res
+                        if new_user and hasattr(new_user, "id"):
+                            try:
+                                supabase.auth.admin.update_user_by_id(
+                                    new_user.id,
+                                    {"app_metadata": {"role": body.role}}
+                                )
+                            except Exception as app_err:
+                                logger.warning(f"Error updating app_metadata in fallback: {app_err}")
+                        action_type = "invitado"
+                    except Exception as invite_err:
+                        logger.error(f"Both create_user and invite_user_by_email failed: {invite_err}")
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Error en la base de datos de Auth: {str(create_err)}"
+                        )
+            else:
+                temp_password = None
+                try:
+                    auth_res = supabase.auth.admin.invite_user_by_email(
+                        body.email,
+                        options={"data": user_metadata}
+                    )
+                    new_user = getattr(auth_res, "user", None) or auth_res
+                    if new_user and hasattr(new_user, "id"):
+                        try:
+                            supabase.auth.admin.update_user_by_id(
+                                new_user.id,
+                                {"app_metadata": {"role": body.role}}
+                            )
+                        except Exception as app_err:
+                            logger.warning(f"Error updating app_metadata: {app_err}")
+                    action_type = "invitado"
+                except Exception as invite_err:
+                    logger.warning(
+                        f"invite_user_by_email failed (posiblemente SMTP no configurado): {invite_err}. "
+                        f"Usando fallback: crear usuario con contraseña temporal."
+                    )
+                    # Fallback: generar contraseña temporal segura y crear el usuario directamente
+                    alphabet = string.ascii_letters + string.digits + "!@#$%"
+                    temp_password = "".join(secrets.choice(alphabet) for _ in range(16))
+                    try:
+                        auth_res = supabase.auth.admin.create_user({
+                            "email": body.email,
+                            "password": temp_password,
+                            "email_confirm": True,
+                            "user_metadata": user_metadata,
+                            "app_metadata": {"role": body.role}
+                        })
+                        new_user = getattr(auth_res, "user", None) or auth_res
+                        action_type = "creado_con_contraseña_temporal"
+                    except Exception as create_err:
+                        logger.error(f"Fallback create_user also failed: {create_err}")
+                        raise HTTPException(
+                            status_code=400,
+                            detail=(
+                                f"No se pudo enviar invitación por correo ({str(invite_err)}) "
+                                f"y tampoco crear el usuario directamente: {str(create_err)}"
+                            )
+                        )
 
-            emp_data = {"user_id": u_id, "work_email": body.email}
+        # 5. Insertar profiles y employee_profiles
+        if new_user and hasattr(new_user, "id"):
+            u_id = new_user.id
+            p_data = {"user_id": u_id}
+            if body.name:
+                p_data["full_name"] = body.name
+            try:
+                supabase.table("profiles").upsert(p_data).execute()
+            except Exception as e_prof:
+                logger.warning(f"Error upserting profile: {e_prof}")
+
+            emp_data = {"user_id": u_id, "work_email": body.email, "status": "active"}
             if dep_id is not None:
                 emp_data["department_id"] = dep_id
             if pos_id is not None:
                 emp_data["position_id"] = pos_id
             if role_id is not None:
                 emp_data["role_id"] = role_id
-            supabase.table("employee_profiles").upsert(emp_data).execute()
+            try:
+                supabase.table("employee_profiles").upsert(emp_data).execute()
+            except Exception as emp_err:
+                logger.warning(f"Error upserting employee_profiles: {emp_err}")
 
         try:
             cache_client = request.app.state.cache.redis
@@ -564,12 +679,20 @@ async def invite_user(
         except Exception:
             pass
 
-        return {
+        response = {
             "status": "success",
             "action": action_type,
             "message": f"Usuario {action_type} exitosamente.",
             "email": body.email,
         }
+        if temp_password:
+            response["temp_password"] = temp_password
+            response["message"] = (
+                "El servidor de correo no está configurado. "
+                f"El usuario fue creado con una contraseña temporal: {temp_password}. "
+                "Compártela con el usuario de forma segura."
+            )
+        return response
 
     except Exception as e:
         logger.error(f"Error invitar/crear usuario: {e}", exc_info=True)
