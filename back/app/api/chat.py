@@ -480,11 +480,11 @@ async def upload_audio(
         import base64
         from app.infra.clients.tts_client import QwenTTSClient
 
-        from app.services.transcription_service import transcribe_audio
+        from app.services.meetings.transcription_service import transcribe_audio
         from app.infra.clients.tts_client import QwenTTSClient
         from app.infra.clients.ollama_client import OllamaClient
         from app.infra.repositories.supabase.memory_repository import SupabaseMemoryRepository
-        from app.services.storage_service import upload_file_to_supabase
+        from app.services.chat.storage_service import upload_file_to_supabase
 
         contents = await file.read()
 

@@ -1,4 +1,4 @@
-import {hablar} from "./voice";
+import {hablar} from "@/services/voice";
 
 class VoiceConversation{
     private onSend?: (text:string) =>Promise<void>;
