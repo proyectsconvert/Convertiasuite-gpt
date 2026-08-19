@@ -1,6 +1,7 @@
 import logging
 import jwt
 from jwt import InvalidTokenError
+
 from app.core.config import get_settings
 from app.infra.clients.supabase_client import SupabaseClient
 
@@ -8,26 +9,58 @@ logger = logging.getLogger(__name__)
 
 
 class AuthService:
+
     def __init__(self):
         self.supabase = SupabaseClient().anon
 
     async def authenticate(self, email: str, password: str) -> dict | None:
         try:
-            logger.info(f"Login attempt: {email}")
+            email = email.strip().lower()
+
+            logger.info("Login attempt email=%s", email)
+
             response = self.supabase.auth.sign_in_with_password(
-                {"email": email, "password": password}
+                {
+                    "email": email,
+                    "password": password,
+                }
             )
+
+            logger.info(
+                "Supabase login response user=%s session=%s",
+                bool(response and response.user),
+                bool(response and response.session),
+            )
+
             if not response or not response.user or not response.session:
+                logger.warning(
+                    "Supabase returned incomplete authentication response for email=%s",
+                    email,
+                )
                 return None
 
             try:
                 self.sync_user_profile_to_db(response.user)
-            except Exception as se:
-                logger.error(f"Authentication profile sync failed: {se}")
 
-            return {"session": response.session, "user": response.user}
+            except Exception as se:
+                logger.error(
+                    "Authentication profile sync failed: %s",
+                    se,
+                    exc_info=True,
+                )
+
+            return {
+                "session": response.session,
+                "user": response.user,
+            }
+
         except Exception as e:
-            logger.error(f"Supabase authentication error: {type(e).__name__}: {e}")
+            logger.error(
+                "Supabase authentication error type=%s error=%s",
+                type(e).__name__,
+                e,
+                exc_info=True,
+            )
             return None
 
     def decode_token(self, token: str) -> dict | None:
