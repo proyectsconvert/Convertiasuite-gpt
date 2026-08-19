@@ -1,5 +1,5 @@
 import { useAppStore } from "@/store/appStore";
-import "./IaVoice.css";
+import "./Iavoice.css";
 
 interface AnimatedAvatarProps {
   status?: "idle" | "listening" | "thinking" | "speaking";
