@@ -15,7 +15,7 @@ from app.dependencies.auth import get_current_user
 from app.services.chat.chat_service import process_chat
 from app.services.documents.document_processing.document_manager import DocumentManager
 from app.domain.interfaces.rag_repository import IRagRepository
-
+from zoneinfo import ZoneInfo
 from app.schemas.chat import (
     ChatRequest,
     ChatHistoryResponse,
@@ -164,6 +164,7 @@ async def send_voice_stream(
     }
 @router.get("/voice-greeting")
 async def voice_greeting(
+    timezone: str = Query("UTC", description="Zona horaria del usuario, por ejemplo 'America/New_York'"),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -174,8 +175,16 @@ async def voice_greeting(
         import base64
         from app.infra.clients.tts_client import QwenTTSClient
 
-        now = datetime.now()
+        try:
+            user_tz = ZoneInfo(timezone)
+        except Exception:
+            user_tz = ZoneInfo("UTC")
+
+        now = datetime.now(user_tz)
         hour = now.hour
+        logger.info(
+            f"[voice-greeting] timezone={timezone} local_time={now.isoformat()} | hour={hour}"
+        )
 
         if 5 <= hour < 12:
             greeting = "Buenos días, soy OlivIA. ¿En qué puedo ayudarte?"
@@ -196,6 +205,8 @@ async def voice_greeting(
         return {
             "text": greeting,
             "audio_base64": audio_base64,
+            "timezone": timezone,
+            "local_time": now.isoformat(),
         }
 
     except Exception as e:

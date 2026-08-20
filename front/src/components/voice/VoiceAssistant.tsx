@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { chatApi } from "@/services/api";
 import { voiceConversation } from "@/services/voiceConversation";
 import AnimatedAvatar from "./AnimatedAvatar";
+import {useAppStore} from "@/store/appStore";
 
 interface Props {
   onClose: () => void;
@@ -21,6 +22,7 @@ export default function VoiceAssistant({ onClose, onSendVoice, onEndCall }: Prop
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [callTime, setCallTime] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  const {darkMode} = useAppStore();
   const [callStarted, setCallStarted] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -97,7 +99,9 @@ const playGreeting = async () => {
   try {
     setStatus("speaking");
 
-    const response = await chatApi.getVoiceGreeting();
+    const timezone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const response = await chatApi.getVoiceGreeting(timezone);
 
     if (response.text?.trim()) {
       setAssistantText(response.text);
@@ -144,7 +148,7 @@ const playGreeting = async () => {
       greetingPlayingRef.current = false;
 
       voiceConversation.start();
-
+      setCallStarted(true);
       setStatus("idle");
 
     } else {
@@ -152,7 +156,7 @@ const playGreeting = async () => {
       greetingPlayingRef.current = false;
 
       voiceConversation.start();
-
+      setCallStarted(true);
       setStatus("idle");
     }
 
@@ -162,7 +166,7 @@ const playGreeting = async () => {
     greetingPlayingRef.current = false;
 
     voiceConversation.start();
-
+    setCallStarted(true);
     setStatus("idle");
   }
 };
@@ -381,8 +385,39 @@ const playGreeting = async () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="relative overflow-hidden bg-slate-950/80 backdrop-blur-2xl border border-emerald-500/20 rounded-[32px] shadow-2xl shadow-emerald-500/10 w-[520px] h-[770px] px-10 py-8">
+    <div
+  className={`fixed inset-0 z-50 flex items-center justify-center ${
+    darkMode ? "bg-black/60" : "bg-black/20"
+  }`}
+>
+      <div
+  className={`
+    relative
+    overflow-hidden
+    backdrop-blur-2xl
+    rounded-[32px]
+    shadow-2xl
+    w-[520px]
+    h-[770px]
+    px-10
+    py-8
+    ${
+      darkMode
+        ? `
+          bg-slate-950/80
+          border
+          border-emerald-500/20
+          shadow-emerald-500/10
+        `
+        : `
+          bg-white/90
+          border
+          border-emerald-500/20
+          shadow-black/10
+        `
+    }
+  `}
+>
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="background-gradient"></div>
           <div className="background-grid"></div>
@@ -391,14 +426,24 @@ const playGreeting = async () => {
 
         <button
           onClick={onClose}
-          className="absolute top-6 right-6 z-30 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 transition flex items-center justify-center border border-white/10 text-white"
+        className={`absolute top-6 right-6 z-30 w-10 h-10 rounded-full transition flex items-center justify-center ${
+  darkMode
+    ? "bg-white/5 hover:bg-white/10 border border-white/10 text-white"
+    : "bg-black/5 hover:bg-black/10 border border-black/10 text-slate-700"
+}`}
         >
           <X size={18} />
         </button>
 
         <div className="relative z-10 h-full flex flex-col items-center">
           <div className="flex flex-col items-center shrink-0">
-            <h1 className="text-4xl font-bold text-white">OlivIA</h1>
+            <h1
+        className={`text-4xl font-bold ${
+         darkMode ? "text-white" : "text-slate-900"
+          }`}
+        >
+             OlivIA
+          </h1>
             <p className="mt-2 text-emerald-400 tracking-[0.25em] uppercase text-xs">
               Voice Assistant
             </p>
@@ -415,7 +460,11 @@ const playGreeting = async () => {
               {status === "thinking" && "PENSANDO..."}
               {status === "speaking" && "HABLANDO..."}
             </p>
-            <span className="text-3xl font-bold text-white font-mono tracking-wider">
+            <span
+  className={`text-3xl font-bold font-mono tracking-wider ${
+    darkMode ? "text-white" : "text-slate-900"
+  }`}
+>
               {formatTime(callTime)}
             </span>
           </div>
@@ -425,7 +474,13 @@ const playGreeting = async () => {
               <div className="flex justify-end">
                 <div className="max-w-[85%] text-right">
                   <p className="text-xs text-emerald-400 mb-1 font-medium">Tú</p>
-                  <div className="inline-block bg-white/5 border border-white/10 rounded-2xl rounded-tr-sm px-4 py-2.5 text-gray-200">
+                  <div
+  className={`inline-block rounded-2xl rounded-tr-sm px-4 py-2.5 ${
+    darkMode
+      ? "bg-white/5 border border-white/10 text-gray-200"
+      : "bg-black/5 border border-black/10 text-slate-700"
+  }`}
+>
                     {userText}
                   </div>
                 </div>
@@ -436,7 +491,13 @@ const playGreeting = async () => {
               <div className="flex justify-start">
                 <div className="max-w-[85%] text-left">
                   <p className="text-xs text-cyan-400 mb-1 font-medium">OlivIA</p>
-                  <div className="inline-block bg-cyan-500/5 border border-cyan-400/10 rounded-2xl rounded-tl-sm px-4 py-2.5 text-gray-200">
+                  <div
+  className={`inline-block rounded-2xl rounded-tl-sm px-4 py-2.5 ${
+    darkMode
+      ? "bg-cyan-500/5 border border-cyan-400/10 text-gray-200"
+      : "bg-cyan-500/10 border border-cyan-400/20 text-slate-700"
+  }`}
+>
                     {assistantText}
                   </div>
                 </div>
@@ -450,7 +511,9 @@ const playGreeting = async () => {
               className={`w-14 h-14 rounded-full flex items-center justify-center border transition-all duration-300 ${
                 isMuted
                   ? "bg-red-500/20 border-red-500/40 text-red-400 shadow-lg shadow-red-500/10"
-                  : "bg-white/5 border-white/10 text-white hover:bg-white/10"
+                  : darkMode
+  ? "bg-white/5 border-white/10 text-white hover:bg-white/10"
+  : "bg-black/5 border-black/10 text-slate-700 hover:bg-black/10"
               }`}
               title={isMuted ? "Activar micrófono" : "Silenciar micrófono"}
             >
