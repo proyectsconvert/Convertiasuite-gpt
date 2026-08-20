@@ -170,8 +170,8 @@ class PdfBuilder(IDocumentBuilder):
             story = []
 
             # Portada
-            logo_main_path = self._engine._resolve_asset_path(cfg["logos"].get("main", ""))
-            if logo_main_path:
+            logo_main_path = cfg["logos"].get("main")
+            if logo_main_path and os.path.exists(logo_main_path):
                 try:
                     if has_pil:
                         with PILImage.open(logo_main_path) as img_file:
@@ -275,7 +275,7 @@ class PdfBuilder(IDocumentBuilder):
                                 story.append(Paragraph(p_text, body_s))
                 if section.bullets:
                     for bullet in section.bullets:
-                        story.append(Paragraph(bullet, body_s))
+                        story.append(Paragraph(f"• {bullet}", bullet_s))
                 if section.table:
                     story.append(
                         self._build_pdf_table(
@@ -305,8 +305,8 @@ class PdfBuilder(IDocumentBuilder):
                 canvas.saveState()
 
                 # Draw Header (docs logo on the top right)
-                logo_docs_path = self._engine._resolve_asset_path(cfg["logos"].get("docs", ""))
-                if logo_docs_path:
+                logo_docs_path = cfg["logos"].get("docs")
+                if logo_docs_path and os.path.exists(logo_docs_path):
                     try:
                         if has_pil:
                             with PILImage.open(logo_docs_path) as img_file:

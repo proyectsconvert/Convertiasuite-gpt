@@ -34,27 +34,12 @@ class ExcelBuilder(IDocumentBuilder):
 
         try:
             ctx = self._engine.build_excel_context(content)
-            
-            template_path = excel_cfg.get("templates", {}).get("excel") or BRAND_CONFIG[brand]["templates"].get("excel")
-            if template_path and os.path.exists(template_path):
-                wb = openpyxl.load_workbook(template_path)
-                template_ws = wb.active
-                
-                # Copy template sheet for each context sheet
-                for i, sheet_ctx in enumerate(ctx["sheets"]):
-                    ws = wb.copy_worksheet(template_ws)
-                    ws.title = sheet_ctx["name"][:31]
-                    self._write_sheet(ws, sheet_ctx, excel_cfg)
-                
-                # Remove original template sheet so it doesn't show up empty
-                wb.remove(template_ws)
-            else:
-                logger.warning("No se encontró plantilla Excel física, generando desde cero.")
-                wb = openpyxl.Workbook()
-                wb.remove(wb.active)
-                for sheet_ctx in ctx["sheets"]:
-                    ws = wb.create_sheet(title=sheet_ctx["name"][:31])
-                    self._write_sheet(ws, sheet_ctx, excel_cfg)
+            wb = openpyxl.Workbook()
+            wb.remove(wb.active)  # Eliminar hoja por defecto
+
+            for sheet_ctx in ctx["sheets"]:
+                ws = wb.create_sheet(title=sheet_ctx["name"][:31])
+                self._write_sheet(ws, sheet_ctx, excel_cfg)
 
             buffer = BytesIO()
             wb.save(buffer)

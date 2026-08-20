@@ -469,15 +469,6 @@ async def upload_file(
 ):
     from app.services.chat.upload_service import UploadService
 
-    if session_id:
-        session = await memory_repo.get_session(session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Sesión no encontrada")
-        if str(session.get("user_id")) != str(current_user["id"]):
-            raise HTTPException(
-                status_code=403, detail="No tienes permiso para usar esta sesión"
-            )
-
     upload_service = UploadService(document_manager, memory_repo)
     return await upload_service.process_upload(
         file=file, session_id=session_id, user_id=current_user["id"]
@@ -506,10 +497,7 @@ async def upload_audio(
         from app.infra.repositories.supabase.memory_repository import SupabaseMemoryRepository
         from app.services.chat.storage_service import upload_file_to_supabase
 
-        max_audio_bytes = 25 * 1024 * 1024
-        contents = await file.read(max_audio_bytes + 1)
-        if len(contents) > max_audio_bytes:
-            raise HTTPException(status_code=413, detail="Audio file too large")
+        contents = await file.read()
 
         # 1. Transcripción con Vosk
         transcript = transcribe_audio(contents)
@@ -615,10 +603,7 @@ async def transcribe_audio_endpoint(
     try:
         from app.services.transcription_service import transcribe_audio
 
-        max_audio_bytes = 25 * 1024 * 1024
-        contents = await file.read(max_audio_bytes + 1)
-        if len(contents) > max_audio_bytes:
-            raise HTTPException(status_code=413, detail="Audio file too large")
+        contents = await file.read()
         transcript = transcribe_audio(contents)
         logger.info(f"[Dictation STT] Transcripción obtenida: '{transcript}'")
 

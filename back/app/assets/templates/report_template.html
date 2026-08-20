@@ -4,8 +4,7 @@
     <meta charset="UTF-8" />
     <title>{{ title }}</title>
     <style>
-      {% if font_inter_regular_uri %}@font-face { font-family: 'Inter'; src: url('{{ font_inter_regular_uri }}') format('truetype'); font-weight: 400; font-style: normal; }{% endif %}
-      {% if font_inter_bold_uri %}@font-face { font-family: 'Inter'; src: url('{{ font_inter_bold_uri }}') format('truetype'); font-weight: 700; font-style: normal; }{% endif %}
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap");
 
       @page {
         size: letter;
@@ -51,12 +50,12 @@
         --color-green: rgb(16, 71, 63);
         --color-accent: rgb(26, 235, 159);
         --color-lavender: rgb(186, 184, 255);
-        --color-body: #111111;
+        --color-body: rgb(45, 55, 72);
         --color-muted: rgb(113, 128, 150);
         --color-bg-lite: #f5f5f5;
         --color-border: rgb(219, 223, 252);
         --color-white: #ffffff;  
-      }
+          }
 
       * {
         box-sizing: border-box;
@@ -113,7 +112,6 @@
       }
 
       .cover h1 {
-        font-family: 'Inter', Arial, sans-serif;
         font-size: 36pt;
         font-weight: 700;
         color: var(--color-primary);
@@ -157,7 +155,6 @@
       }
 
       h1.section-divider {
-        font-family: 'Inter', Arial, sans-serif;
         page-break-before: always;
         background: var(--color-white);
         color: var(--color-primary);
@@ -169,7 +166,6 @@
       }
 
       h1 {
-        font-family: 'Inter', Arial, sans-serif;
         font-size: 22pt;
         font-weight: 700;
         color: var(--color-primary);
@@ -179,7 +175,6 @@
       }
 
       h2 {
-        font-family: 'Inter', Arial, sans-serif;
         font-size: 15pt;
         font-weight: 700;
         color: var(--color-green);
@@ -191,7 +186,6 @@
       }
 
       h3 {
-        font-family: 'Inter', Arial, sans-serif;
         font-size: 12pt;
         font-weight: 700;
         color: var(--color-primary);
@@ -207,8 +201,18 @@
         line-height: 1.7;
       }
 
-      .list-item {
-        margin-bottom: 8pt;
+      ul,
+      ol {
+        padding-left: 18pt;
+        margin: 6pt 0 10pt;
+      }
+
+      li {
+        margin-bottom: 4pt;
+      }
+
+      ul li::marker {
+        color: var(--color-accent);
       }
 
       .callout-box {
@@ -317,7 +321,7 @@
     <!-- Logo en encabezado de páginas interiores -->
     {% if logo_src %}
     <div id="header-logo">
-      <img src="{{ logo_src }}" alt="" />
+      <img src="{{ logo_src }}" alt="{{ brand_name }}" />
     </div>
     {% endif %}
 
@@ -325,11 +329,11 @@
     <div class="cover">
       {% if logo_main_src %}
       <div class="cover-logo">
-        <img src="{{ logo_main_src }}" alt="" />
+        <img src="{{ logo_main_src }}" alt="{{ brand_name }}" />
       </div>
       {% elif logo_src %}
       <div class="cover-logo">
-        <img src="{{ logo_src }}" alt="" />
+        <img src="{{ logo_src }}" alt="{{ brand_name }}" />
       </div>
       {% endif %}
 
@@ -369,11 +373,13 @@
         {% endfor %}
       {% endif %}
 
-      {# Elementos separados de la sección #}
+      {# Bullets de la sección #}
       {% if section.has_bullets %}
+      <ul>
         {% for bullet in section.bullets %}
-        <p class="list-item">{{ bullet }}</p>
+        <li>{{ bullet }}</li>
         {% endfor %}
+      </ul>
       {% endif %}
 
       {# Tabla inline de la sección #}

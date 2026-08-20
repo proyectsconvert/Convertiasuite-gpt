@@ -7,8 +7,6 @@ from app.domain.interfaces.attachment_repository import IAttachmentRepository
 
 logger = logging.getLogger(__name__)
 
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
-
 
 class UploadService:
     def __init__(
@@ -29,9 +27,7 @@ class UploadService:
         )
 
         try:
-            contents = await file.read(MAX_UPLOAD_BYTES + 1)
-            if len(contents) > MAX_UPLOAD_BYTES:
-                raise HTTPException(status_code=413, detail="File too large")
+            contents = await file.read()
             if is_image:
                 import base64
 

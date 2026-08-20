@@ -447,7 +447,7 @@ export default function ArtifactsPanel() {
                           }
                           className="h-full w-full min-h-[560px] bg-white"
                           title="Vista previa HTML"
-                          sandbox="allow-scripts"
+                          sandbox="allow-scripts allow-same-origin"
                           style={{ width: "100%", border: 0 }}
                         />
                       </div>

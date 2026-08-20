@@ -21,7 +21,6 @@ class ChatRequest(BaseModel):
     message: str
     user_role: UserRole = UserRole.default
     session_id: Optional[str] = None
-    skill_prompt: Optional[str] = None
     extracted_context: Optional[str] = None
     attachment_type: Optional[str] = None
     attachment_name: Optional[str] = None

@@ -82,13 +82,11 @@ class OllamaProvider(ILlmProvider):
         ):
             yield chunk
 
-    async def generate_stream(
-        self, messages: list, model_key: str, skill_prompt: str | None = None
-    ):
+    async def generate_stream(self, messages: list, model_key: str):
         models = get_model_config()
         model_info = models.get(model_key, models["default"])
 
-        msg_dict = build_messages(messages, model_key, skill_prompt=skill_prompt)
+        msg_dict = build_messages(messages, model_key)
         # Ensure language enforcement is explicit and at the top of the system prompt
         if msg_dict and "system" in msg_dict:
             enforced = "Responde SIEMPRE en español. Respuestas solo en español.\n\n"

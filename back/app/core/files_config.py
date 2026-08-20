@@ -66,16 +66,15 @@ BRAND_CONFIG = {
         },
         
         "logos": {
-            "main":  os.path.join(BASE_DIR, "assets", "logos", "convertia_docs.png"),
+            "main":  os.path.join(BASE_DIR, "assets", "logos", "convertia_main.png"),
             "docs":  os.path.join(BASE_DIR, "assets", "logos", "convertia_docs.png"),
             "white": os.path.join(BASE_DIR, "assets", "logos", "convertia_white.png"),
         },
         
        
         "templates": {
-            "presentation": os.path.join(BASE_DIR, "assets", "templates", "plantilla-powerpoint.pptx"),
-            "excel":        os.path.join(BASE_DIR, "assets", "templates", "plantilla excel.xlsx"),
-            "word":         os.path.join(BASE_DIR, "assets", "templates", "Plantilla-word.docx"),
+            "presentation": os.path.join(BASE_DIR, "assets", "templates", "plantilla_powerpoint.pptx"),
+            "excel":        os.path.join(BASE_DIR, "assets", "templates", "plantilla_excel.xlsx"),
             "document":     os.path.join(BASE_DIR, "assets", "templates", "report_template.html"),
         },
 

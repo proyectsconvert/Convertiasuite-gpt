@@ -127,19 +127,15 @@ export default function AdminDashboard() {
 
       // Refrescar tabla
       fetchMetrics(true);
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error(err);
-      let msg = err instanceof Error
-        ? err.message
-        : "Error al procesar la invitación del usuario.";
+      let msg = err.message || "Error al procesar la invitación del usuario.";
       if (msg.includes("HTTP ") && msg.includes("{")) {
         try {
           const jsonStart = msg.indexOf("{");
           const parsed = JSON.parse(msg.slice(jsonStart));
           if (parsed.detail) msg = typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail);
-        } catch (parseError) {
-          console.debug("No se pudo interpretar el detalle del error", parseError);
-        }
+        } catch (_) {}
       }
       toast.error(msg);
     } finally {
