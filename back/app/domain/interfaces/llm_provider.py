@@ -11,7 +11,7 @@ class ILlmProvider(ABC):
 
     @abstractmethod
     async def generate_stream(
-        self, messages: list, model_key: str
+        self, messages: list, model_key: str, skill_prompt: str | None = None
     ) -> AsyncGenerator[str, None]:
         pass
 

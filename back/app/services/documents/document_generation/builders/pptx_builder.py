@@ -408,7 +408,7 @@ class PptxBuilder(IDocumentBuilder):
                 if bullet.strip():
                     p = tf.paragraphs[0] if first else tf.add_paragraph()
                     first = False
-                    p.text = f"•  {bullet.strip()}"
+                    p.text = bullet.strip()
                     p.font.name = self._body_font
                     p.font.size = Pt(14)
                     p.font.color.rgb = self._text_rgb
@@ -442,7 +442,7 @@ class PptxBuilder(IDocumentBuilder):
             for sb in sub_bullets:
                 if sb.strip():
                     p = tf.add_paragraph()
-                    p.text = f"•  {sb.strip()}"
+                    p.text = sb.strip()
                     p.font.name = self._body_font
                     p.font.size = Pt(14)
                     p.font.color.rgb = self._text_rgb

@@ -2,6 +2,8 @@ from __future__ import annotations
 import os
 import re
 import logging
+import base64
+import mimetypes
 from typing import TYPE_CHECKING, Any, Dict, List
 import pathlib
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -35,7 +37,7 @@ class TemplateEngine:
             from docxtpl import InlineImage
             from docx.shared import Inches
 
-            logo_path = self._brand_cfg["logos"].get("docs", "")
+            logo_path = self._resolve_asset_path(self._brand_cfg["logos"].get("docs", ""))
             logo = (
                 InlineImage(doc, logo_path, width=Inches(1.5))
                 if logo_path and os.path.exists(logo_path)
@@ -85,19 +87,15 @@ class TemplateEngine:
                 )
                 return self._render_inline_html(content)
 
-        logo_main_path = self._brand_cfg["logos"].get("main", "")
-        logo_main_src = (
-            pathlib.Path(logo_main_path).as_uri()
-            if logo_main_path and os.path.exists(logo_main_path)
-            else ""
+        logo_main_path = self._resolve_asset_path(
+            self._brand_cfg["logos"].get("main", "")
         )
+        logo_main_src = self._asset_data_uri(logo_main_path)
 
-        logo_docs_path = self._brand_cfg["logos"].get("docs", "")
-        logo_docs_src = (
-            pathlib.Path(logo_docs_path).as_uri()
-            if logo_docs_path and os.path.exists(logo_docs_path)
-            else ""
+        logo_docs_path = self._resolve_asset_path(
+            self._brand_cfg["logos"].get("docs", "")
         )
+        logo_docs_src = self._asset_data_uri(logo_docs_path)
 
         words = content.title.split()
         if len(words) > 1:
@@ -122,6 +120,13 @@ class TemplateEngine:
             "logo_docs_src": logo_docs_src,
             "brand_name": self._brand_cfg.get("nametag", "Convertia"),
             "colors": self._brand_cfg.get("colors", {}),
+            # Fuentes locales incrustadas como data URI para que WeasyPrint las cargue sin internet
+            "font_inter_regular_uri": self._asset_data_uri(
+                self._brand_cfg.get("fonts", {}).get("inter_regular", "")
+            ),
+            "font_inter_bold_uri": self._asset_data_uri(
+                self._brand_cfg.get("fonts", {}).get("inter_bold", "")
+            ),
         }
 
         return template.render(**context)
@@ -372,10 +377,12 @@ class TemplateEngine:
 
         tables_html = "".join(self._table_to_html(t) for t in content.tables)
 
-        logo_path = self._brand_cfg["logos"].get("main", "")
+        logo_path = self._resolve_asset_path(
+            self._brand_cfg["logos"].get("main", "")
+        )
         logo_html = ""
-        if logo_path and os.path.exists(logo_path):
-            valid_uri = pathlib.Path(logo_path).as_uri()
+        valid_uri = self._asset_data_uri(logo_path)
+        if valid_uri:
             logo_html = f'<div style="text-align: right; margin-bottom: 80pt;"><img src="{valid_uri}" style="height: 28px; object-fit: contain;" /></div>'
 
         return f"""<!DOCTYPE html>
@@ -399,9 +406,7 @@ class TemplateEngine:
   .cover .meta {{ margin-top: 60pt; font-size: 9pt; color: #718096; }}
   .section-divider {{ page-break-before: always; background: #ffffff; color: {primary}; font-size: 26pt; font-weight: 700; padding: 28pt 0 22pt; margin: 0 0 24pt; border-bottom: 3pt solid {accent}; }}
   p {{ margin-bottom: 7pt; text-align: justify; color: {primary}; }}
-  ul {{ padding-left: 18pt; margin: 6pt 0 10pt; }}
-  li {{ margin-bottom: 4pt; }}
-  ul li::marker {{ color: {accent}; }}
+    .list-item {{ margin-bottom: 8pt; }}
   .callout-box {{ background-color: {primary}; color: #ffffff; font-weight: bold; padding: 16px 20px; margin: 14pt 0 18pt; text-align: center; }}
   table {{ width: 100%; border-collapse: collapse; margin: 14pt 0 18pt; font-size: 9pt; }}
   thead th {{ background: {primary}; color: white; padding: 7pt 9pt; text-align: left; font-weight: 600; }}
@@ -426,6 +431,37 @@ class TemplateEngine:
   {tables_html}
 </body>
 </html>"""
+
+    @staticmethod
+    def _asset_data_uri(asset_path: str) -> str:
+        if not asset_path or not os.path.isfile(asset_path):
+            logger.warning("Asset documental no encontrado: %s", asset_path)
+            return ""
+        try:
+            mime_type = mimetypes.guess_type(asset_path)[0] or "application/octet-stream"
+            encoded = base64.b64encode(pathlib.Path(asset_path).read_bytes()).decode("ascii")
+            return f"data:{mime_type};base64,{encoded}"
+        except OSError as exc:
+            logger.warning("No se pudo leer asset documental %s: %s", asset_path, exc)
+            return ""
+
+    @staticmethod
+    def _resolve_asset_path(asset_path: str) -> str:
+        candidate = pathlib.Path(asset_path).expanduser() if asset_path else None
+        if candidate and candidate.is_file():
+            return str(candidate)
+
+        fallback = pathlib.Path(_LOGOS_DIR) / pathlib.Path(asset_path).name if asset_path else None
+        if fallback and fallback.is_file():
+            logger.warning(
+                "Ruta configurada para logo no existe; usando fallback: %s -> %s",
+                asset_path,
+                fallback,
+            )
+            return str(fallback)
+
+        logger.error("Logo no encontrado. Ruta configurada: %s", asset_path)
+        return ""
 
     @staticmethod
     def _table_to_html(table: TableData) -> str:

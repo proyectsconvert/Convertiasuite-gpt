@@ -178,4 +178,5 @@ Sigue esta estructura exacta, completando todo el contenido:
 
 - Devuelve **solo** el documento HTML completo y válido.
 - Reemplaza **todos** los campos en mayúsculas (como `NOMBRE_MARCA`, `TITULO_HERO_PRINCIPAL`, etc.) con texto real adaptado al negocio del usuario.
+- No muestres tu razonamiento interno a la hora de generar archivo 
 - Comienza directamente con `<!DOCTYPE html>` sin explicaciones previas.

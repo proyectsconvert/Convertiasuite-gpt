@@ -54,6 +54,18 @@ logger = logging.getLogger(__name__)
 MAX_STREAM_SECONDS = 600
 
 
+def _looks_like_document_request(message: str) -> bool:
+    return bool(
+        re.search(
+            r"\b(?:genera|generar|crea|crear|elabora|elaborar|exporta|exportar|"
+            r"hazme|prepara|preparar|necesito|quiero)\b"
+            r"[\s\S]{0,160}\b(?:pdf|docx?|word|xlsx?|excel|pptx?|powerpoint)\b",
+            message or "",
+            re.IGNORECASE,
+        )
+    )
+
+
 def _extract_document_generation_request(response_text: str) -> tuple[str, dict | None]:
     try:
         json_pattern = r'```(?:json)?\s*(\{[\s\S]*?"generate_document"[\s\S]*?\})\s*```'
@@ -228,6 +240,7 @@ async def process_chat(
     request_start = time.perf_counter()
     session_id = request.session_id
     trace_id = str(uuid.uuid4())
+    suppress_document_response = _looks_like_document_request(request.message)
     
     # Map functional_role to user_role if provided
     if getattr(request, "functional_role", None):
@@ -596,6 +609,7 @@ async def process_chat(
         stream = llm_provider.generate_stream(
             model_messages,
             model_key,
+            skill_prompt=request.skill_prompt,
         )
 
         async def wrapped_stream():
@@ -656,7 +670,8 @@ async def process_chat(
                             break
 
                         full_response += chunk
-                        yield chunk
+                        if not suppress_document_response:
+                            yield chunk
 
                 if stream_stopped:
                     logger.info(
@@ -721,6 +736,11 @@ async def process_chat(
                         _extract_document_generation_request(full_response)
                     )
                     full_response = cleaned_response
+
+                    if document_request:
+                        # El razonamiento y el JSON son datos internos del generador.
+                        # Solo se muestra la confirmación después de crear el archivo.
+                        full_response = "He generado el archivo solicitado."
 
                     assistant_message = Message(
                         id=str(uuid.uuid4()),
@@ -862,7 +882,7 @@ async def process_chat(
                         except Exception as e:
                             logger.warning(f"Landing artifact creation failed: {e}")
                     if document_request:
-                        await _generate_and_attach_document(
+                        generated = await _generate_and_attach_document(
                             document_request,
                             assistant_message,
                             session_id,
@@ -870,6 +890,14 @@ async def process_chat(
                             memory_repo,
                             document_manager,
                         )
+                        if generated:
+                            assistant_message.content = (
+                                "He generado el archivo solicitado."
+                            )
+                        elif suppress_document_response:
+                            assistant_message.content = (
+                                "No pude generar el archivo solicitado."
+                            )
 
                     messages.append(assistant_message)
 
@@ -882,7 +910,7 @@ async def process_chat(
                     try:
                         tokens_in = len(request.message) // 4 if request.message else 0
                         tokens_out = len(full_response) // 4 if full_response else 0
-                        from app.services.usage_service import record_usage
+                        from app.services.usage.usage_service import record_usage
 
                         asyncio.create_task(
                             record_usage(

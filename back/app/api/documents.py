@@ -96,6 +96,20 @@ def get_memory_repo(request: Request) -> IMemoryRepository:
     return request.app.state.memory
 
 
+async def _ensure_session_owner(
+    session_id: Optional[str], current_user: dict, memory_repo: IMemoryRepository
+) -> None:
+    if not session_id:
+        return
+    try:
+        session = await memory_repo.get_session(session_id)
+    except Exception as exc:
+        logger.warning("Session ownership lookup failed: %s", exc)
+        raise HTTPException(status_code=404, detail="Sesión no encontrada") from exc
+    if not session or str(session.get("user_id")) != str(current_user["id"]):
+        raise HTTPException(status_code=403, detail="No tienes permiso para usar esta sesión")
+
+
 def _remove_system_export_json_blocks(content: Any) -> Any:
     if not isinstance(content, str):
         return content
@@ -122,13 +136,15 @@ async def upload_document(
     tags: Optional[list[str]] = Form(None),
     current_user: dict = Depends(get_current_user),
     document_manager: DocumentManager = Depends(get_document_manager),
+    memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
     try:
-        content = await file.read()
+        await _ensure_session_owner(session_id, current_user, memory_repo)
+        max_size = 50 * 1024 * 1024
+        content = await file.read(max_size + 1)
         if not content:
             raise HTTPException(status_code=400, detail="File is empty")
 
-        max_size = 50 * 1024 * 1024
         if len(content) > max_size:
             raise HTTPException(status_code=413, detail="File too large")
 
@@ -299,8 +315,10 @@ async def get_session_documents(
     date_to: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
     document_manager: DocumentManager = Depends(get_document_manager),
+    memory_repo: IMemoryRepository = Depends(get_memory_repo),
 ):
     try:
+        await _ensure_session_owner(session_id, current_user, memory_repo)
         documents = await document_manager.document_repository.get_by_session(
             UUID(session_id)
         )
@@ -342,6 +360,16 @@ async def get_session_documents(
     except Exception as e:
         logger.error(f"Error retrieving documents: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve documents")
+
+
+@router.get("/supported-formats")
+async def get_supported_formats(
+    document_manager: DocumentManager = Depends(get_document_manager),
+):
+    return {
+        "types": [t.value for t in document_manager.get_supported_types()],
+        "extensions": document_manager.get_supported_extensions(),
+    }
 
 
 @router.get("/{document_id}")
@@ -436,19 +464,11 @@ async def delete_document(
             )
 
         return {"message": "Document deleted"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error deleting document: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to delete document")
-
-
-@router.get("/supported-formats")
-async def get_supported_formats(
-    document_manager: DocumentManager = Depends(get_document_manager),
-):
-    return {
-        "types": [t.value for t in document_manager.get_supported_types()],
-        "extensions": document_manager.get_supported_extensions(),
-    }
 
 
 class GenerateFileRequest(BaseModel):
@@ -520,6 +540,7 @@ async def generate_document(
         )
 
     try:
+        await _ensure_session_owner(request.session_id, current_user, memory_repo)
         generator = get_document_generator()
 
         cleaned_content = _remove_system_export_json_blocks(request.content)
@@ -622,6 +643,7 @@ async def generate_and_add_artifact(
         )
 
     try:
+        await _ensure_session_owner(request.session_id, current_user, memory_repo)
         generator = get_document_generator()
         cleaned_content = _remove_system_export_json_blocks(request.content)
         file_bytes = generator.generate(cleaned_content, fmt=format_lower)

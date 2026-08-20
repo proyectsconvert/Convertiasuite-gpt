@@ -34,7 +34,7 @@ const [voiceMode, setVoiceMode] = useState(false)
 const [callTranscript, setCallTranscript] = useState<
 {
   role: "user" | "assistant";
-  content: String;
+  content: string;
 }[]
 >([]);
 
@@ -250,11 +250,8 @@ const [callTranscript, setCallTranscript] = useState<
 
     try {
       let fullResponse = "";
-      // Combine all contexts for the message
+      // Keep skill instructions separate from uploaded document context.
       const contextParts: string[] = [];
-      if (skillPrompt) {
-        contextParts.push(`[SKILL PROMPT]\n${skillPrompt}`);
-      }
       if (extractedContexts) {
         contextParts.push(...extractedContexts);
       }
@@ -270,6 +267,7 @@ const [callTranscript, setCallTranscript] = useState<
             normalizedMessageText.trim() ||
             `Analiza los archivos adjuntos: ${filenames?.join(", ")}`,
           session_id: sid || undefined,
+          skill_prompt: skillPrompt,
           extracted_context: combinedContexts,
           attachment_type: messageType,
           attachment_name: firstName,

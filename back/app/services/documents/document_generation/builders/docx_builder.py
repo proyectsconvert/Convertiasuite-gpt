@@ -169,6 +169,17 @@ class DocxBuilder(IDocumentBuilder):
     def output_format(self) -> str:
         return "docx"
 
+    def _clear_body(self, doc: docx.Document) -> None:
+        """Remove all paragraphs and tables from body, preserving styles/headers/footers."""
+        body = doc.element.body
+        to_remove = []
+        for child in body:
+            tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+            if tag in ("p", "tbl"):
+                to_remove.append(child)
+        for el in to_remove:
+            body.remove(el)
+
     def build(self, content: DocumentContent) -> bytes:
         brand = content.brand or "convertia"
         cfg = BRAND_CONFIG.get(brand, BRAND_CONFIG["convertia"])
@@ -177,72 +188,19 @@ class DocxBuilder(IDocumentBuilder):
         self._body_font = brand_fonts.get("body", "Arial")
 
         try:
-            # Crear documento desde cero
-            doc = docx.Document()
+            # ── 1. Cargar plantilla física (conservando estilos, encabezado y pie) ──
+            template_path = cfg["templates"].get("word")
+            if template_path and os.path.exists(template_path):
+                doc = docx.Document(template_path)
+                self._clear_body(doc)
+                logger.info(f"Plantilla Word cargada y limpiada: {template_path}")
+            else:
+                doc = docx.Document()
+                logger.warning("No se encontró plantilla Word física, usando documento en blanco.")
 
-            # Configuración de página (Tamaño Carta y márgenes de 1 pulgada)
-            section = doc.sections[0]
-            section.page_width = Inches(8.5)
-            section.page_height = Inches(11.0)
-            section.top_margin = Inches(1.0)
-            section.bottom_margin = Inches(1.0)
-            section.left_margin = Inches(1.0)
-            section.right_margin = Inches(1.0)
-
-            section.different_first_page_header_footer = True
-
-            logo_docs_path = cfg["logos"].get("docs")  # Isotopo circular
-            if logo_docs_path and os.path.exists(logo_docs_path):
-                header = section.header
-                hp = header.paragraphs[0]
-                hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-                hrun = hp.add_run()
-                hrun.add_picture(logo_docs_path, height=Inches(0.35))
-
-            footer = section.footer
-            footer_table = footer.add_table(1, 2, Inches(6.5))
-            footer_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-            clear_table_borders(footer_table)
-
-            cell_left = footer_table.cell(0, 0)
-            cell_left.width = Inches(4.5)
-            p_left = cell_left.paragraphs[0]
-            format_paragraph(p_left, space_before_pt=0, space_after_pt=0)
-            r_left = p_left.add_run(
-                "© Intelligence Customer Acquisition — Convertia — Documentación interna"
-            )
-            format_run(
-                r_left,
-                font_name=self._body_font,
-                size_pt=8,
-                color_rgb=RGBColor(113, 128, 150),
-            )
-
-            cell_right = footer_table.cell(0, 1)
-            cell_right.width = Inches(2.0)
-            p_right = cell_right.paragraphs[0]
-            format_paragraph(p_right, space_before_pt=0, space_after_pt=0)
-            p_right.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-
-            r_pfx = p_right.add_run()
-            format_run(
-                r_pfx,
-                font_name=self._body_font,
-                size_pt=8,
-                color_rgb=RGBColor(113, 128, 150),
-            )
-            add_xml_field_to_run(r_pfx, "PAGE")
-
-            p_cover_logo = doc.add_paragraph()
-            format_paragraph(p_cover_logo, space_before_pt=0, space_after_pt=120)
-            p_cover_logo.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-            logo_main_path = cfg["logos"].get("main")
-            if logo_main_path and os.path.exists(logo_main_path):
-                r_logo = p_cover_logo.add_run()
-                r_logo.add_picture(logo_main_path, height=Inches(0.35))
-
+            # ── 2. Portada dinámica ────────────────────────────────────────
             p_title = doc.add_paragraph()
-            format_paragraph(p_title, space_before_pt=18, space_after_pt=8)
+            format_paragraph(p_title, space_before_pt=72, space_after_pt=12)
 
             words = content.title.split()
             if len(words) > 1:
@@ -252,214 +210,190 @@ class DocxBuilder(IDocumentBuilder):
                 part1 = content.title
                 part2 = ""
 
-            r_title1 = p_title.add_run(part1)
-            format_run(
-                r_title1,
-                font_name=self._title_font,
-                size_pt=32,
-                color_rgb=RGBColor(1, 30, 35),
-                bold=True,
-            )
-
+            r1 = p_title.add_run(part1)
+            format_run(r1, font_name=self._title_font, size_pt=32,
+                       color_rgb=RGBColor(1, 30, 35), bold=True)
             if part2:
-                r_title2 = p_title.add_run(part2)
-                format_run(
-                    r_title2,
-                    font_name=self._title_font,
-                    size_pt=32,
-                    color_rgb=RGBColor(113, 128, 150),
-                    bold=True,
-                )
+                r2 = p_title.add_run(part2)
+                format_run(r2, font_name=self._title_font, size_pt=32,
+                           color_rgb=RGBColor(26, 235, 159), bold=True)
 
-            # Subtítulo (color verde corporativo oscuro)
-            p_sub = doc.add_paragraph()
-            format_paragraph(p_sub, space_before_pt=4, space_after_pt=0)
             if content.subtitle:
+                p_sub = doc.add_paragraph()
+                format_paragraph(p_sub, space_before_pt=4, space_after_pt=8)
                 r_sub = p_sub.add_run(content.subtitle)
-                format_run(
-                    r_sub,
-                    font_name=self._title_font,
-                    size_pt=13,
-                    color_rgb=RGBColor(16, 71, 63),
-                )
+                format_run(r_sub, font_name=self._title_font, size_pt=14,
+                           color_rgb=RGBColor(16, 71, 63))
+
+            # Línea separadora accent (tabla 1×1)
+            sep = doc.add_table(rows=1, cols=1)
+            sep.alignment = WD_TABLE_ALIGNMENT.LEFT
+            sep.autofit = False
+            sep.columns[0].width = Inches(6.5)
+            sep_cell = sep.cell(0, 0)
+            sep_cell.width = Inches(6.5)
+            set_cell_background(sep_cell, "1AEB9F")
+            clear_table_borders(sep)
+            set_table_margins(sep, top=0, bottom=0, left=0, right=0)
+            format_paragraph(sep_cell.paragraphs[0], space_before_pt=1, space_after_pt=1)
+            sep_cell.paragraphs[0].add_run(" ")
+
+            # Metadatos de portada
+            p_meta = doc.add_paragraph()
+            format_paragraph(p_meta, space_before_pt=14, space_after_pt=0)
+            r_meta = p_meta.add_run(
+                f"Fecha de generación: {content.get_date()}"
+                f"\nGenerado por: Convertia AI"
+                f"\nClasificación: {content.classification}"
+            )
+            format_run(r_meta, font_name=self._body_font, size_pt=10,
+                       color_rgb=RGBColor(113, 128, 150))
 
             doc.add_page_break()
 
+            # ── 3. Índice de contenidos ───────────────────────────────────
             numbered_sections = number_sections(content.sections)
 
-            page_map = {}
-            current_page = 1  # La portada es 1 en Word físicamente, pero el índice se cuenta y muestra 1
-            section_page = 2
-            for idx, (s_item, num_title, num_str) in enumerate(numbered_sections):
-                if s_item.level == 1 and idx > 0:
-                    section_page += 1
-                page_map[id(s_item)] = section_page
-
-            total_sections_pages = section_page
-            table_page = total_sections_pages + 1
-
             p_idx_title = doc.add_paragraph()
-            format_paragraph(p_idx_title, space_before_pt=24, space_after_pt=18)
-            run_idx_title = p_idx_title.add_run("ÍNDICE")
+            format_paragraph(p_idx_title, space_before_pt=0, space_after_pt=18)
             format_run(
-                run_idx_title,
-                font_name=self._title_font,
-                size_pt=16,
-                color_rgb=RGBColor(1, 30, 35),
-                bold=True,
+                p_idx_title.add_run("ÍNDICE DE CONTENIDOS"),
+                font_name=self._title_font, size_pt=18,
+                color_rgb=RGBColor(1, 30, 35), bold=True,
             )
 
-            for s_item, num_title, num_str in numbered_sections:
+            for s_item, num_title, _ in numbered_sections:
                 p_item = doc.add_paragraph()
                 format_paragraph(p_item, space_before_pt=4, space_after_pt=4)
-
-                # Configurar tabulación con puntos líderes en el margen derecho (6.5 in)
-                p_item.paragraph_format.tab_stops.add_tab_stop(
-                    Inches(6.5),
-                    alignment=docx.enum.text.WD_TAB_ALIGNMENT.RIGHT,
-                    leader=docx.enum.text.WD_TAB_LEADER.DOTS,
-                )
-
-                # Sangría según nivel
                 if s_item.level == 2:
-                    p_item.paragraph_format.left_indent = Inches(0.25)
+                    p_item.paragraph_format.left_indent = Inches(0.3)
                 elif s_item.level == 3:
-                    p_item.paragraph_format.left_indent = Inches(0.5)
-
-                p_num = page_map[id(s_item)]
-                r_item = p_item.add_run(f"{num_title}\t{p_num}")
+                    p_item.paragraph_format.left_indent = Inches(0.6)
+                bullet_char = "—" if s_item.level == 1 else "·"
                 format_run(
-                    r_item,
-                    font_name=self._body_font,
-                    size_pt=10,
-                    color_rgb=RGBColor(45, 55, 72),
+                    p_item.add_run(f"{bullet_char}  {num_title}"),
+                    font_name=self._body_font, size_pt=10,
+                    color_rgb=RGBColor(45, 55, 72), bold=(s_item.level == 1),
                 )
 
             doc.add_page_break()
 
-            for s_idx, (section_item, numbered_title, num_str) in enumerate(
-                numbered_sections
-            ):
+            # ── 4. Cuerpo del documento ───────────────────────────────────
+            for s_idx, (section_item, numbered_title, _) in enumerate(numbered_sections):
                 level = section_item.level
 
                 if level == 1:
                     if s_idx > 0:
                         doc.add_page_break()
-
-                    p = doc.add_paragraph()
-                    format_paragraph(
-                        p, space_before_pt=24, space_after_pt=18, keep_with_next=True
-                    )
-                    r = p.add_run(numbered_title)
-                    format_run(
-                        r,
-                        font_name=self._title_font,
-                        size_pt=16,
-                        color_rgb=RGBColor(1, 30, 35),
-                        bold=True,
-                    )
+                    self._add_section_divider(doc, numbered_title)
 
                 elif level == 2:
                     p = doc.add_paragraph()
-                    format_paragraph(
-                        p, space_before_pt=18, space_after_pt=8, keep_with_next=True
-                    )
-                    r = p.add_run(numbered_title)
-                    format_run(
-                        r,
-                        font_name=self._title_font,
-                        size_pt=13,
-                        color_rgb=RGBColor(1, 30, 35),
-                        bold=True,
-                    )
+                    format_paragraph(p, space_before_pt=20, space_after_pt=8, keep_with_next=True)
+                    self._add_left_border(p, color_hex="1AEB9F")
+                    p.paragraph_format.left_indent = Inches(0.2)
+                    format_run(p.add_run(numbered_title), font_name=self._title_font,
+                               size_pt=13, color_rgb=RGBColor(16, 71, 63), bold=True)
 
                 else:
                     p = doc.add_paragraph()
-                    format_paragraph(
-                        p, space_before_pt=14, space_after_pt=6, keep_with_next=True
-                    )
-                    r = p.add_run(numbered_title)
-                    format_run(
-                        r,
-                        font_name=self._title_font,
-                        size_pt=11.5,
-                        color_rgb=RGBColor(45, 55, 72),
-                        bold=True,
-                    )
+                    format_paragraph(p, space_before_pt=14, space_after_pt=6, keep_with_next=True)
+                    format_run(p.add_run(numbered_title), font_name=self._title_font,
+                               size_pt=11, color_rgb=RGBColor(45, 55, 72), bold=True)
 
                 # Párrafos de texto
                 if section_item.content:
                     for para in section_item.content.split("\n"):
-                        if para.strip():
-                            if para.strip().startswith(">"):
-                                # Renderizar como bloque de cita/destacado
-                                text = para.strip().lstrip(">").strip()
-                                self._add_docx_callout_box(doc, text)
-                            else:
-                                p_text = doc.add_paragraph()
-                                format_paragraph(
-                                    p_text, space_before_pt=0, space_after_pt=6
-                                )
-                                p_text.paragraph_format.alignment = (
-                                    WD_ALIGN_PARAGRAPH.JUSTIFY
-                                )
-                                r_text = p_text.add_run(para.strip())
-                                format_run(
-                                    r_text,
-                                    font_name=self._body_font,
-                                    size_pt=10.5,
-                                    color_rgb=RGBColor(45, 55, 72),
-                                )
+                        para = para.strip()
+                        if not para:
+                            continue
+                        if para.startswith(">"):
+                            self._add_docx_callout_box(doc, para.lstrip(">").strip())
+                        else:
+                            p_text = doc.add_paragraph()
+                            format_paragraph(p_text, space_before_pt=0, space_after_pt=6)
+                            p_text.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                            format_run(p_text.add_run(para), font_name=self._body_font,
+                                       size_pt=10.5, color_rgb=RGBColor(45, 55, 72))
 
                 # Viñetas
                 if section_item.bullets:
                     for bullet in section_item.bullets:
-                        if bullet.strip():
-                            p_bullet = doc.add_paragraph(style="List Bullet")
-                            format_paragraph(
-                                p_bullet, space_before_pt=0, space_after_pt=4
-                            )
-                            r_bullet = p_bullet.add_run(bullet.strip())
-                            format_run(
-                                r_bullet,
-                                font_name=self._body_font,
-                                size_pt=10.5,
-                                color_rgb=RGBColor(45, 55, 72),
-                            )
+                        bullet = bullet.strip()
+                        if not bullet:
+                            continue
+                        p_bullet = doc.add_paragraph()
+                        format_paragraph(p_bullet, space_before_pt=0, space_after_pt=4)
+                        p_bullet.paragraph_format.left_indent = Inches(0.2)
+                        format_run(p_bullet.add_run(f"• {bullet}"), font_name=self._body_font,
+                                   size_pt=10.5, color_rgb=RGBColor(45, 55, 72))
 
-                # Tabla inline
+                # Tabla inline de la sección
                 if section_item.table:
                     self._add_docx_table(doc, section_item.table)
 
-            # Tablas globales al final del documento
+            # ── 5. Tablas globales ────────────────────────────────────────
             if content.tables:
                 doc.add_page_break()
-                p_table_title = doc.add_paragraph()
-                format_paragraph(p_table_title, space_before_pt=24, space_after_pt=18)
-                # Título de la sección de tablas
-                r_tab_title = p_table_title.add_run(
-                    f"{len(content.sections)+1}. Ejemplo de tabla"
-                )
-                format_run(
-                    r_tab_title,
-                    font_name=self._title_font,
-                    size_pt=16,
-                    color_rgb=RGBColor(1, 30, 35),
-                    bold=True,
-                )
-
+                p_gt = doc.add_paragraph()
+                format_paragraph(p_gt, space_before_pt=0, space_after_pt=18)
+                format_run(p_gt.add_run("TABLAS Y DATOS ADICIONALES"),
+                           font_name=self._title_font, size_pt=18,
+                           color_rgb=RGBColor(1, 30, 35), bold=True)
                 for table in content.tables:
                     self._add_docx_table(doc, table)
 
-            # Guardar documento en buffer
+            # ── 6. Guardar y retornar ─────────────────────────────────────
             buffer = BytesIO()
             doc.save(buffer)
-            logger.info(f"DOCX generado con diseño de mockup: '{content.title}'")
+            logger.info(f"DOCX generado exitosamente: '{content.title}'")
             return buffer.getvalue()
 
         except Exception as e:
-            logger.error(f"Error generando DOCX mockup '{content.title}': {e}")
+            logger.error(f"Error generando DOCX '{content.title}': {e}", exc_info=True)
             raise RuntimeError(f"Error al generar el archivo DOCX: {e}") from e
+
+    def _add_section_divider(self, doc: docx.Document, title: str) -> None:
+        """Adds a dark background block as a section header (level 1)."""
+        table = doc.add_table(rows=1, cols=1)
+        table.alignment = WD_TABLE_ALIGNMENT.LEFT
+        table.autofit = False
+        table.columns[0].width = Inches(6.5)
+        cell = table.cell(0, 0)
+        cell.width = Inches(6.5)
+        set_cell_background(cell, "011E23")
+        clear_table_borders(table)
+        set_table_margins(table, top=160, bottom=160, left=200, right=200)
+
+        p = cell.paragraphs[0]
+        format_paragraph(p, space_before_pt=0, space_after_pt=0)
+        r = p.add_run(title)
+        format_run(r, font_name=self._title_font, size_pt=16,
+                   color_rgb=RGBColor(255, 255, 255), bold=True)
+
+        # Accent bar below
+        bar = doc.add_table(rows=1, cols=1)
+        bar.alignment = WD_TABLE_ALIGNMENT.LEFT
+        bar.autofit = False
+        bar.columns[0].width = Inches(1.5)
+        bar_cell = bar.cell(0, 0)
+        bar_cell.width = Inches(1.5)
+        set_cell_background(bar_cell, "1AEB9F")
+        clear_table_borders(bar)
+        set_table_margins(bar, top=0, bottom=0, left=0, right=0)
+        p_bar = bar_cell.paragraphs[0]
+        p_bar.add_run(" ")
+        format_paragraph(p_bar, space_before_pt=2, space_after_pt=14)
+
+    def _add_left_border(self, paragraph, color_hex: str = "1AEB9F") -> None:
+        """Adds a colored left border to a paragraph via XML."""
+        pPr = paragraph._p.get_or_add_pPr()
+        pBdr = parse_xml(
+            f'<w:pBdr {nsdecls("w")}>'
+            f'  <w:left w:val="single" w:sz="18" w:space="4" w:color="{color_hex}"/>'
+            f'</w:pBdr>'
+        )
+        pPr.append(pBdr)
 
     def _add_docx_callout_box(self, doc, text):
         table = doc.add_table(rows=1, cols=1)
