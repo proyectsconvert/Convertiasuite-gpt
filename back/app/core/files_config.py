@@ -67,7 +67,7 @@ BRAND_CONFIG = {
         
         "logos": {
             "main":  os.path.join(BASE_DIR, "assets", "logos", "convertia_main.png"),
-            "docs":  os.path.join(BASE_DIR, "assets", "logos", "convertia_docs.png"),
+            "docs":  os.path.join(BASE_DIR, "assets", "logos", "convertia_main.png"),
             "white": os.path.join(BASE_DIR, "assets", "logos", "convertia_white.png"),
         },
         

@@ -202,12 +202,15 @@ export default function ChatInput({
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionIndex, setMentionIndex] = useState(0);
-  const [selectedSkillForMessage, setSelectedSkillForMessage] = useState<Skill | null>(null);
+  const [selectedSkillsForMessage, setSelectedSkillsForMessage] = useState<Skill[]>([]);
   const mentionDropdownRef = useRef<HTMLDivElement>(null);
   const activeMentionItemRef = useRef<HTMLButtonElement>(null);
 
   const enabledSkills = useMemo(
-    () => skills.filter((s) => enabledSkillIds.includes(s.id)),
+    () =>
+      enabledSkillIds.length > 0
+        ? skills.filter((s) => enabledSkillIds.includes(s.id))
+        : skills,
     [skills, enabledSkillIds],
   );
 
@@ -217,7 +220,9 @@ export default function ChatInput({
     return enabledSkills.filter(
       (s) =>
         s.name.toLowerCase().includes(q) ||
-        s.category.toLowerCase().includes(q),
+        s.id.toLowerCase().includes(q) ||
+        s.category.toLowerCase().includes(q) ||
+        s.tags.some((t) => t.toLowerCase().includes(q)),
     );
   }, [enabledSkills, mentionQuery]);
 
@@ -271,6 +276,34 @@ export default function ChatInput({
   const handleSubmit = useCallback(() => {
     const canSend = value.trim() || attachedFiles.length > 0;
     if (canSend && !isLoading && uploadState === "idle") {
+      let activeSkills = [...selectedSkillsForMessage];
+
+      // Fallback: If fewer than 2 skills selected via dropdown, check if value contains @SkillName or @SkillId
+      if (activeSkills.length < 2 && value.includes("@")) {
+        const lowerVal = value.toLowerCase();
+        for (const s of skills) {
+          if (activeSkills.length >= 2) break;
+          if (!activeSkills.some((sk) => sk.id === s.id)) {
+            if (
+              lowerVal.includes(`@${s.name.toLowerCase()}`) ||
+              lowerVal.includes(`@${s.id.toLowerCase()}`)
+            ) {
+              activeSkills.push(s);
+            }
+          }
+        }
+      }
+
+      // Limit to max 2 skills
+      activeSkills = activeSkills.slice(0, 2);
+
+      const combinedSkillPrompts =
+        activeSkills.length > 0
+          ? activeSkills
+              .map((s, idx) => `[SKILL PROMPT ${idx + 1}: ${s.name}]\n${s.prompt}`)
+              .join("\n\n---\n\n")
+          : undefined;
+
       const contexts = attachedFiles.map((f) => f.context);
       const filenames = attachedFiles.map((f) => f.name);
       const types = attachedFiles.map((f) => f.type || "archivo");
@@ -278,13 +311,13 @@ export default function ChatInput({
         contexts.length > 0 ? contexts : undefined,
         filenames.length > 0 ? filenames : undefined,
         types.length > 0 ? types : undefined,
-        selectedSkillForMessage?.prompt || undefined,
+        combinedSkillPrompts,
       );
       setAttachedFiles([]);
-      setSelectedSkillForMessage(null);
+      setSelectedSkillsForMessage([]);
       setShowMentionDropdown(false);
     }
-  }, [value, attachedFiles, isLoading, uploadState, onSend, selectedSkillForMessage]);
+  }, [value, attachedFiles, isLoading, uploadState, onSend, selectedSkillsForMessage, skills]);
 
   // ENTER SEND
   const handleKeyDown = useCallback(
@@ -320,26 +353,30 @@ export default function ChatInput({
     [handleSubmit, showMentionDropdown, filteredMentionSkills, mentionIndex],
   );
 
-  // Garantiza que solo haya 1 skill activa a la vez
+  // Permite hasta 2 skills activas por mensaje
   const selectMentionSkill = useCallback((skill: Skill) => {
+    if (selectedSkillsForMessage.some((s) => s.id === skill.id)) {
+      setShowMentionDropdown(false);
+      return;
+    }
+
+    if (selectedSkillsForMessage.length >= 2) {
+      toast({
+        title: "Límite de skills alcanzado",
+        description: "Solo se permite activar un máximo de 2 skills por mensaje.",
+        variant: "destructive",
+      });
+      setShowMentionDropdown(false);
+      return;
+    }
+
     const cursorPos = textareaRef.current?.selectionStart ?? value.length;
     const textBeforeCursor = value.substring(0, cursorPos);
     const atIndex = textBeforeCursor.lastIndexOf("@");
 
-    // Limpiar cualquier @mention de skill previa en todo el valor antes de insertar la nueva
-    let cleanValue = value;
-    if (selectedSkillForMessage) {
-      cleanValue = cleanValue.replace(new RegExp(`@${selectedSkillForMessage.name}\\s?`, "g"), "");
-    }
-
-    // Recalcular índice de cursor sobre la cadena limpia
-    const newCursorPos = Math.min(cursorPos, cleanValue.length);
-    const newTextBefore = cleanValue.substring(0, newCursorPos);
-    const newAtIndex = newTextBefore.lastIndexOf("@");
-
-    if (newAtIndex !== -1) {
-      const before = cleanValue.substring(0, newAtIndex);
-      const after = cleanValue.substring(newCursorPos);
+    if (atIndex !== -1) {
+      const before = value.substring(0, atIndex);
+      const after = value.substring(cursorPos);
       const newValue = `${before}@${skill.name} ${after}`;
       onChange(newValue);
 
@@ -350,11 +387,11 @@ export default function ChatInput({
       });
     }
 
-    setSelectedSkillForMessage(skill);
+    setSelectedSkillsForMessage((prev) => [...prev, skill]);
     setShowMentionDropdown(false);
     setMentionQuery("");
     setMentionIndex(0);
-  }, [value, onChange, selectedSkillForMessage]);
+  }, [value, onChange, selectedSkillsForMessage, toast]);
 
   // FIX #3: only trigger @mention when "@" is at the start of the string or preceded by whitespace
   const handleInputChange = useCallback((newValue: string) => {
@@ -919,36 +956,45 @@ export default function ChatInput({
                 )}
               </AnimatePresence>
 
-              {/* Selected skill badge */}
+              {/* Selected skills badges (max 2) */}
               <AnimatePresence>
-                {selectedSkillForMessage && (
+                {selectedSkillsForMessage.length > 0 && (
                   <motion.div
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
-                    className="mx-4 mt-2 flex items-center gap-2"
+                    className="mx-4 mt-2 flex flex-wrap items-center gap-2"
                   >
-                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 border border-primary/20 text-xs">
-                      <Sparkles className="w-3 h-3 text-primary" />
-                      <span className="text-primary font-medium">
-                        {selectedSkillForMessage.name}
-                      </span>
-                      <button
-                        onClick={() => {
-                          setSelectedSkillForMessage(null);
-                          // Remove @mention from input
-                          const cleaned = value.replace(
-                            new RegExp(`@${selectedSkillForMessage.name}\\s?`),
-                            ""
-                          );
-                          onChange(cleaned);
-                        }}
-                        className="ml-0.5 p-0.5 rounded hover:bg-primary/20 transition-colors"
+                    {selectedSkillsForMessage.map((sk) => (
+                      <div
+                        key={sk.id}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 border border-primary/20 text-xs"
                       >
-                        <X className="w-2.5 h-2.5 text-primary" />
-                      </button>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground">Skill activa para este mensaje</span>
+                        <Sparkles className="w-3 h-3 text-primary" />
+                        <span className="text-primary font-medium">
+                          {sk.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedSkillsForMessage((prev) =>
+                              prev.filter((item) => item.id !== sk.id),
+                            );
+                            const cleaned = value.replace(
+                              new RegExp(`@${sk.name}\\s?`, "gi"),
+                              "",
+                            );
+                            onChange(cleaned);
+                          }}
+                          className="ml-0.5 p-0.5 rounded hover:bg-primary/20 transition-colors"
+                        >
+                          <X className="w-2.5 h-2.5 text-primary" />
+                        </button>
+                      </div>
+                    ))}
+                    <span className="text-[10px] text-muted-foreground">
+                      {selectedSkillsForMessage.length}/2 skills activas
+                    </span>
                   </motion.div>
                 )}
               </AnimatePresence>
