@@ -322,60 +322,12 @@ async def process_chat(
                     trace_id,
                 )
 
-        # Extract skill prompt(s) if passed in request or if @skills are mentioned in query (Max 2)
-        skill_prompts_list = []
-        raw_extracted = request.extracted_context or ""
-
-        if "[SKILL PROMPT" in raw_extracted:
-            if "\n\n---\n\n" in raw_extracted:
-                parts = raw_extracted.split("\n\n---\n\n")
-                non_skill_parts = []
-                for p in parts:
-                    if "[SKILL PROMPT" in p:
-                        skill_prompts_list.append(p.strip())
-                    else:
-                        non_skill_parts.append(p)
-                raw_extracted = "\n\n---\n\n".join(non_skill_parts).strip()
-            else:
-                skill_prompts_list.append(raw_extracted.strip())
-                raw_extracted = ""
-
-        # Fallback: Check if clean_input mentions @SkillName or @skill_id (up to 2)
-        if len(skill_prompts_list) < 2 and "@" in clean_input:
-            try:
-                from app.api.skills import _load_skills
-                all_skills = _load_skills()
-                clean_lower = clean_input.lower()
-                for sk in all_skills:
-                    if len(skill_prompts_list) >= 2:
-                        break
-                    match_mention = (
-                        f"@{sk.name.lower()}" in clean_lower
-                        or f"@{sk.id.lower()}" in clean_lower
-                    )
-                    if match_mention:
-                        if not any(
-                            sk.name.lower() in existing.lower()
-                            for existing in skill_prompts_list
-                        ):
-                            skill_prompts_list.append(
-                                f"[SKILL PROMPT: {sk.name}]\n{sk.prompt}"
-                            )
-                            logger.info(
-                                "Matched skill from @ mention in text: %s", sk.name
-                            )
-            except Exception as sk_err:
-                logger.warning("Error checking skill @ mentions: %s", sk_err)
-
-        # Enforce max limit of 2 skills
-        skill_prompts_list = skill_prompts_list[:2]
-
         user_attachments = []
         attachment_name = "archivo adjunto"
         attachment_type = "archivo"
         is_image = False
 
-        if raw_extracted:
+        if request.extracted_context:
             attachment_name = request.attachment_name or attachment_name
             attachment_type = request.attachment_type or attachment_type
             is_image = (
@@ -393,7 +345,7 @@ async def process_chat(
                 try:
                     if not is_image:
                         await document_manager.process_document(
-                            file_content=raw_extracted.encode("utf-8"),
+                            file_content=request.extracted_context.encode("utf-8"),
                             filename=attachment_name,
                             session_id=uuid.UUID(session_id),
                             user_id=uuid.UUID(user_id),
@@ -408,8 +360,8 @@ async def process_chat(
                             storage_path=storage_path,
                             file_name=attachment_name,
                             mime_type=attachment_type,
-                            file_size=len(raw_extracted),
-                            extracted_text=raw_extracted,
+                            file_size=len(request.extracted_context),
+                            extracted_text=request.extracted_context,
                         )
                 except Exception as doc_err:
                     logger.warning(
@@ -523,10 +475,10 @@ async def process_chat(
             else:
                 doc_context = rag_context
 
-        if not doc_context and raw_extracted and not is_image:
+        if not doc_context and request.extracted_context and not is_image:
             is_tabular = request.attachment_type in ("csv", "excel")
             if is_tabular:
-                raw_text = raw_extracted
+                raw_text = request.extracted_context
 
                 if needs_chunking(raw_text):
                     # --- Muestreo estático para archivos grandes (Optimización CPU) ---
@@ -548,7 +500,7 @@ async def process_chat(
             else:
                 paragraphs = [
                     p.strip()
-                    for p in raw_extracted.split("\n\n")
+                    for p in request.extracted_context.split("\n\n")
                     if p.strip()
                 ]
                 query_words = set(clean_input.lower().split())
@@ -575,8 +527,8 @@ async def process_chat(
 
         message_content = clean_input
         images_list = []
-        if raw_extracted and is_image:
-            images_list = [raw_extracted]
+        if request.extracted_context and is_image:
+            images_list = [request.extracted_context]
             if clean_input:
                 message_content = f"[El usuario ha adjuntado la imagen: {attachment_name}]\nPregunta del usuario sobre este archivo: {clean_input}"
             else:
@@ -608,23 +560,6 @@ async def process_chat(
                     images=getattr(msg, "images", []),
                 )
             )
-
-        if skill_prompts_list and model_messages:
-            last_msg = model_messages[-1]
-            if last_msg.role == "user":
-                skills_formatted = "\n\n---\n\n".join(skill_prompts_list)
-                last_msg.content = (
-                    f"--- INSTRUCCIONES DE SKILLS ESPECIALIZADAS (MÁXIMO 2) ---\n"
-                    f"{skills_formatted}\n"
-                    f"-----------------------------------------------------\n\n"
-                    f"{last_msg.content}"
-                )
-                logger.info(
-                    "Injected %d active skills into model query session=%s trace_id=%s",
-                    len(skill_prompts_list),
-                    session_id,
-                    trace_id,
-                )
 
         if doc_context and model_messages:
             last_msg = model_messages[-1]
