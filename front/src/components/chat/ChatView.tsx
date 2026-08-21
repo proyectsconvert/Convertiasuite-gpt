@@ -250,16 +250,9 @@ const [callTranscript, setCallTranscript] = useState<
 
     try {
       let fullResponse = "";
-      // Combine all contexts for the message
-      const contextParts: string[] = [];
-      if (skillPrompt) {
-        contextParts.push(`[SKILL PROMPT]\n${skillPrompt}`);
-      }
-      if (extractedContexts) {
-        contextParts.push(...extractedContexts);
-      }
-      const combinedContexts = contextParts.length > 0
-        ? contextParts.join("\n\n---\n\n")
+      // extracted_context solo contiene contexto de documentos/archivos (NO el skill prompt)
+      const combinedContexts = extractedContexts && extractedContexts.length > 0
+        ? extractedContexts.join("\n\n---\n\n")
         : undefined;
       const messageType = attachmentTypes?.[0];
       const firstName = filenames?.[0];
@@ -274,6 +267,8 @@ const [callTranscript, setCallTranscript] = useState<
           attachment_type: messageType,
           attachment_name: firstName,
           functional_role: user?.functional_role,
+          // skill_prompt se envía como campo propio, separado del contexto de documentos
+          skill_prompt: skillPrompt || undefined,
         },
         { signal: controller.signal },
       )) {

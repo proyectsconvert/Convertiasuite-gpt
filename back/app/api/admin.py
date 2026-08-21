@@ -7,12 +7,16 @@ import string
 from datetime import datetime, timezone, timedelta
 import dateutil.parser
 from collections import defaultdict
+import os
 
 from app.dependencies.auth import get_current_user, require_admin
 from app.infra.clients.supabase_client import SupabaseClient
 from app.schemas.admin import InviteUserRequest
 
 logger = logging.getLogger(__name__)
+
+# URL del frontend para los redirects de invitación y recuperación de contraseña
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 router = APIRouter(
     prefix="/admin",
@@ -587,7 +591,10 @@ async def invite_user(
                     try:
                         auth_res = supabase.auth.admin.invite_user_by_email(
                             body.email,
-                            options={"data": user_metadata}
+                            options={
+                                "data": user_metadata,
+                                "redirect_to": f"{FRONTEND_URL}/update-password",
+                            }
                         )
                         new_user = getattr(auth_res, "user", None) or auth_res
                         if new_user and hasattr(new_user, "id"):
@@ -610,7 +617,10 @@ async def invite_user(
                 try:
                     auth_res = supabase.auth.admin.invite_user_by_email(
                         body.email,
-                        options={"data": user_metadata}
+                        options={
+                            "data": user_metadata,
+                            "redirect_to": f"{FRONTEND_URL}/update-password",
+                        }
                     )
                     new_user = getattr(auth_res, "user", None) or auth_res
                     if new_user and hasattr(new_user, "id"):

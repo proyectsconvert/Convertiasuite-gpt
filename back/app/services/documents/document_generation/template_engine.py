@@ -2,6 +2,7 @@ from __future__ import annotations
 import os
 import re
 import logging
+import base64
 from typing import TYPE_CHECKING, Any, Dict, List
 import pathlib
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -86,18 +87,22 @@ class TemplateEngine:
                 return self._render_inline_html(content)
 
         logo_main_path = self._brand_cfg["logos"].get("main", "")
-        logo_main_src = (
-            pathlib.Path(logo_main_path).as_uri()
-            if logo_main_path and os.path.exists(logo_main_path)
-            else ""
-        )
+        logo_main_src = ""
+        if logo_main_path and os.path.exists(logo_main_path):
+            try:
+                with open(logo_main_path, "rb") as img_file:
+                    logo_main_src = base64.b64encode(img_file.read()).decode("utf-8")
+            except Exception as e:
+                logger.warning(f"Error encoding main logo to base64: {e}")
 
         logo_docs_path = self._brand_cfg["logos"].get("docs", "")
-        logo_docs_src = (
-            pathlib.Path(logo_docs_path).as_uri()
-            if logo_docs_path and os.path.exists(logo_docs_path)
-            else ""
-        )
+        logo_docs_src = ""
+        if logo_docs_path and os.path.exists(logo_docs_path):
+            try:
+                with open(logo_docs_path, "rb") as img_file:
+                    logo_docs_src = base64.b64encode(img_file.read()).decode("utf-8")
+            except Exception as e:
+                logger.warning(f"Error encoding docs logo to base64: {e}")
 
         words = content.title.split()
         if len(words) > 1:
@@ -375,8 +380,12 @@ class TemplateEngine:
         logo_path = self._brand_cfg["logos"].get("main", "")
         logo_html = ""
         if logo_path and os.path.exists(logo_path):
-            valid_uri = pathlib.Path(logo_path).as_uri()
-            logo_html = f'<div style="text-align: right; margin-bottom: 80pt;"><img src="{valid_uri}" style="height: 28px; object-fit: contain;" /></div>'
+            try:
+                with open(logo_path, "rb") as img_file:
+                    b64_data = base64.b64encode(img_file.read()).decode("utf-8")
+                    logo_html = f'<div style="text-align: right; margin-bottom: 80pt;"><img src="data:image/png;base64,{b64_data}" style="height: 28px; object-fit: contain;" /></div>'
+            except Exception as e:
+                logger.warning(f"Error encoding main logo in inline HTML: {e}")
 
         return f"""<!DOCTYPE html>
 <html lang="es">

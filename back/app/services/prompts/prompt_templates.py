@@ -182,6 +182,41 @@ def build_system_prompt(
     return "\n\n".join(parts)
 
 
+def build_system_prompt_with_skill(
+    domain: str = "default",
+    skill_prompt: str | None = None,
+    include_style: bool = True,
+    include_policy: bool = True,
+) -> str:
+    """
+    Construye el system prompt incluyendo el prompt de skill(s) activas.
+    El skill_prompt se inyecta DESPUÉS del prompt de identidad base y ANTES del dominio,
+    para que tenga prioridad en el comportamiento pero sin suplantar las reglas base.
+    """
+    parts = [BASE_IDENTITY_PROMPT]
+
+    if skill_prompt and skill_prompt.strip():
+        skill_block = (
+            "## INSTRUCCIONES DE SKILL ACTIVA\n"
+            "El usuario ha activado una o más skills especializadas. "
+            "Sigue estas instrucciones adicionales con alta prioridad:\n\n"
+            f"{skill_prompt.strip()}"
+        )
+        parts.append(skill_block)
+        logger.debug("Skill prompt inyectado en system prompt (%d chars)", len(skill_prompt))
+
+    if domain in DOMAIN_PROMPTS:
+        parts.append(DOMAIN_PROMPTS[domain])
+
+    if include_style:
+        parts.append(STYLE_PROMPT)
+
+    if include_policy:
+        parts.append(MINIMAL_POLICY_PROMPT)
+
+    return "\n\n".join(parts)
+
+
 SYSTEM_PROMPTS = {
     "default": {"system": build_system_prompt(domain="default")},
     "code": {"system": build_system_prompt(domain="dev")},
@@ -217,7 +252,23 @@ def get_system_prompt(model_key: str) -> str:
     return prompt_data["system"]
 
 
-def build_messages(messages: list, model_key: str) -> dict:
+def get_system_prompt_with_skill(model_key: str, skill_prompt: str | None = None) -> str:
+    """Devuelve el system prompt para el model_key dado, con skill prompt inyectado si se proporciona."""
+    if not skill_prompt or not skill_prompt.strip():
+        return get_system_prompt(model_key)
+
+    # Mapear model_key a domain para construir dinámicamente con skill
+    _key_to_domain = {
+        "default": "default", "code": "dev", "dev": "dev", "landing": "landing",
+        "html": "landing", "bi": "bi", "marketing": "marketing", "it": "it",
+        "rh": "rh", "design": "design", "vision": "vision", "reasoning": "reasoning",
+        "medical": "medical", "analysis": "analysis", "ocr": "vision",
+    }
+    domain = _key_to_domain.get(model_key, "default")
+    return build_system_prompt_with_skill(domain=domain, skill_prompt=skill_prompt)
+
+
+def build_messages(messages: list, model_key: str, skill_prompt: str | None = None) -> dict:
     formatted = []
     for m in messages:
         msg_dict = {"role": m.role, "content": m.content}
@@ -225,7 +276,7 @@ def build_messages(messages: list, model_key: str) -> dict:
             msg_dict["images"] = m.images
         formatted.append(msg_dict)
     return {
-        "system": get_system_prompt(model_key),
+        "system": get_system_prompt_with_skill(model_key, skill_prompt),
         "messages": formatted,
     }
 

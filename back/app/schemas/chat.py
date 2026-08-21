@@ -25,6 +25,7 @@ class ChatRequest(BaseModel):
     attachment_type: Optional[str] = None
     attachment_name: Optional[str] = None
     functional_role: Optional[str] = None
+    skill_prompt: Optional[str] = None  # Prompt de skill(s) seleccionadas (máx 2)
     model_config = {"use_enum_values": True}
 
 class VoiceChatRequest(BaseModel):

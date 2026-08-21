@@ -35,7 +35,7 @@ class DocumentContent(BaseModel):
 
     title: str
     subtitle: Optional[str] = None
-    author: str = "Olivia AI — ConvertGPT"
+    author: str = "Oliv—AI GPT"
     date: Optional[str] = None  
     classification: str = "Confidencial Corporativo"
     metadata: Optional[Dict[str, Any]] = None

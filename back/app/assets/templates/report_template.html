@@ -2,60 +2,51 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <title>{{ title }}</title>
+    <title>{{ title | default('Título del documento') }}</title>
     <style>
-      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap");
+      /* Switzer: tipografía de títulos usada en la plantilla Word (Fontshare, gratuita) */
+      @import url("https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap");
+      /* Inter: tipografía de cuerpo usada en la plantilla Word */
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
       @page {
-        size: letter;
-        margin: 2.4cm 1.8cm 2.2cm 1.8cm;
+        size: A4;
+        margin: 2.5cm 2.5cm 2.5cm 2.5cm;
 
         @top-right {
           content: element(header-logo);
           vertical-align: middle;
         }
 
-        @bottom-left {
-          content: "© Intelligence Customer Acquisition — Convertia — Documentación interna";
-          font-family: Inter, Arial, sans-serif;
-          font-size: 7.5pt;
-          color: #718096;
-          vertical-align: middle;
-        }
-
         @bottom-right {
-          content: "Pág. " counter(page);
-          font-family: Inter, Arial, sans-serif;
-          font-size: 7.5pt;
-          color: #718096;
+          content: counter(page);
+          font-family: "Switzer", Inter, Arial, sans-serif;
+          font-size: 10pt;
+          font-weight: 700;
+          color: #30db98;
           vertical-align: middle;
         }
       }
 
+      /* La portada no lleva ni logo de encabezado ni número de página, igual que en el Word (titlePg) */
       @page :first {
-        margin-top: 0;
-        @top-right {
-          content: "";
-        }
-        @bottom-left {
-          content: "";
-        }
-        @bottom-right {
-          content: "";
-        }
+        @top-right { content: ""; }
+        @bottom-right { content: ""; }
       }
 
       :root {
-        --color-primary: rgb(1, 30, 35);
-        --color-green: rgb(16, 71, 63);
-        --color-accent: rgb(26, 235, 159);
-        --color-lavender: rgb(186, 184, 255);
-        --color-body: rgb(45, 55, 72);
-        --color-muted: rgb(113, 128, 150);
-        --color-bg-lite: #f5f5f5;
-        --color-border: rgb(219, 223, 252);
-        --color-white: #ffffff;  
-          }
+        --color-primary: #011e23;   /* Título / Título 1 / Título 2 / Subtítulo (theme "text1") */
+        --color-toc: #004851;       /* TOC Heading ("ÍNDICE") (theme "text2") */
+        --color-accent: #1aeda1;    /* Énfasis intenso / verde de marca (theme "accent1") */
+        --color-page-number: #30db98;
+        --color-muted: #5b6770;     /* "documento" en portada, texto de comentarios (theme "accent6") */
+        --color-body: #2d3338;      /* Normal (theme "accent6" shade 80%) */
+        --color-lavender: #bab8ff;  /* accent2, sin uso directo en esta plantilla pero parte de la paleta */
+        --color-badge-bg: #f2f2f2;
+        --color-table-border: #d9d9d9;
+        --color-table-highlight: #ccfff0; /* accent5 */
+        --color-white: #ffffff;
+      }
 
       * {
         box-sizing: border-box;
@@ -64,79 +55,80 @@
       }
 
       body {
-        font-family: Inter, Arial, sans-serif;
-        font-size: 10.5pt;
+        font-family: "Inter", Arial, sans-serif;
+        font-size: 11pt;
         color: var(--color-body);
-        line-height: 1.65;
+        line-height: 1.6;
       }
 
+      /* ── Logo de encabezado (páginas interiores) ─────────────────────────── */
       #header-logo {
         position: running(header-logo);
       }
       #header-logo img {
-        height: 28px;
+        height: 20px;
         object-fit: contain;
       }
 
+      /* ── PORTADA ──────────────────────────────────────────────────────────── */
       .cover {
         page-break-after: always;
         min-height: 100vh;
-        background: var(--color-white);
         display: flex;
         flex-direction: column;
-        padding: 80pt 54pt 60pt 54pt;
-        position: relative;
+        padding: 0;
       }
 
       .cover-logo {
         text-align: right;
-        margin-bottom: 80pt;
+        margin-bottom: 90pt;
       }
       .cover-logo img {
-        height: 28px;
+        height: 26px;
         object-fit: contain;
       }
 
       .cover-badge {
         display: inline-block;
         align-self: flex-start;
-        background-color: #f5f5f5;
-        color: var(--color-muted);
-        font-family: Inter, Arial, sans-serif;
-        font-size: 8pt;
-        font-weight: bold;
-        padding: 4px 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 12pt;
+        background-color: var(--color-badge-bg);
+        color: var(--color-body);
+        font-family: "Inter", Arial, sans-serif;
+        font-size: 9pt;
+        font-weight: 400;
+        padding: 6px 14px;
+        border-radius: 3px;
+        margin-bottom: 14pt;
       }
 
       .cover h1 {
-        font-size: 36pt;
+        font-family: "Switzer", Arial, sans-serif;
+        font-size: 48pt;
         font-weight: 700;
         color: var(--color-primary);
-        line-height: 1.2;
-        margin-bottom: 12pt;
-        max-width: 480pt;
+        line-height: 1.15;
         letter-spacing: -0.5pt;
+        margin-bottom: 4pt;
       }
-      
+
       .cover h1 span.title-highlight {
-        color: var(--color-accent);
+        color: var(--color-muted);
         font-weight: 700;
       }
 
       .cover-subtitle {
-        font-size: 13.5pt;
+        font-family: "Switzer", Arial, sans-serif;
+        font-size: 26pt;
         font-weight: 400;
-        color: var(--color-body);
-        margin-bottom: 60pt;
-        line-height: 1.6;
+        color: var(--color-primary);
+        margin-top: 2pt;
       }
 
+      /* Bloque opcional de metadatos (fecha, autor, clasificación).
+         La plantilla Word original no lo incluye en la portada; se deja
+         disponible pero oculto salvo que se provean los datos. */
       .cover-meta {
         margin-top: auto;
-        border-top: 1.5pt solid var(--color-accent);
         padding-top: 16pt;
       }
       .cover-meta p {
@@ -150,191 +142,179 @@
         font-weight: 700;
       }
 
+      /* ── ÍNDICE ───────────────────────────────────────────────────────────── */
+      .toc {
+        page-break-after: always;
+      }
+      .toc h1 {
+        font-family: "Switzer", Arial, sans-serif;
+        font-size: 16pt;
+        font-weight: 700;
+        color: var(--color-toc);
+        text-transform: uppercase;
+        margin-bottom: 16pt;
+      }
+      .toc-entry {
+        display: flex;
+        align-items: baseline;
+        font-size: 11pt;
+        color: var(--color-body);
+        margin-bottom: 8pt;
+      }
+      .toc-entry.level-2 {
+        padding-left: 18pt;
+        font-size: 10.5pt;
+      }
+      .toc-entry .toc-label {
+        white-space: nowrap;
+        padding-right: 4pt;
+      }
+      .toc-entry .toc-leader {
+        flex: 1;
+        border-bottom: 1px dotted #a9a9a9;
+        margin: 0 4pt 3pt;
+      }
+      .toc-entry .toc-page {
+        white-space: nowrap;
+        padding-left: 4pt;
+      }
+
+      /* ── CONTENIDO ────────────────────────────────────────────────────────── */
       .content {
-        padding: 0;
+        counter-reset: h1counter;
       }
 
-      h1.section-divider {
-        page-break-before: always;
-        background: var(--color-white);
-        color: var(--color-primary);
-        font-size: 26pt;
-        font-weight: 700;
-        padding: 28pt 0 22pt;
-        margin: 0 0 24pt;
-        border-bottom: 3pt solid var(--color-accent);
-      }
-
-      h1 {
-        font-size: 22pt;
+      .content h1 {
+        counter-reset: h2counter;
+        counter-increment: h1counter;
+        font-family: "Switzer", Arial, sans-serif;
+        font-size: 16pt;
         font-weight: 700;
         color: var(--color-primary);
-        margin: 24pt 0 12pt;
+        margin: 20pt 0 10pt;
         page-break-after: avoid;
-        letter-spacing: -0.3pt;
+      }
+      .content h1::before {
+        content: counter(h1counter) ". ";
       }
 
-      h2 {
-        font-size: 15pt;
-        font-weight: 700;
-        color: var(--color-green);
-        margin: 18pt 0 10pt;
-        page-break-after: avoid;
-        border-left: 4pt solid var(--color-accent);
-        padding-left: 12pt;
-        letter-spacing: -0.2pt;
-      }
-
-      h3 {
-        font-size: 12pt;
+      .content h2 {
+        counter-increment: h2counter;
+        font-family: "Switzer", Arial, sans-serif;
+        font-size: 14pt;
         font-weight: 700;
         color: var(--color-primary);
         margin: 14pt 0 8pt;
         page-break-after: avoid;
-        letter-spacing: -0.1pt;
+      }
+      .content h2::before {
+        content: counter(h1counter) "." counter(h2counter) ". ";
+      }
+
+      /* Título de estilo "tabla" (Título 3) — sin numeración */
+      h3 {
+        font-family: "Switzer", Arial, sans-serif;
+        font-size: 12pt;
+        font-weight: 700;
+        color: var(--color-body);
+        margin: 12pt 0 6pt;
+        page-break-after: avoid;
       }
 
       p {
         margin-bottom: 8pt;
-        text-align: justify;
         color: var(--color-body);
-        line-height: 1.7;
+        line-height: 1.6;
       }
 
-      ul,
-      ol {
-        padding-left: 18pt;
+      ul, ol {
+        padding-left: 20pt;
         margin: 6pt 0 10pt;
       }
+      li { margin-bottom: 4pt; }
+      ul li::marker { color: var(--color-accent); }
+      ul ul { margin-top: 4pt; }
+      ul ul li::marker { color: var(--color-muted); }
+      ul ul li { list-style-type: circle; }
 
-      li {
-        margin-bottom: 4pt;
-      }
-
-      ul li::marker {
-        color: var(--color-accent);
-      }
-
+      /* ── Cita destacada / callout (caja negra redondeada del Word) ───────── */
       .callout-box {
         background-color: var(--color-primary);
         color: var(--color-white);
-        font-weight: bold;
-        padding: 16px 20px;
+        font-family: "Switzer", Arial, sans-serif;
+        font-weight: 700;
+        font-size: 14pt;
+        border-radius: 10pt;
+        padding: 20px 28px;
         margin: 14pt 0 18pt;
         text-align: center;
-      }
-      .callout-box p {
-        color: var(--color-white);
-        text-align: center;
-        margin-bottom: 0;
+        line-height: 1.5;
       }
       .callout-box .callout-highlight {
         color: var(--color-accent);
       }
 
+      /* ── Tablas ───────────────────────────────────────────────────────────── */
       .table-wrapper {
-        margin: 16pt 0 20pt;
-        border-radius: 6pt;
-        overflow: hidden;
-        box-shadow: 0 1pt 3pt rgba(0, 0, 0, 0.08);
-        border: 0.5pt solid var(--color-border);
+        margin: 14pt 0 18pt;
       }
-
       .table-caption {
         font-size: 9.5pt;
         font-weight: 700;
-        color: var(--color-green);
-        margin-bottom: 8pt;
+        color: var(--color-toc);
+        margin-bottom: 6pt;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.03em;
       }
-
       table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 9.5pt;
+        font-size: 10pt;
         background: var(--color-white);
+        border: 0.75pt solid var(--color-table-border);
       }
-
       thead th {
         background: var(--color-primary);
         color: var(--color-white);
-        font-weight: 700;
-        padding: 10pt 12pt;
+        font-family: "Switzer", Arial, sans-serif;
+        font-weight: 400;
+        font-size: 12pt;
+        padding: 8pt 10pt;
         text-align: left;
         border: none;
-        letter-spacing: 0.03em;
       }
-
-      tbody tr:nth-child(even) {
-        background: #f9f9f9;
-      }
-
-      tbody tr:nth-child(odd) {
-        background: var(--color-white);
-      }
-
-      tbody tr.row-highlight {
-        background-color: rgba(26, 235, 159, 0.12) !important;
-        color: var(--color-green);
-        font-weight: 600;
-      }
-      tbody tr.row-highlight td {
-        color: var(--color-green);
-        font-weight: 600;
-        border-bottom: 1pt solid var(--color-accent);
-      }
-
       tbody td {
-        padding: 8pt 12pt;
-        border-bottom: 0.5pt solid rgba(219, 223, 252, 0.6);
+        padding: 7pt 10pt;
+        border-bottom: 0.75pt solid var(--color-table-border);
         vertical-align: middle;
         color: var(--color-body);
       }
-
-      tbody tr:last-child td {
-        border-bottom: 0.5pt solid var(--color-border);
+      tbody tr.row-highlight td {
+        background-color: var(--color-table-highlight);
       }
 
-      /* ── Separador visual ────────────────────────────────────────────────── */
       hr.accent {
         border: none;
-        height: 1.5pt;
-        background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-lavender) 50%, transparent 100%);
-        margin: 20pt 0 18pt;
-        border-radius: 1pt;
-      }
-
-      /* ── Espaciado y márgenes ────────────────────────────────────────────── */
-      .content > * + h1,
-      .content > * + h2 {
-        margin-top: 26pt;
-      }
-
-      /* ── Mejora de legibilidad ────────────────────────────────────────────── */
-      .content {
-        line-height: 1.75;
+        height: 1pt;
+        background: var(--color-accent);
+        margin: 16pt 0;
       }
     </style>
   </head>
   <body>
-    <!-- Logo en encabezado de páginas interiores -->
-    {% if logo_src %}
+    <!-- Logo en encabezado de páginas interiores (icono) -->
     <div id="header-logo">
-      <img src="{{ logo_src }}" alt="{{ brand_name }}" />
+      <img src="data:image/png;base64,{{ logo_src }}" alt="{{ brand_name | default('Convertia') }}" />
     </div>
-    {% endif %}
 
     <!-- PORTADA -->
     <div class="cover">
-      {% if logo_main_src %}
       <div class="cover-logo">
-        <img src="{{ logo_main_src }}" alt="{{ brand_name }}" />
+        <img src="data:image/png;base64,{{ logo_main_src }}" alt="{{ brand_name | default('Convertia') }}" />
       </div>
-      {% elif logo_src %}
-      <div class="cover-logo">
-        <img src="{{ logo_src }}" alt="{{ brand_name }}" />
-      </div>
+
+      {% if badge %}
+      <div class="cover-badge">{{ badge }}</div>
       {% endif %}
 
       <h1>{{ title_part1 }}{% if title_part2 %}<span class="title-highlight">{{ title_part2 }}</span>{% endif %}</h1>
@@ -343,18 +323,34 @@
       <p class="cover-subtitle">{{ subtitle }}</p>
       {% endif %}
 
+      {% if date or author or classification %}
       <div class="cover-meta">
-        <p><strong>Fecha de generación:</strong> {{ date }}</p>
-        <p><strong>Generado por:</strong> {{ author }}</p>
-        <p><strong>Clasificación:</strong> {{ classification }}</p>
+        {% if date %}<p><strong>Fecha de generación:</strong> {{ date }}</p>{% endif %}
+        {% if author %}<p><strong>Generado por:</strong> {{ author }}</p>{% endif %}
+        {% if classification %}<p><strong>Clasificación:</strong> {{ classification }}</p>{% endif %}
       </div>
+      {% endif %}
     </div>
+
+    <!-- ÍNDICE -->
+    {% if toc %}
+    <div class="toc">
+      <h1>Índice</h1>
+      {% for entry in toc %}
+      <div class="toc-entry {% if entry.level == 2 %}level-2{% endif %}">
+        <span class="toc-label">{{ entry.number }}. {{ entry.title }}</span>
+        <span class="toc-leader"></span>
+        <span class="toc-page">{{ entry.page }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
 
     <!-- CONTENIDO -->
     <div class="content">
       {% for section in sections %}
       {% if section.level == 1 %}
-      <h1 class="section-divider">{{ section.title }}</h1>
+      <h1>{{ section.title }}</h1>
       {% elif section.level == 2 %}
       <h2>{{ section.title }}</h2>
       {% else %}
@@ -373,16 +369,22 @@
         {% endfor %}
       {% endif %}
 
-      {# Bullets de la sección #}
       {% if section.has_bullets %}
       <ul>
         {% for bullet in section.bullets %}
-        <li>{{ bullet }}</li>
+        <li>{{ bullet.text if bullet is mapping else bullet }}
+          {% if bullet is mapping and bullet.sub %}
+          <ul>
+            {% for sub in bullet.sub %}
+            <li>{{ sub }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </li>
         {% endfor %}
       </ul>
       {% endif %}
 
-      {# Tabla inline de la sección #}
       {% if section.has_table %}
       <div class="table-wrapper">
         {% if section.table.caption %}
@@ -410,7 +412,6 @@
       {% endif %}
       {% endfor %}
 
-      {# Tablas globales al final del documento #}
       {% for table in tables %}
       <div class="table-wrapper">
         {% if table.caption %}

@@ -593,6 +593,30 @@ async def process_chat(
             trace_id,
         )
 
+        # Inyectar skill_prompt como mensaje de sistema adicional al inicio
+        skill_prompt = getattr(request, "skill_prompt", None)
+        if skill_prompt and skill_prompt.strip():
+            from app.domain.entities.message import Message as _Msg
+            skill_system_msg = _Msg(
+                id="skill-system",
+                role="system",
+                content=(
+                    "## INSTRUCCIONES DE SKILL ACTIVA\n"
+                    "El usuario ha activado una o más skills especializadas. "
+                    "Sigue estas instrucciones con alta prioridad:\n\n"
+                    f"{skill_prompt.strip()}"
+                ),
+                timestamp=datetime.now(UTC),
+            )
+            # Insertar al inicio de model_messages para que el LLM lo reciba primero
+            model_messages.insert(0, skill_system_msg)
+            logger.info(
+                "SKILL_INJECTED session=%s skill_chars=%d trace_id=%s",
+                session_id,
+                len(skill_prompt),
+                trace_id,
+            )
+
         stream = llm_provider.generate_stream(
             model_messages,
             model_key,

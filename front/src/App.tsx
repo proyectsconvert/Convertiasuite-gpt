@@ -82,9 +82,9 @@ const App = () => (
               }
             />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/update-password" element={<UpdatePassword/>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
