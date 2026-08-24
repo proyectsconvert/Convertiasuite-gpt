@@ -17,19 +17,106 @@ export default function UpdatePassword() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Supabase detecta el #access_token en la URL y emite PASSWORD_RECOVERY
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+    let active = true;
+
+    // Parse URL params
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const searchParams = new URLSearchParams(window.location.search);
+
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+    const code = searchParams.get("code");
+    const errorDesc = hashParams.get("error_description") || searchParams.get("error_description") || hashParams.get("error") || searchParams.get("error");
+    const errorCode = hashParams.get("error_code") || searchParams.get("error_code");
+
+    const checkInitialSession = async () => {
+      // 1. Check if there was an error in the redirect
+      if (errorDesc) {
+        if (active) {
+          console.error("Auth redirect error:", errorDesc, errorCode);
+          setError(decodeURIComponent(errorDesc).replace(/\+/g, " "));
+        }
+        return;
+      }
+
+      // 2. If PKCE code is present, exchange it
+      if (code) {
+        try {
+          console.log("Exchanging PKCE code for session...");
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            console.error("PKCE exchange error:", error);
+            if (active) setError(error.message);
+          } else if (data?.session) {
+            console.log("PKCE exchange successful, session established.");
+            if (active) setSessionReady(true);
+          } else {
+            if (active) setError("No se pudo iniciar la sesión con el código de confirmación.");
+          }
+        } catch (err) {
+          console.error("PKCE exchange exception:", err);
+          if (active) setError("Error al verificar el código de confirmación.");
+        }
+        return;
+      }
+
+      // 3. If access_token is present in hash, set the session manually
+      if (accessToken) {
+        try {
+          console.log("Setting session manually from hash...");
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || "",
+          });
+          if (error) {
+            console.error("Set session error:", error);
+            if (active) setError(error.message);
+          } else if (data?.session) {
+            console.log("Manual session set successful.");
+            if (active) setSessionReady(true);
+          } else {
+            if (active) setError("No se pudo iniciar la sesión con el token de acceso.");
+          }
+        } catch (err) {
+          console.error("Set session exception:", err);
+          if (active) setError("Error al establecer la sesión desde el enlace.");
+        }
+        return;
+      }
+
+      // 4. Check if there is already an active session
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          console.log("Active session found.");
+          if (active) setSessionReady(true);
+        } else {
+          // If we had no session and no URL parameters to verify, show invalid link error
+          if (active) {
+            setError("Enlace de recuperación no válido o expirado. Por favor, solicita uno nuevo.");
+          }
+        }
+      } catch (err) {
+        console.error("Get session exception:", err);
+        if (active) setError("Error al verificar el estado de la sesión.");
+      }
+    };
+
+    // Listen for auth state changes as fallback/recovery events
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth state change event:", event, !!session);
+      if (!active) return;
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
         setSessionReady(true);
       }
     });
 
-    // También verificar si ya hay una sesión activa (por si recarga la página)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setSessionReady(true);
-    });
+    checkInitialSession();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,10 +186,22 @@ export default function UpdatePassword() {
         {/* Esperando que Supabase procese el token del enlace */}
         {!sessionReady ? (
           <div className="flex flex-col items-center gap-4 py-6 text-muted-foreground text-sm">
-            <Loader2 className="w-6 h-6 animate-spin" />
-            <span>Verificando enlace de recuperación...</span>
+            {!error ? (
+              <>
+                <Loader2 className="w-6 h-6 animate-spin" />
+                <span>Verificando enlace de recuperación...</span>
+              </>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-400 text-center mb-2"
+              >
+                {error}
+              </motion.div>
+            )}
             <p className="text-xs text-center text-muted-foreground/60">
-              Si esto tarda más de unos segundos, el enlace puede haber expirado.{" "}
+              Si esto tarda más de unos segundos o hay un error, el enlace puede haber expirado.{" "}
               <button
                 type="button"
                 onClick={() => navigate("/forgot-password")}
