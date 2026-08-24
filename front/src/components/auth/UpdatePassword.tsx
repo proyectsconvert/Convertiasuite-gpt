@@ -41,6 +41,11 @@ export default function UpdatePassword() {
 
       // 2. If PKCE code is present, exchange it
       if (code) {
+        console.log("UpdatePassword - PKCE code details:", {
+          hasCode: !!code,
+          codeLength: code?.length,
+          anonKeyLength: import.meta.env.VITE_SUPABASE_ANON_KEY?.length || 0,
+        });
         try {
           console.log("Exchanging PKCE code for session...");
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
@@ -62,6 +67,35 @@ export default function UpdatePassword() {
 
       // 3. If access_token is present in hash, set the session manually
       if (accessToken) {
+        console.log("UpdatePassword - Access Token details:", {
+          hasToken: !!accessToken,
+          tokenLength: accessToken?.length,
+          hasRefresh: !!refreshToken,
+          anonKeyLength: import.meta.env.VITE_SUPABASE_ANON_KEY?.length || 0,
+          supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+        });
+
+        // Diagnostic manual fetch to see if Kong approves it with apikey
+        try {
+          const diagUrl = `${import.meta.env.VITE_SUPABASE_URL}/auth/v1/user`;
+          const diagRes = await fetch(diagUrl, {
+            method: "GET",
+            headers: {
+              apikey: import.meta.env.VITE_SUPABASE_ANON_KEY || "",
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+          console.log("Diagnostic manual fetch status:", diagRes.status);
+          if (diagRes.ok) {
+            const diagUser = await diagRes.json();
+            console.log("Diagnostic manual fetch user:", diagUser);
+          } else {
+            console.error("Diagnostic manual fetch failed:", await diagRes.text());
+          }
+        } catch (diagErr) {
+          console.error("Diagnostic manual fetch error:", diagErr);
+        }
+
         try {
           console.log("Setting session manually from hash...");
           const { data, error } = await supabase.auth.setSession({
