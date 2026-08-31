@@ -1,4 +1,3 @@
-# app/infra/repositories/supabase_rag_repository.py
 import logging
 
 from app.domain.interfaces.rag_repository import IRagRepository

@@ -108,9 +108,8 @@ export default function AdminDashboard() {
       });
 
       if (res.temp_password) {
-        // El SMTP no está configurado — mostrar contraseña temporal al admin
         const credMsg = `✅ Usuario creado exitosamente.\n\n⚠️ El servidor de correo no está configurado, así que NO se envió ningún email.\n\nComparte estas credenciales de forma segura:\n\n📧 Correo: ${res.email}\n🔑 Contraseña temporal: ${res.temp_password}\n\nEl usuario debe cambiar su contraseña al iniciar sesión.`;
-        navigator.clipboard?.writeText(`Correo: ${res.email}\nContraseña temporal: ${res.temp_password}`).catch(() => {});
+        navigator.clipboard?.writeText(`Correo: ${res.email}\nContraseña temporal: ${res.temp_password}`).catch(() => { });
         alert(credMsg);
         toast.success("Usuario creado. Credenciales copiadas al portapapeles.");
       } else {
@@ -135,7 +134,7 @@ export default function AdminDashboard() {
           const jsonStart = msg.indexOf("{");
           const parsed = JSON.parse(msg.slice(jsonStart));
           if (parsed.detail) msg = typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail);
-        } catch (_) {}
+        } catch (_) { }
       }
       toast.error(msg);
     } finally {
@@ -178,26 +177,26 @@ export default function AdminDashboard() {
 
   const filteredUsers = data?.by_user
     ? data.by_user
-        .filter(
-          (u) =>
-            (selectedUserId ? u.user_id === selectedUserId : true) &&
-            (u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              u.department.toLowerCase().includes(searchTerm.toLowerCase())),
-        )
-        .sort((a, b) => {
-          const valA = a[sortField];
-          const valB = b[sortField];
-          if (typeof valA === "string" && typeof valB === "string") {
-            return sortAsc
-              ? valA.localeCompare(valB)
-              : valB.localeCompare(valA);
-          }
-          if (typeof valA === "number" && typeof valB === "number") {
-            return sortAsc ? valA - valB : valB - valA;
-          }
-          return 0;
-        })
+      .filter(
+        (u) =>
+          (selectedUserId ? u.user_id === selectedUserId : true) &&
+          (u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            u.department.toLowerCase().includes(searchTerm.toLowerCase())),
+      )
+      .sort((a, b) => {
+        const valA = a[sortField];
+        const valB = b[sortField];
+        if (typeof valA === "string" && typeof valB === "string") {
+          return sortAsc
+            ? valA.localeCompare(valB)
+            : valB.localeCompare(valA);
+        }
+        if (typeof valA === "number" && typeof valB === "number") {
+          return sortAsc ? valA - valB : valB - valA;
+        }
+        return 0;
+      })
     : [];
 
   const formatDate = (isoStr: string) => {
@@ -825,11 +824,10 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-4 py-3.5">
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            user.role.toLowerCase() === "admin"
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${user.role.toLowerCase() === "admin"
                               ? "bg-primary/10 text-primary border border-primary/20"
                               : "bg-secondary text-muted-foreground"
-                          }`}
+                            }`}
                         >
                           {user.role}
                         </span>

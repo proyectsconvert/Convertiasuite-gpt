@@ -15,12 +15,53 @@ import {
   Shield,
   MessageSquare,
   Folder,
-  SlidersHorizontal,
+  Brain,
+  Boxes,
+  Code2,
+  Zap,
+  BarChart3,
+  MessageCircle,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { chatApi } from "@/services/api";
+
+function SidebarTooltip({
+  text,
+  children,
+}: {
+  text: string;
+  children: React.ReactNode;
+}) {
+  const [show, setShow] = useState(false);
+
+  return (
+    <div
+      className="relative flex items-center justify-center"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      {children}
+      <AnimatePresence>
+        {show && (
+          <motion.div
+            initial={{ opacity: 0, x: -6, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -6, scale: 0.95 }}
+            transition={{ duration: 0.12, ease: "easeOut" }}
+            /* LIQUID GLASS TOOLTIP */
+            className="absolute left-full ml-3 z-50 px-3 py-1.5 text-[11px] font-medium text-foreground bg-white/10 dark:bg-black/30 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] whitespace-nowrap pointer-events-none"
+          >
+            {/* Reflejo de luz superior */}
+            <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent rounded-t-xl" />
+            {text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 function groupByDate(
   sessions: { id: string; title: string; updated_at: string }[],
@@ -52,6 +93,8 @@ function groupByDate(
 }
 
 export default function ChatSidebar() {
+  const [appsModalOpen, setAppsModalOpen] = useState(false);
+
   const {
     chatSidebarOpen,
     toggleChatSidebar,
@@ -86,7 +129,6 @@ export default function ChatSidebar() {
   const editRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Initial load
   useEffect(() => {
     if (user?.id) {
       chatApi
@@ -100,11 +142,10 @@ export default function ChatSidebar() {
               : null,
           );
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [user?.id, setSessions]);
 
-  // Load more (infinite scroll)
   const loadMore = useCallback(() => {
     if (!hasMore || !nextCursor || loadingMore) return;
     setLoadingMore(true);
@@ -119,11 +160,10 @@ export default function ChatSidebar() {
             : null,
         );
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingMore(false));
   }, [hasMore, nextCursor, loadingMore, appendSessions]);
 
-  // IntersectionObserver on sentinel
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -172,7 +212,7 @@ export default function ChatSidebar() {
 
   const handleDelete = (id: string) => {
     if (user?.id) {
-      chatApi.deleteSession(id).catch(() => {});
+      chatApi.deleteSession(id).catch(() => { });
     }
     deleteSession(id);
     setMenuOpenId(null);
@@ -181,12 +221,13 @@ export default function ChatSidebar() {
   const isChatActive = location.pathname === "/app/chat";
   const isDocActive = location.pathname.startsWith("/app/documents");
   const isSkillsActive = location.pathname.startsWith("/app/skills");
+  const isGroupChatActive = location.pathname.startsWith("/app/group-chats");
   const isSettingsActive = location.pathname.startsWith("/app/settings");
+  const isApplicationsActive = location.pathname === "/";
   const userInitial = (user?.name?.[0] || user?.email?.[0] || "U").toUpperCase();
 
   return (
     <>
-      {/* Mobile Backdrop Overlay */}
       <AnimatePresence>
         {chatSidebarOpen && (
           <motion.div
@@ -194,118 +235,145 @@ export default function ChatSidebar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-md md:hidden"
             onClick={toggleChatSidebar}
           />
         )}
       </AnimatePresence>
 
       <div className="flex h-full max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40">
-        {/* ─── PRIMARY NAV RAIL (THIN ICON BAR) ─── */}
-        <aside className="w-[58px] h-full bg-sidebar/95 border-r border-sidebar-border/60 flex flex-col items-center justify-between py-3 flex-shrink-0 z-20">
+        {/* ─── PRIMARY NAV RAIL (LIQUID GLASS FINISH) ─── */}
+        <aside className="w-[58px] h-full bg-white/10 dark:bg-slate-950/20 backdrop-blur-2xl border-r border-white/20 dark:border-white/10 flex flex-col items-center justify-between py-3 flex-shrink-0 z-20 shadow-[4_0_24px_rgba(0,0,0,0.1)] relative">
+          {/* Reflejo de luz lateral superior */}
+          <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-white/20 via-transparent to-transparent pointer-events-none" />
+
           {/* Top Rail Actions */}
-          <div className="flex flex-col items-center gap-3">
-            {/* Original App Logo */}
-            <button
-              onClick={() => navigate("/app/chat")}
-              className="p-0.5 rounded-xl hover:opacity-90 transition-transform active:scale-95 flex items-center justify-center"
-              title="convert-IA"
-            >
-              <img
-                src={darkMode ? "/favicon.ico" : "/logo-dark.ico"}
-                className="w-9 h-9 rounded-xl object-contain"
-                alt="convert-IA"
-              />
-            </button>
+          <div className="flex flex-col items-center gap-3 relative z-10">
+            <SidebarTooltip text="convert-IA">
+              <button
+                onClick={() => navigate("/app/chat")}
+                className="p-0.5 rounded-xl hover:scale-105 transition-all duration-300 active:scale-95 flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.15)]"
+              >
+                <img
+                  src={darkMode ? "/favicon.ico" : "/logo-dark.ico"}
+                  className="w-9 h-9 rounded-xl object-contain"
+                  alt="convert-IA"
+                />
+              </button>
+            </SidebarTooltip>
 
-            {/* Sidebar Toggle */}
-            <button
-              onClick={toggleChatSidebar}
-              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/70 transition-colors"
-              title={chatSidebarOpen ? "Colapsar panel" : "Expandir panel"}
-            >
-              {chatSidebarOpen ? (
-                <PanelLeftClose className="w-4 h-4" />
-              ) : (
-                <PanelLeft className="w-4 h-4" />
-              )}
-            </button>
+            <SidebarTooltip text={chatSidebarOpen ? "Colapsar panel" : "Expandir panel"}>
+              <button
+                onClick={toggleChatSidebar}
+                className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 transition-all border border-transparent hover:border-white/20"
+              >
+                {chatSidebarOpen ? (
+                  <PanelLeftClose className="w-4 h-4" />
+                ) : (
+                  <PanelLeft className="w-4 h-4" />
+                )}
+              </button>
+            </SidebarTooltip>
 
-            <div className="w-6 h-[1px] bg-sidebar-border/40 my-0.5" />
+            <div className="w-6 h-[1px] bg-gradient-to-r from-transparent via-white/30 dark:via-white/15 to-transparent my-0.5" />
 
-            {/* Navigation Icons */}
-            <button
-              onClick={() => navigate("/app/chat")}
-              className={`p-2.5 rounded-xl transition-all ${
-                isChatActive
-                  ? "bg-primary/15 text-primary border border-primary/30 shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
-              }`}
-              title="Chats"
-            >
-              <MessageSquare className="w-4 h-4" />
-            </button>
+            {/* Navigation Icons con acentos glass */}
+            <SidebarTooltip text="Chats">
+              <button
+                onClick={() => navigate("/app/chat")}
+                className={`p-2.5 rounded-xl transition-all ${isChatActive
+                    ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_15px_rgba(26,237,161,0.25)] backdrop-blur-md"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 border border-transparent hover:border-white/15"
+                  }`}
+              >
+                <MessageSquare className="w-4 h-4" />
+              </button>
+            </SidebarTooltip>
 
-            <button
-              onClick={() => navigate("/app/documents")}
-              className={`p-2.5 rounded-xl transition-all ${
-                isDocActive
-                  ? "bg-primary/15 text-primary border border-primary/30 shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
-              }`}
-              title="Documentos"
-            >
-              <Folder className="w-4 h-4" />
-            </button>
+            <SidebarTooltip text="Documentos">
+              <button
+                onClick={() => navigate("/app/documents")}
+                className={`p-2.5 rounded-xl transition-all ${isDocActive
+                    ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_15px_rgba(26,237,161,0.25)] backdrop-blur-md"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 border border-transparent hover:border-white/15"
+                  }`}
+              >
+                <Folder className="w-4 h-4" />
+              </button>
+            </SidebarTooltip>
 
+            <SidebarTooltip text="Más Aplicaciones">
+              <button
+                onClick={() => setAppsModalOpen(true)}
+                className={`p-2.5 rounded-xl transition-all ${isApplicationsActive
+                    ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_15px_rgba(26,237,161,0.25)] backdrop-blur-md"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 border border-transparent hover:border-white/15"
+                  }`}
+              >
+                <Boxes className="w-4 h-4" />
+              </button>
+            </SidebarTooltip>
 
-             <button
-              onClick={() => navigate("/app/skills")}
-              className={`p-2.5 rounded-xl transition-all ${
-                isSkillsActive
-                  ? "bg-primary/15 text-primary border border-primary/30 shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
-              }`}
-              title="Skills"
-            >
-            <SlidersHorizontal className="w-4 h-4" />
-            </button>
+            <SidebarTooltip text="Skills">
+              <button
+                onClick={() => navigate("/app/skills")}
+                className={`p-2.5 rounded-xl transition-all ${isSkillsActive
+                    ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_15px_rgba(26,237,161,0.25)] backdrop-blur-md"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 border border-transparent hover:border-white/15"
+                  }`}
+              >
+                <Brain className="w-4 h-4" />
+              </button>
+            </SidebarTooltip>
+
+            <SidebarTooltip text="Chat Grupal">
+              <button
+                onClick={() => navigate("/app/group-chats")}
+                className={`p-2.5 rounded-xl transition-all ${isGroupChatActive
+                    ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_15px_rgba(26,237,161,0.25)] backdrop-blur-md"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 border border-transparent hover:border-white/15"
+                  }`}
+              >
+                <MessageCircle className="w-4 h-4" />
+              </button>
+            </SidebarTooltip>
+            
           </div>
 
           {/* Bottom Rail Actions */}
-          <div className="flex flex-col items-center gap-2.5">
-            <button
-              onClick={() => navigate("/app/settings")}
-              className={`p-2 rounded-xl transition-colors ${
-                isSettingsActive
-                  ? "text-primary bg-primary/15"
-                  : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/70"
-              }`}
-              title="Configuración"
-            >
-              <Settings className="w-4.5 h-4.5" />
-            </button>
+          <div className="flex flex-col items-center gap-2.5 relative z-10">
+            <SidebarTooltip text="Configuración">
+              <button
+                onClick={() => navigate("/app/settings")}
+                className={`p-2 rounded-xl transition-all ${isSettingsActive
+                    ? "text-primary bg-primary/20 border border-primary/40 shadow-[0_0_15px_rgba(26,237,161,0.25)]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 border border-transparent hover:border-white/15"
+                  }`}
+              >
+                <Settings className="w-4.5 h-4.5" />
+              </button>
+            </SidebarTooltip>
 
-            {/* User Avatar Circle */}
-            <button
-              onClick={() => navigate("/app/settings")}
-              className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#1aeda1] to-[#bab8ff] text-slate-950 font-bold flex items-center justify-center text-xs shadow-md shadow-[#1aeda1]/20 hover:scale-105 transition-transform overflow-hidden"
-              title={user?.name || user?.email || "Usuario"}
-            >
-              {user?.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={user.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                userInitial
-              )}
-            </button>
+            <SidebarTooltip text={user?.name || user?.email || "Usuario"}>
+              <button
+                onClick={() => navigate("/app/settings")}
+                className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#1aeda1] to-[#bab8ff] text-slate-950 font-bold flex items-center justify-center text-xs shadow-[0_4px_16px_rgba(26,237,161,0.3)] hover:scale-105 transition-all overflow-hidden border border-white/30"
+              >
+                {user?.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  userInitial
+                )}
+              </button>
+            </SidebarTooltip>
           </div>
         </aside>
 
-        {/* ─── EXPANDABLE CHAT HISTORY PANEL ─── */}
+        {/* ─── EXPANDABLE CHAT HISTORY PANEL (LIQUID GLASS PANEL) ─── */}
         <AnimatePresence initial={false}>
           {chatSidebarOpen && (
             <motion.aside
@@ -313,27 +381,26 @@ export default function ChatSidebar() {
               animate={{ width: 260, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="h-full bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden flex-shrink-0 z-10"
+              className="h-full bg-white/5 dark:bg-slate-950/30 backdrop-blur-2xl border-r border-white/20 dark:border-white/10 flex flex-col overflow-hidden flex-shrink-0 z-10 relative"
             >
               {/* Header / New Chat + Search */}
               <div className="p-3.5 space-y-2.5 flex-shrink-0">
-                {/* Vibrant Custom Gradient New Chat Button (#1aeda1 to #bab8ff) */}
                 <button
                   onClick={handleNewChat}
-                  className="w-full flex items-center justify-center gap-2 h-10 px-4 rounded-full bg-gradient-to-r from-[#1aeda1] to-[#bab8ff] text-slate-950 font-semibold text-xs tracking-wide shadow-md shadow-[#1aeda1]/20 hover:brightness-105 hover:shadow-lg hover:shadow-[#1aeda1]/30 transition-all cursor-pointer"
+                  className="relative group w-full flex items-center justify-center gap-2 h-10 px-4 rounded-full bg-gradient-to-r from-[#1aeda1] to-[#bab8ff] text-slate-950 font-semibold text-xs tracking-wide shadow-[0_4px_20px_rgba(26,237,161,0.25)] hover:shadow-[0_6px_24px_rgba(26,237,161,0.4)] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer overflow-hidden"
                 >
+                  <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                   <Plus className="w-4 h-4 stroke-[2.5]" />
                   <span>Nuevo chat</span>
                 </button>
 
-                {/* Search Bar Input Pill */}
                 <button
                   onClick={() => setCommandOpen(true)}
-                  className="w-full flex items-center gap-2 h-8 px-3 rounded-full bg-sidebar-accent/50 border border-sidebar-border/60 text-xs text-muted-foreground hover:bg-sidebar-accent transition-colors text-left"
+                  className="w-full flex items-center gap-2 h-8 px-3 rounded-full bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 text-xs text-muted-foreground hover:bg-white/20 dark:hover:bg-white/10 transition-all text-left backdrop-blur-md"
                 >
                   <Search className="w-3.5 h-3.5 flex-shrink-0" />
                   <span className="truncate flex-1">Buscar...</span>
-                  <span className="text-[10px] bg-secondary/80 px-1.5 py-0.2 rounded font-mono text-muted-foreground">
+                  <span className="text-[10px] bg-white/20 dark:bg-white/10 px-1.5 py-0.2 rounded font-mono text-muted-foreground border border-white/10">
                     ⌘K
                   </span>
                 </button>
@@ -344,7 +411,7 @@ export default function ChatSidebar() {
                 {grouped.length > 0 ? (
                   grouped.map((g) => (
                     <div key={g.label}>
-                      <div className="text-[11px] text-muted-foreground/70 px-2 py-1 font-medium">
+                      <div className="text-[11px] text-muted-foreground/70 px-2 py-1 font-medium uppercase tracking-wider">
                         {g.label}
                       </div>
                       <div className="space-y-0.5 mt-0.5">
@@ -361,18 +428,17 @@ export default function ChatSidebar() {
                                     if (e.key === "Enter") handleRename(c.id);
                                     if (e.key === "Escape") setEditingId(null);
                                   }}
-                                  className="w-full px-2.5 py-1 text-xs rounded-lg border border-primary bg-background text-foreground outline-none shadow-sm"
+                                  className="w-full px-2.5 py-1 text-xs rounded-xl border border-primary/50 bg-white/20 dark:bg-black/40 backdrop-blur-md text-foreground outline-none shadow-sm"
                                 />
                               </div>
                             ) : (
                               <div className="flex items-center group w-full min-w-0">
                                 <button
                                   onClick={() => handleChatClick(c.id)}
-                                  className={`flex-1 min-w-0 text-left px-2.5 py-1.5 rounded-lg text-xs transition-all flex items-center gap-2 ${
-                                    currentChatId === c.id && isChatActive
-                                      ? "bg-sidebar-accent text-foreground font-medium"
-                                      : "text-muted-foreground/90 hover:bg-sidebar-accent/50 hover:text-foreground"
-                                  }`}
+                                  className={`flex-1 min-w-0 text-left px-2.5 py-1.5 rounded-xl text-xs transition-all flex items-center gap-2 border ${currentChatId === c.id && isChatActive
+                                      ? "bg-white/20 dark:bg-white/10 border-white/30 dark:border-white/20 text-foreground font-medium shadow-sm backdrop-blur-md"
+                                      : "border-transparent text-muted-foreground/90 hover:bg-white/10 dark:hover:bg-white/5 hover:border-white/10 hover:text-foreground"
+                                    }`}
                                 >
                                   {c.favorite && (
                                     <Star className="w-3 h-3 text-warning flex-shrink-0 fill-warning" />
@@ -389,7 +455,7 @@ export default function ChatSidebar() {
                                       menuOpenId === c.id ? null : c.id,
                                     );
                                   }}
-                                  className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-secondary transition-all flex-shrink-0 text-muted-foreground hover:text-foreground"
+                                  className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-white/20 dark:hover:bg-white/10 transition-all flex-shrink-0 text-muted-foreground hover:text-foreground"
                                   aria-label="Opciones"
                                 >
                                   <MoreHorizontal className="w-3.5 h-3.5" />
@@ -397,16 +463,16 @@ export default function ChatSidebar() {
                               </div>
                             )}
 
-                            {/* Dropdown Options Menu */}
+                            {/* Options Dropdown - Liquid Glass */}
                             <AnimatePresence>
                               {menuOpenId === c.id && (
                                 <motion.div
                                   ref={menuRef}
-                                  initial={{ opacity: 0, scale: 0.95 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  exit={{ opacity: 0, scale: 0.95 }}
+                                  initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                                  exit={{ opacity: 0, scale: 0.95, y: -5 }}
                                   transition={{ duration: 0.1 }}
-                                  className="absolute right-0 top-7 z-50 w-36 rounded-xl border border-border bg-popover p-1 shadow-lg"
+                                  className="absolute right-0 top-7 z-50 w-36 rounded-2xl border border-white/30 dark:border-white/15 bg-white/30 dark:bg-slate-900/40 backdrop-blur-2xl p-1 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]"
                                 >
                                   <button
                                     onClick={() => {
@@ -414,13 +480,13 @@ export default function ChatSidebar() {
                                       setEditingId(c.id);
                                       setMenuOpenId(null);
                                     }}
-                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg hover:bg-secondary transition-colors text-foreground"
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-xl hover:bg-white/20 dark:hover:bg-white/10 transition-colors text-foreground"
                                   >
                                     <Pencil className="w-3 h-3" /> Renombrar
                                   </button>
                                   <button
                                     onClick={() => handleDelete(c.id)}
-                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg hover:bg-destructive/10 transition-colors text-destructive"
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-xl hover:bg-red-500/20 transition-colors text-red-500 dark:text-red-400"
                                   >
                                     <Trash2 className="w-3 h-3" /> Eliminar
                                   </button>
@@ -448,9 +514,8 @@ export default function ChatSidebar() {
               </div>
 
               {/* Bottom User Info & Footer Actions */}
-              <div className="px-3 py-2.5 border-t border-sidebar-border/60 flex-shrink-0 flex items-center gap-2">
-                {/* User Avatar Circle */}
-                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#1aeda1] to-[#bab8ff] text-slate-950 font-bold flex items-center justify-center text-[11px] flex-shrink-0 shadow-sm overflow-hidden">
+              <div className="px-3 py-2.5 border-t border-white/20 dark:border-white/10 flex-shrink-0 flex items-center gap-2 bg-white/5 dark:bg-black/10 backdrop-blur-md">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#1aeda1] to-[#bab8ff] text-slate-950 font-bold flex items-center justify-center text-[11px] flex-shrink-0 shadow-sm overflow-hidden border border-white/30">
                   {user?.avatar ? (
                     <img
                       src={user.avatar}
@@ -468,10 +533,9 @@ export default function ChatSidebar() {
                   </div>
                 </div>
 
-                {/* Dark Mode Toggle Button */}
                 <button
                   onClick={toggleDarkMode}
-                  className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground hover:text-foreground"
+                  className="p-1.5 rounded-xl hover:bg-white/15 dark:hover:bg-white/10 transition-all border border-transparent hover:border-white/15 text-muted-foreground hover:text-foreground"
                   aria-label="Alternar tema"
                   title="Cambiar tema"
                 >
@@ -482,21 +546,19 @@ export default function ChatSidebar() {
                   )}
                 </button>
 
-                {/* Admin Panel Button */}
                 {user?.role?.toLowerCase() === "admin" && (
                   <button
                     onClick={() => navigate("/app/admin")}
-                    className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors text-muted-foreground hover:text-foreground"
+                    className="p-1.5 rounded-xl hover:bg-white/15 dark:hover:bg-white/10 transition-all border border-transparent hover:border-white/15 text-muted-foreground hover:text-foreground"
                     title="Panel Admin"
                   >
                     <Shield className="w-3.5 h-3.5" />
                   </button>
                 )}
 
-                {/* Logout Button */}
                 <button
                   onClick={logout}
-                  className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                  className="p-1.5 rounded-xl hover:bg-red-500/20 text-muted-foreground hover:text-red-500 transition-colors"
                   title="Cerrar sesión"
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -505,8 +567,118 @@ export default function ChatSidebar() {
             </motion.aside>
           )}
         </AnimatePresence>
+
+        {/* ─── MODAL DE MÁS APLICACIONES (ULTRA LIQUID GLASS MODAL) ─── */}
+        <AnimatePresence>
+          {appsModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              {/* Backdrop con desfoque fluido */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setAppsModalOpen(false)}
+                className="absolute inset-0 bg-black/40 backdrop-blur-xl"
+              />
+
+              {/* Contenedor Cristal Líquido */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="relative w-full max-w-xl rounded-3xl border border-white/30 dark:border-white/15 bg-white/20 dark:bg-slate-950/40 p-6 shadow-[0_16px_48px_0_rgba(0,0,0,0.35)] backdrop-blur-2xl z-10 overflow-hidden"
+              >
+                {/* Destello de luz superior en diagonal */}
+                <div className="absolute -top-24 -left-24 w-48 h-48 bg-white/20 dark:bg-white/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/50 to-transparent" />
+
+                <div className="flex items-center justify-between pb-4 mb-4 border-b border-white/20 dark:border-white/10 relative z-10">
+                  <div>
+                    <h3 className="text-base font-semibold text-foreground">
+                      Ecosistema de Aplicaciones
+                    </h3>
+                    <p className="text-xs font-semibold text-foreground">
+                      Selecciona una herramienta para acceder
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setAppsModalOpen(false)}
+                    className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-white/20 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-white/20"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Grid con tarjetas glass adaptativas */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 relative z-10">
+                  {[
+                    {
+                      name: "FLOW-IA",
+                      desc: "Workflows y automatizaciones",
+                      icon: Zap,
+                      url: "",
+                      badge: "Próximamente",
+                      cardStyle: "bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-500/40 text-cyan-500 dark:text-cyan-400",
+                      iconStyle: "bg-cyan-500/30 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30",
+                    },
+                    {
+                      name: "COD-IA",
+                      desc: "IDE en la nube con ejecución de código",
+                      icon: Code2,
+                      url: "",
+                      badge: "Próximamente",
+                      cardStyle: "bg-cyan-500/20 hover:bg-cyan-500/300 border-cyan-500/40 text-cyan-500 dark:text-cyan-400",
+                      iconStyle: "bg-cyan-500/30 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30",
+                    },
+                    {
+                      name: "DATA-IA",
+                      desc: "Análisis predictivo y Business Intelligence",
+                      icon: BarChart3,
+                      url: "",
+                      badge: "Próximamente",
+                      cardStyle: "bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-500/40 text-cyan-500 dark:text-cyan-400",
+                      iconStyle: "bg-cyan-500/30 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30",
+                    },
+                  ].map((app) => {
+                    const AppIcon = app.icon;
+                    return (
+                      <button
+                        key={app.name}
+                        onClick={() => {
+                          setAppsModalOpen(false);
+                          navigate(app.url);
+                        }}
+                        className={`group relative flex items-start gap-3.5 p-3.5 rounded-2xl border backdrop-blur-xl transition-all duration-300 text-left hover:scale-[1.02] shadow-[0_4px_16px_rgba(0,0,0,0.1)] ${app.cardStyle}`}
+                      >
+                        <div className={`p-2.5 rounded-xl transition-transform group-hover:scale-105 flex-shrink-0 backdrop-blur-md ${app.iconStyle}`}>
+                          <AppIcon className="w-5 h-5" />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="text-xs font-bold text-foreground">
+                              {app.name}
+                            </span>
+                            {app.badge && (
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/20 dark:bg-black/30 text-muted-foreground border border-white/20 dark:border-white/10 flex-shrink-0">
+                                {app.badge}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">
+                            {app.desc}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     </>
   );
 }
-

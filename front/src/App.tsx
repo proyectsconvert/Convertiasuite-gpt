@@ -11,6 +11,7 @@ import SettingsView from "./components/settings/SettingsView";
 import AdminDashboard from "./components/admin/AdminDashboard";
 import DocumentsView from "./components/documents/DocumentsView";
 import SkillsView from "./components/skills/SkillsView";
+import InternalChatView from "./components/roomia/ChatView";
 import { useAppStore } from "./store/appStore";
 import { ReactNode } from "react";
 import UpdatePassword from "./components/auth/UpdatePassword";
@@ -70,6 +71,7 @@ const App = () => (
           >
             <Route index element={<Navigate to="chat" replace />} />
             <Route path="chat" element={<ChatView />} />
+            <Route path="group-chats" element={<InternalChatView />} />
             <Route path="documents" element={<DocumentsView />} />
             <Route path="skills" element={<SkillsView />} />
             <Route path="settings" element={<SettingsView />} />
@@ -83,7 +85,7 @@ const App = () => (
             />
           </Route>
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/update-password" element={<UpdatePassword/>} />
+          <Route path="/update-password" element={<UpdatePassword />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
