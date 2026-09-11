@@ -120,6 +120,8 @@ async def upload_document(
     file: UploadFile = File(...),
     session_id: Optional[str] = Form(None),
     tags: Optional[list[str]] = Form(None),
+    scope: str = Form("private"),
+    status: str = Form("active"),
     current_user: dict = Depends(get_current_user),
     document_manager: DocumentManager = Depends(get_document_manager),
 ):
@@ -139,6 +141,18 @@ async def upload_document(
                 detail=f"Unsupported file type. Supported: {', '.join(supported)}",
             )
 
+        # Validar scope y status
+        if scope not in ("private", "public"):
+            raise HTTPException(status_code=400, detail="Invalid scope. Must be 'private' or 'public'")
+        if status not in ("active", "inactive", "archived"):
+            raise HTTPException(status_code=400, detail="Invalid status. Must be 'active', 'inactive', or 'archived'")
+
+        # Para documentos públicos, user_id debe ser None
+        if scope == "public":
+            user_id = None
+        else:
+            user_id = UUID(current_user["id"])
+
         history = [
             {
                 "version": 1,
@@ -154,7 +168,9 @@ async def upload_document(
             file_content=content,
             filename=file.filename,
             session_id=session_uuid,
-            user_id=UUID(current_user["id"]),
+            user_id=user_id,
+            scope=scope,
+            status=status,
             tags=tags or [],
             metadata={
                 "upload_source": "api",
@@ -175,6 +191,8 @@ async def upload_document(
             "word_count": document.parsed_content.word_count,
             "sections": len(document.parsed_content.sections),
             "tables": len(document.parsed_content.tables),
+            "scope": document.scope,
+            "status": document.status,
             "created_at": document.created_at.isoformat(),
         }
 

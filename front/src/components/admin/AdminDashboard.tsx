@@ -34,8 +34,10 @@ import {
   Bar,
   Legend,
 } from "recharts";
-import { adminApi, AdminMetricsResponse, UserMetric } from "@/services/api";
+import { adminApi, authApi, AdminMetricsResponse, UserMetric } from "@/services/api";
 import { toast } from "sonner";
+import { normalizePosition } from "@/lib/utils";
+import { ComboboxSelect } from "@/components/ui/combobox-select";
 
 const COLORS = [
   "#8f8cff",
@@ -90,20 +92,38 @@ export default function AdminDashboard() {
   const [invitePassword, setInvitePassword] = useState("");
   const [submittingInvite, setSubmittingInvite] = useState(false);
 
+  // Organization options from DB
+  const [orgAreas, setOrgAreas] = useState<string[]>([]);
+  const [orgRoles, setOrgRoles] = useState<string[]>([]);
+  const [isCustomRole, setIsCustomRole] = useState(false);
+  const [isCustomArea, setIsCustomArea] = useState(false);
+
+  useEffect(() => {
+    authApi
+      .getOrganizationOptions()
+      .then((data) => {
+        if (data.areas?.length > 0) setOrgAreas(data.areas);
+        if (data.functional_roles?.length > 0) setOrgRoles(data.functional_roles);
+      })
+      .catch((err) => console.error("Error loading org options:", err));
+  }, []);
+
   const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteEmail.trim()) {
       toast.error("El correo electrónico es obligatorio");
       return;
     }
+    const finalRole = normalizePosition(inviteFunctionalRole, orgRoles);
+
     try {
       setSubmittingInvite(true);
       const res = await adminApi.inviteUser({
         email: inviteEmail.trim(),
         name: inviteName.trim() || undefined,
         role: inviteRole,
-        area: inviteArea.trim() || undefined,
-        functional_role: inviteFunctionalRole.trim() || undefined,
+        area: inviteArea || undefined,
+        functional_role: finalRole || undefined,
         password: invitePassword ? invitePassword : undefined,
       });
 
@@ -116,6 +136,10 @@ export default function AdminDashboard() {
         toast.success(res.message || "Operación realizada exitosamente.");
       }
 
+      if (finalRole && !orgRoles.some(r => r.toLowerCase() === finalRole.toLowerCase())) {
+        setOrgRoles(prev => [...prev, finalRole].sort((a, b) => a.localeCompare(b)));
+      }
+
       setIsInviteModalOpen(false);
       setInviteEmail("");
       setInviteName("");
@@ -123,6 +147,8 @@ export default function AdminDashboard() {
       setInviteArea("");
       setInviteFunctionalRole("");
       setInvitePassword("");
+      setIsCustomRole(false);
+      setIsCustomArea(false);
 
       // Refrescar tabla
       fetchMetrics(true);
@@ -152,9 +178,25 @@ export default function AdminDashboard() {
         days || undefined
       );
       setData(response);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading metrics:", error);
-      toast.error("Error al cargar las métricas del servidor");
+      let msg = "Error al cargar las métricas del servidor";
+      if (error?.message) {
+        if (error.message.includes("403")) {
+          msg = "No tienes permisos de administrador para acceder a las métricas.";
+        } else if (error.message.includes("401")) {
+          msg = "Sesión no válida o expirada. Por favor inicie sesión de nuevo.";
+        } else if (error.message.includes("HTTP ")) {
+          try {
+            const jsonIdx = error.message.indexOf("{");
+            if (jsonIdx !== -1) {
+              const parsed = JSON.parse(error.message.substring(jsonIdx));
+              if (parsed.detail) msg = typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail);
+            }
+          } catch (_) {}
+        }
+      }
+      toast.error(msg);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -952,13 +994,18 @@ export default function AdminDashboard() {
                   <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
                     Área / Departamento
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Ej. Marketing, BI"
+                  <select
                     value={inviteArea}
                     onChange={(e) => setInviteArea(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
+                    className="w-full px-3 py-1.5 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                  >
+                    <option value="">Seleccionar área</option>
+                    {orgAreas.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -966,13 +1013,15 @@ export default function AdminDashboard() {
                 <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
                   Rol Funcional (Cargo)
                 </label>
-                <input
-                  type="text"
-                  placeholder="Ej. Especialista en Talento, Desarrollador Frontend"
+                <ComboboxSelect
                   value={inviteFunctionalRole}
-                  onChange={(e) => setInviteFunctionalRole(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  onChange={(val) => setInviteFunctionalRole(val)}
+                  options={orgRoles}
+                  placeholder="Selecciona o escribe el cargo..."
                 />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Puedes desplegar la lista para elegir una posición existente o escribir una nueva si no está.
+                </p>
               </div>
 
               <div>

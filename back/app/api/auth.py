@@ -51,10 +51,9 @@ async def login(
         ),
         "email": user.email,
         "role": (
-            app_metadata.get(
-                "role",
-                "authenticated",
-            )
+            app_metadata.get("role")
+            or user_metadata.get("role")
+            or "authenticated"
         ),
         "area": user_metadata.get("area"),
         "functional_role": user_metadata.get("functional_role"),
@@ -225,8 +224,58 @@ async def refresh_token(
                 user_metadata.get("full_name") or user_metadata.get("name") or "Usuario"
             ),
             "email": user.email,
-            "role": app_metadata.get("role", "authenticated"),
+            "role": app_metadata.get("role") or user_metadata.get("role") or "authenticated",
             "area": user_metadata.get("area"),
             "functional_role": user_metadata.get("functional_role"),
         },
     )
+
+
+@router.get("/organization-options")
+async def get_organization_options():
+    try:
+        from app.infra.clients.supabase_client import SupabaseClient
+        supabase = SupabaseClient().db
+
+        logger.info("Fetching departments from DB...")
+        deps_res = supabase.table("departments").select("department_name").execute()
+        logger.info(f"departments raw data: {deps_res.data}")
+
+        logger.info("Fetching positions from DB...")
+        pos_res = supabase.table("positions").select("position_name").execute()
+        logger.info(f"positions raw data: {pos_res.data}")
+
+        raw_areas = [
+            d["department_name"].strip()
+            for d in (deps_res.data or [])
+            if isinstance(d, dict) and d.get("department_name") and d.get("department_name").strip()
+        ]
+        raw_roles = [
+            p["position_name"].strip()
+            for p in (pos_res.data or [])
+            if isinstance(p, dict) and p.get("position_name") and p.get("position_name").strip()
+        ]
+
+        # Deduplicar preservando orden alfabético sin distinción de mayúsculas
+        def deduplicate_case_insensitive(items: list[str]) -> list[str]:
+            seen = set()
+            result = []
+            for item in items:
+                key = item.lower()
+                if key not in seen:
+                    seen.add(key)
+                    result.append(item)
+            return sorted(result, key=lambda s: s.lower())
+
+        areas = deduplicate_case_insensitive(raw_areas)
+        roles = deduplicate_case_insensitive(raw_roles)
+
+        logger.info(f"Returning areas={areas}, roles={roles}")
+        return {
+            "areas": areas,
+            "functional_roles": roles,
+        }
+    except Exception as e:
+        logger.exception(f"Error fetching organization options: {e}")
+        return {"areas": [], "functional_roles": []}
+

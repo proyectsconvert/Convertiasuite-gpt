@@ -11,7 +11,10 @@ import SettingsView from "./components/settings/SettingsView";
 import AdminDashboard from "./components/admin/AdminDashboard";
 import DocumentsView from "./components/documents/DocumentsView";
 import SkillsView from "./components/skills/SkillsView";
+import QADashboard from "./components/qa/QADashboard";
 import InternalChatView from "./components/roomia/ChatView";
+import OliviaAgentWidget from "./components/agents/OliviaWidget";
+import CampaignsView from "./components/campaigns/CampaignsView";
 import { useAppStore } from "./store/appStore";
 import { ReactNode } from "react";
 import UpdatePassword from "./components/auth/UpdatePassword";
@@ -28,6 +31,21 @@ function AdminRoute({ children }: { children: ReactNode }) {
   const { user } = useAppStore();
   const isAdmin = user?.role?.toLowerCase() === "admin";
   if (!isAdmin) return <Navigate to="/app/chat" replace />;
+  return <>{children}</>;
+}
+
+function AdminOrQARoute({ children }: { children: ReactNode }) {
+  const { user } = useAppStore();
+  const isAdmin = user?.role?.toLowerCase() === "admin";
+  const funcRole = (user?.functional_role || "").toLowerCase();
+  const userRole = (user?.role || "").toLowerCase();
+  const isQA =
+    funcRole.includes("qa") ||
+    funcRole.includes("calidad") ||
+    funcRole.includes("quality") ||
+    userRole.includes("qa") ||
+    userRole.includes("quality");
+  if (!isAdmin && !isQA) return <Navigate to="/app/chat" replace />;
   return <>{children}</>;
 }
 
@@ -83,9 +101,35 @@ const App = () => (
                 </AdminRoute>
               }
             />
+            <Route
+              path="campaigns"
+              element={
+                <AdminRoute>
+                  <CampaignsView />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="qa"
+              element={
+                <AdminOrQARoute>
+                  <QADashboard />
+                </AdminOrQARoute>
+              }
+            />
           </Route>
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/update-password" element={<UpdatePassword />} />
+          <Route
+            path="/agent-widget"
+            element={
+              <ProtectedRoute>
+                <div className="h-screen w-screen bg-background overflow-hidden flex flex-col">
+                  <OliviaAgentWidget isStandalone={true} />
+                </div>
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

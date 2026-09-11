@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LogOut,
@@ -14,11 +14,24 @@ import {
 import { useAppStore } from "@/store/appStore";
 import { authApi } from "@/services/api";
 import { toast } from "sonner";
+import { normalizePosition } from "@/lib/utils";
+import { ComboboxSelect } from "@/components/ui/combobox-select";
 
 export default function SettingsView() {
   const { user, darkMode, toggleDarkMode, logout, updateUser } = useAppStore();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const navigate = useNavigate();
+
+  const userRole = (user?.role || "").toLowerCase();
+  const functionalRole = (user?.functional_role || "").toLowerCase();
+  const isAdmin = userRole === "admin";
+  const isQA = functionalRole.includes("qa");
+
+  const isAgent =
+    userRole === "agent" ||
+    userRole === "agente" ||
+    functionalRole === "agent" ||
+    functionalRole === "agente";
 
   // Profile edit states
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -27,6 +40,8 @@ export default function SettingsView() {
   const [editFunctionalRole, setEditFunctionalRole] = useState(
     user?.functional_role || "",
   );
+  const [isCustomRole, setIsCustomRole] = useState(false);
+  const [isCustomArea, setIsCustomArea] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Password change states
@@ -51,10 +66,12 @@ export default function SettingsView() {
 
     setIsSavingProfile(true);
     try {
+      const finalRole = normalizePosition(editFunctionalRole, functionalRoles);
+
       const payload = {
         name: editName.trim(),
-        area: editArea.trim() || undefined,
-        functional_role: editFunctionalRole.trim() || undefined,
+        area: editArea || undefined,
+        functional_role: finalRole || undefined,
       };
       const updatedUser = await authApi.updateProfile(payload);
 
@@ -65,6 +82,10 @@ export default function SettingsView() {
         area: updatedUser.area,
         functional_role: updatedUser.functional_role,
       });
+
+      if (finalRole && !functionalRoles.some(r => r.toLowerCase() === finalRole.toLowerCase())) {
+        setFunctionalRoles(prev => [...prev, finalRole].sort((a, b) => a.localeCompare(b)));
+      }
 
       setIsEditingProfile(false);
       toast.success("Perfil actualizado con éxito");
@@ -119,32 +140,22 @@ export default function SettingsView() {
     }
   };
 
-  const areas = [
-    "Desarrollo e Innovación",
-    "BI",
-    "Marketing",
-    "Talento y Cultura",
-    "Recursos Humanos",
-    "Finanzas",
-    "Operaciones",
-    "Ventas",
-    "Gestión de Proyectos",
-    "IT",
-    "Otro",
-  ];
+  const [areas, setAreas] = useState<string[]>([]);
+  const [functionalRoles, setFunctionalRoles] = useState<string[]>([]);
 
-  const functionalRoles = [
-    "Desarrollador(a) Backend",
-    "Desarrollador(a) Frontend",
-    "Analista BI",
-    "Especialista de Reclutamiento y Selección",
-    "Especialista en Talento y Cultura",
-    "SEO",
-    "SST",
-    "Content Manager",
-    "Project Manager",
-    "Otro",
-  ];
+  useEffect(() => {
+    authApi
+      .getOrganizationOptions()
+      .then((data) => {
+        if (data.areas && data.areas.length > 0) {
+          setAreas(data.areas);
+        }
+        if (data.functional_roles && data.functional_roles.length > 0) {
+          setFunctionalRoles(data.functional_roles);
+        }
+      })
+      .catch((err) => console.error("Error loading organization options from DB:", err));
+  }, []);
 
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-y-auto">
@@ -210,39 +221,34 @@ export default function SettingsView() {
 
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Rol Funcional (Opcional)
+                    Cargo
                   </label>
-                  <select
-                    value={editFunctionalRole}
-                    onChange={(e) => setEditFunctionalRole(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all"
-                  >
-                    <option value="">Selecciona tu rol...</option>
-                    {functionalRoles.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
-                  </select>
+                  <input
+                    type="FunctionalRole"
+                    value={user?.functional_role || ""}
+                    disabled
+                    className="w-full px-4 py-2.5 rounded-xl border border-border bg-secondary/50 text-muted-foreground text-sm cursor-not-allowed opacity-60"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    El cargo no puede ser modificado desde aquí
+                  </p>
                 </div>
+
 
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Área Organizacional (Opcional)
+                    Área Organizacional (Departamento)
                   </label>
-                  <select
-                    value={editArea}
-                    onChange={(e) => setEditArea(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all"
-                  >
-                    <option value="">Selecciona tu área...</option>
-                    {areas.map((area) => (
-                      <option key={area} value={area}>
-                        {area}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  <input
+                    type="departament"
+                    value={user?.area || ""}
+                    disabled
+                    className="w-full px-4 py-2.5 rounded-xl border border-border bg-secondary/50 text-muted-foreground text-sm cursor-not-allowed opacity-60"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    El departamento no puede ser modificado desde aquí
+                  </p>
+                </div>           
 
                 <div className="pt-2 flex gap-2 justify-end">
                   <button
@@ -305,19 +311,21 @@ export default function SettingsView() {
                     ["Empresa", user?.company || "—"],
                     ["Rol Funcional", user?.functional_role || "—"],
                     ["Área", user?.area || "—"],
-                  ].map(([label, value]) => (
-                    <div
-                      key={label}
-                      className="rounded-xl border border-border/40 bg-secondary/30 p-3"
-                    >
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        {label}
-                      </p>
-                      <p className="mt-1 text-sm font-medium text-foreground">
-                        {value}
-                      </p>
-                    </div>
-                  ))}
+                  ]
+                    .filter((item): item is [string, string] => Boolean(item))
+                    .map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="rounded-xl border border-border/40 bg-secondary/30 p-3"
+                      >
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          {label}
+                        </p>
+                        <p className="mt-1 text-sm font-medium text-foreground">
+                          {value}
+                        </p>
+                      </div>
+                    ))}
                 </div>
               </div>
             )}

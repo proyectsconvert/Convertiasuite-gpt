@@ -54,6 +54,8 @@ interface DocumentItem {
   metadata: Record<string, unknown>;
   preview_text: string;
   version: number;
+  scope?: string;
+  status?: string;
   history: Array<{
     version?: number;
     action?: string;
@@ -271,6 +273,29 @@ function DetailModal({
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
+          {/* Scope y Status */}
+          <div className="flex gap-2 flex-wrap">
+            {doc.scope && (
+              <Badge variant="outline" className="text-xs text-muted-foreground">
+                {doc.scope === "public" ? "🌐 Público" : "🔒 Privado"}
+              </Badge>
+            )}
+            {doc.status && (
+              <Badge 
+                variant="outline" 
+                className={`text-xs ${
+                  doc.status === "active" ? "text-green-600 border-green-200" :
+                  doc.status === "inactive" ? "text-yellow-600 border-yellow-200" :
+                  "text-red-600 border-red-200"
+                }`}
+              >
+                {doc.status === "active" ? "✓ Activo" :
+                 doc.status === "inactive" ? "⊘ Inactivo" :
+                 "📦 Archivado"}
+              </Badge>
+            )}
+          </div>
+
           {/* Tags */}
           {doc.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
@@ -395,15 +420,30 @@ function GridCard({
       </div>
 
       {/* Type badge */}
-      <div className="px-3 pb-3 flex items-center gap-1.5">
+<div className="px-3 pb-3 flex items-center gap-1.5 flex-wrap">
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 text-muted-foreground font-normal">
           {cfg.label}
         </Badge>
+        {doc.scope && (
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
+            {doc.scope === "public" ? "🌐" : "🔒"}
+          </Badge>
+        )}
         {doc.tags.slice(0, 1).map((tag) => (
           <Badge key={tag} variant="outline" className="text-[10px] px-1.5 py-0 truncate max-w-[60px] text-muted-foreground">
             {tag}
           </Badge>
         ))}
+      </div>
+
+      {/* Hover actions */}
+      {/* Scope badge */}
+      <div className="absolute bottom-2 left-2">
+        {doc.scope && (
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 text-muted-foreground font-normal">
+            {doc.scope === "public" ? "Público" : "Privado"}
+          </Badge>
+        )}
       </div>
 
       {/* Hover actions */}
@@ -549,6 +589,8 @@ export default function DocumentsView() {
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState("");
+  const [uploadScope, setUploadScope] = useState<string>("private");
+  const [uploadStatus, setUploadStatus] = useState<string>("active");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const dragCounter = useRef(0);
@@ -611,7 +653,7 @@ export default function DocumentsView() {
 
       setUploading(true);
       try {
-        await Promise.all(files.map((file) => documentsApi.uploadFile(file)));
+        await Promise.all(files.map((file) => documentsApi.uploadFile(file, [], uploadScope, uploadStatus)));
         toast.success(
           files.length === 1
             ? `"${files[0].name}" subido correctamente`
@@ -624,7 +666,7 @@ export default function DocumentsView() {
         setUploading(false);
       }
     },
-    [loadDocuments]
+    [loadDocuments, uploadScope, uploadStatus]
   );
 
   // ── File input upload ───────────────────────────────────────────────────────
@@ -634,7 +676,7 @@ export default function DocumentsView() {
 
     setUploading(true);
     try {
-      await Promise.all(files.map((file) => documentsApi.uploadFile(file)));
+      await Promise.all(files.map((file) => documentsApi.uploadFile(file, [], uploadScope, uploadStatus)));
       toast.success(
         files.length === 1
           ? `"${files[0].name}" subido correctamente`
@@ -905,6 +947,44 @@ export default function DocumentsView() {
               <List className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {/* Scope & Status dropdowns */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 hidden sm:flex rounded-lg text-xs border-border/50">
+                {uploadScope === "public" ? "Public" : "Private"}
+                <ChevronDown className="w-3 h-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-32 rounded-xl">
+              <DropdownMenuItem onClick={() => setUploadScope("private")} className="gap-2 text-xs">
+                Private
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setUploadScope("public")} className="gap-2 text-xs">
+                Public
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 hidden sm:flex rounded-lg text-xs border-border/50">
+                {uploadStatus === "active" ? "Active" : uploadStatus === "inactive" ? "Inactive" : "Archived"}
+                <ChevronDown className="w-3 h-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40 rounded-xl">
+              <DropdownMenuItem onClick={() => setUploadStatus("active")} className="gap-2 text-xs">
+                Active
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setUploadStatus("inactive")} className="gap-2 text-xs">
+                Inactive
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setUploadStatus("archived")} className="gap-2 text-xs">
+                Archived
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Mobile upload button */}
           <Button

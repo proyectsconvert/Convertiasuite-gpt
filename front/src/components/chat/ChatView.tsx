@@ -137,7 +137,14 @@ const [callTranscript, setCallTranscript] = useState<
             setMessages(data.messages.map(buildMessageWithArtifacts));
           }
         })
-        .catch(() => setMessages([]));
+        .catch((error: Error) => {
+          setMessages([]);
+          if (error.message.includes("HTTP 404")) {
+            setCurrentChatId(null);
+          } else {
+            console.error("Error loading chat history:", error);
+          }
+        });
     } else {
       setMessages([]);
     }

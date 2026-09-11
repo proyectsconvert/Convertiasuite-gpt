@@ -9,9 +9,9 @@ import dateutil.parser
 from collections import defaultdict
 import os
 
-from app.dependencies.auth import get_current_user, require_admin
+from app.dependencies.auth import get_current_user, require_admin, require_admin_or_qa
 from app.infra.clients.supabase_client import SupabaseClient
-from app.schemas.admin import InviteUserRequest
+from app.schemas.admin import InviteUserRequest, AddCampaignMemberRequest
 
 logger = logging.getLogger(__name__)
 
@@ -33,76 +33,91 @@ async def get_metrics(
 ):
 
     try:
+        cache_key = f"admin:metrics:{user_id or 'all'}:{days or 'all'}"
+        cache_client = None
         try:
-            cache_client = request.app.state.cache.redis
-            cached = await cache_client.get("admin:metrics")
-            if cached:
-                return json.loads(cached)
+            cache_obj = getattr(request.app.state, "cache", None)
+            if cache_obj and hasattr(cache_obj, "redis"):
+                cache_client = cache_obj.redis
+                cached = await cache_client.get(cache_key)
+                if cached:
+                    return json.loads(cached)
         except Exception:
             pass
+
         supabase = SupabaseClient().db
 
         try:
-            auth_users = supabase.auth.admin.list_users()
-            if auth_users:
-                for u in auth_users:
-                    user_metadata = u.user_metadata or {}
-                    name = user_metadata.get("full_name") or user_metadata.get("name")
-                    area = user_metadata.get("area")
-                    functional_role = user_metadata.get("functional_role")
-                    # 1. Upsert profiles
-                    p_data = {"user_id": u.id}
-                    if name:
-                        p_data["full_name"] = name
-                    supabase.table("profiles").upsert(p_data).execute()
-                    dep_id = None
-                    if area:
-                        dep_res = (
-                            supabase.table("departments")
-                            .select("department_id")
-                            .eq("department_name", area)
-                            .execute()
-                        )
-                        if dep_res.data:
-                            dep_id = dep_res.data[0]["department_id"]
-                        else:
-                            dep_insert = (
+            raw_auth_users = supabase.auth.admin.list_users()
+            auth_users_list = getattr(raw_auth_users, "users", raw_auth_users) if raw_auth_users else []
+            if isinstance(auth_users_list, list):
+                for u in auth_users_list:
+                    try:
+                        u_id = getattr(u, "id", None)
+                        if not u_id:
+                            continue
+                        user_metadata = getattr(u, "user_metadata", {}) or {}
+                        name = user_metadata.get("full_name") or user_metadata.get("name")
+                        area = user_metadata.get("area")
+                        functional_role = user_metadata.get("functional_role")
+                        
+                        # 1. Upsert profiles
+                        p_data = {"user_id": str(u_id)}
+                        if name:
+                            p_data["full_name"] = name
+                        supabase.table("profiles").upsert(p_data).execute()
+                        dep_id = None
+                        if area:
+                            dep_res = (
                                 supabase.table("departments")
-                                .insert({"department_name": area})
+                                .select("department_id")
+                                .eq("department_name", area)
                                 .execute()
                             )
-                            if dep_insert.data:
-                                dep_id = dep_insert.data[0]["department_id"]
-                    pos_id = None
-                    if functional_role:
-                        pos_res = (
-                            supabase.table("positions")
-                            .select("position_id")
-                            .eq("position_name", functional_role)
-                            .execute()
-                        )
-                        if pos_res.data:
-                            pos_id = pos_res.data[0]["position_id"]
-                        else:
-                            pos_insert = (
-                                supabase.table("positions")
-                                .insert(
-                                    {
-                                        "position_name": functional_role,
-                                        "department_id": dep_id,
-                                    }
+                            if dep_res.data:
+                                dep_id = dep_res.data[0]["department_id"]
+                            else:
+                                dep_insert = (
+                                    supabase.table("departments")
+                                    .insert({"department_name": area})
+                                    .execute()
                                 )
+                                if dep_insert.data:
+                                    dep_id = dep_insert.data[0]["department_id"]
+                        pos_id = None
+                        if functional_role:
+                            clean_role = functional_role.strip()
+                            pos_res = (
+                                supabase.table("positions")
+                                .select("position_id")
+                                .ilike("position_name", clean_role)
                                 .execute()
                             )
-                            if pos_insert.data:
-                                pos_id = pos_insert.data[0]["position_id"]
+                            if pos_res.data:
+                                pos_id = pos_res.data[0]["position_id"]
+                            else:
+                                pos_insert = (
+                                    supabase.table("positions")
+                                    .insert(
+                                        {
+                                            "position_name": clean_role,
+                                            "department_id": dep_id,
+                                        }
+                                    )
+                                    .execute()
+                                )
+                                if pos_insert.data:
+                                    pos_id = pos_insert.data[0]["position_id"]
 
-                    emp_data = {"user_id": u.id, "work_email": u.email}
-                    if dep_id is not None:
-                        emp_data["department_id"] = dep_id
-                    if pos_id is not None:
-                        emp_data["position_id"] = pos_id
-                    supabase.table("employee_profiles").upsert(emp_data).execute()
+                        u_email = getattr(u, "email", "") or ""
+                        emp_data = {"user_id": str(u_id), "work_email": u_email}
+                        if dep_id is not None:
+                            emp_data["department_id"] = dep_id
+                        if pos_id is not None:
+                            emp_data["position_id"] = pos_id
+                        supabase.table("employee_profiles").upsert(emp_data).execute()
+                    except Exception as single_user_err:
+                        logger.warning(f"Error processing single user sync in metrics: {single_user_err}")
         except Exception as sync_err:
             logger.error(
                 f"Error syncing users in admin metrics: {sync_err}", exc_info=True
@@ -143,20 +158,26 @@ async def get_metrics(
             deps_res = supabase.table("departments").select("*").execute()
             models_res = supabase.table("models").select("*").execute()
 
-        usage = usage_res.data or []
-        profiles = profiles_res.data or []
-        employee_profiles = emp_res.data or []
-        roles = roles_res.data or []
-        departments = deps_res.data or []
-        models = models_res.data or []
+        usage = getattr(usage_res, "data", []) or []
+        profiles = getattr(profiles_res, "data", []) or []
+        employee_profiles = getattr(emp_res, "data", []) or []
+        roles = getattr(roles_res, "data", []) or []
+        departments = getattr(deps_res, "data", []) or []
+        models = getattr(models_res, "data", []) or []
 
         if days:
             now_utc = datetime.now(timezone.utc)
             cutoff_date = now_utc - timedelta(days=days)
             filtered_usage = []
             for row in usage:
+                if not isinstance(row, dict):
+                    continue
+                created_at_val = row.get("created_at")
+                if not created_at_val:
+                    filtered_usage.append(row)
+                    continue
                 try:
-                    dt = dateutil.parser.isoparse(row.get("created_at"))
+                    dt = dateutil.parser.isoparse(str(created_at_val))
                     if dt.tzinfo is None:
                         dt = dt.replace(tzinfo=timezone.utc)
                     if dt >= cutoff_date:
@@ -165,47 +186,67 @@ async def get_metrics(
                     filtered_usage.append(row)
             usage = filtered_usage
 
-        models_dict = {m["model_id"]: m for m in models}
-        profiles_dict = {p["user_id"]: p for p in profiles}
-        emp_dict = {e["user_id"]: e for e in employee_profiles}
-        roles_dict = {r["role_id"]: r["role_name"] for r in roles}
-        deps_dict = {d["department_id"]: d["department_name"] for d in departments}
+        models_dict = {m["model_id"]: m for m in models if isinstance(m, dict) and "model_id" in m}
+        profiles_dict = {p["user_id"]: p for p in profiles if isinstance(p, dict) and "user_id" in p}
+        emp_dict = {e["user_id"]: e for e in employee_profiles if isinstance(e, dict) and "user_id" in e}
+        roles_dict = {r["role_id"]: r.get("role_name", "user") for r in roles if isinstance(r, dict) and "role_id" in r}
+        deps_dict = {d["department_id"]: d.get("department_name", "General") for d in departments if isinstance(d, dict) and "department_id" in d}
 
         joined = []
         for row in usage:
-            if user_id and str(row.get("user_id")) != str(user_id):
+            if not isinstance(row, dict):
                 continue
-            m_id = row["model_id"]
-            u_id = row["user_id"]
+            u_id = row.get("user_id")
+            if user_id and str(u_id) != str(user_id):
+                continue
+            m_id = row.get("model_id")
 
-            m_info = models_dict.get(m_id, {})
-            p_info = profiles_dict.get(u_id, {})
-            e_info = emp_dict.get(u_id, {})
+            m_info = models_dict.get(m_id) if m_id else {}
+            p_info = profiles_dict.get(u_id) if u_id else {}
+            e_info = emp_dict.get(u_id) if u_id else {}
 
-            role_id = e_info.get("role_id")
-            role_name = roles_dict.get(role_id, "user")
+            role_id = e_info.get("role_id") if isinstance(e_info, dict) else None
+            role_name = "admin" if p_info.get("is_admin") else (roles_dict.get(role_id, "user") if role_id else "user")
 
-            dep_id = e_info.get("department_id")
-            dep_name = deps_dict.get(dep_id, "General")
+            dep_id = p_info.get("department_id") or (e_info.get("department_id") if isinstance(e_info, dict) else None)
+            dep_name = deps_dict.get(dep_id, "General") if dep_id else "General"
 
-            email = e_info.get("work_email") or f"{u_id[:8]}@convert.ia"
-            name = p_info.get("full_name") or (
+            u_str = str(u_id) if u_id is not None else ""
+            email = (e_info.get("work_email") if isinstance(e_info, dict) else None) or (
+                f"{u_str[:8]}@convert.ia" if u_str else "usuario@convert.ia"
+            )
+            name = (p_info.get("full_name") if isinstance(p_info, dict) else None) or (
                 email.split("@")[0].capitalize() if "@" in email else "Usuario"
             )
 
+            try:
+                t_in = int(row.get("tokens_input") or 0)
+            except (ValueError, TypeError):
+                t_in = 0
+
+            try:
+                t_out = int(row.get("tokens_output") or 0)
+            except (ValueError, TypeError):
+                t_out = 0
+
+            try:
+                cost = float(row.get("total_cost") or 0.0)
+            except (ValueError, TypeError):
+                cost = 0.0
+
             joined.append(
                 {
-                    "usage_id": row["usage_id"],
-                    "user_id": u_id,
+                    "usage_id": row.get("usage_id", ""),
+                    "user_id": u_str,
                     "name": name,
                     "email": email,
                     "role": role_name,
                     "department": dep_name,
-                    "model_name": m_info.get("model_name", "unknown"),
-                    "provider": m_info.get("provider", "unknown"),
-                    "tokens_input": row.get("tokens_input", 0) or 0,
-                    "tokens_output": row.get("tokens_output", 0) or 0,
-                    "total_cost": float(row.get("total_cost", 0.0) or 0.0),
+                    "model_name": m_info.get("model_name", "unknown") if isinstance(m_info, dict) else "unknown",
+                    "provider": m_info.get("provider", "unknown") if isinstance(m_info, dict) else "unknown",
+                    "tokens_input": t_in,
+                    "tokens_output": t_out,
+                    "total_cost": cost,
                     "created_at": row.get("created_at"),
                 }
             )
@@ -217,9 +258,12 @@ async def get_metrics(
 
         active_users_count = 0
         for p in profiles:
-            u_id = p["user_id"]
-            e_info = emp_dict.get(u_id, {})
-            if e_info.get("status", "active") == "active":
+            if not isinstance(p, dict):
+                continue
+            u_id = p.get("user_id")
+            e_info = emp_dict.get(u_id) if u_id else {}
+            status = e_info.get("status", "active") if isinstance(e_info, dict) else "active"
+            if status == "active":
                 active_users_count += 1
 
         avg_tokens_per_request = (
@@ -236,11 +280,13 @@ async def get_metrics(
         recent_reqs = 0
         for r in joined:
             try:
-                dt = dateutil.parser.isoparse(r["created_at"])
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                if dt >= recent_15m:
-                    recent_reqs += 1
+                created_at_val = r.get("created_at")
+                if created_at_val:
+                    dt = dateutil.parser.isoparse(str(created_at_val))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    if dt >= recent_15m:
+                        recent_reqs += 1
             except Exception:
                 pass
         requests_per_minute = round(recent_reqs / 15.0, 2)
@@ -265,7 +311,7 @@ async def get_metrics(
             model_aggs[m_name]["total_cost"] += r["total_cost"]
 
         for m_name, val in model_aggs.items():
-            val["avg_cost_per_request"] = round(val["total_cost"] / val["requests"], 6)
+            val["avg_cost_per_request"] = round(val["total_cost"] / val["requests"], 6) if val["requests"] > 0 else 0.0
             val["total_cost"] = round(val["total_cost"], 6)
 
         dep_aggs = defaultdict(
@@ -311,22 +357,27 @@ async def get_metrics(
         user_aggs = {}
 
         for p in profiles:
-            u_id = p["user_id"]
+            if not isinstance(p, dict):
+                continue
+            u_id = p.get("user_id")
+            if not u_id:
+                continue
             p_info = p
-            e_info = emp_dict.get(u_id, {})
+            e_info = emp_dict.get(u_id) if u_id else {}
 
-            role_id = e_info.get("role_id")
-            role_name = roles_dict.get(role_id, "user")
+            role_id = e_info.get("role_id") if isinstance(e_info, dict) else None
+            role_name = roles_dict.get(role_id, "user") if role_id else "user"
 
-            dep_id = e_info.get("department_id")
-            dep_name = deps_dict.get(dep_id, "General")
+            dep_id = e_info.get("department_id") if isinstance(e_info, dict) else None
+            dep_name = deps_dict.get(dep_id, "General") if dep_id else "General"
 
-            email = e_info.get("work_email") or f"{u_id[:8]}@convert.ia"
-            name = p_info.get("full_name") or (
+            u_str = str(u_id)
+            email = (e_info.get("work_email") if isinstance(e_info, dict) else None) or f"{u_str[:8]}@convert.ia"
+            name = (p_info.get("full_name") if isinstance(p_info, dict) else None) or (
                 email.split("@")[0].capitalize() if "@" in email else "Usuario"
             )
 
-            user_aggs[u_id] = {
+            user_aggs[u_str] = {
                 "name": name,
                 "email": email,
                 "role": role_name,
@@ -341,6 +392,8 @@ async def get_metrics(
 
         for r in joined:
             u_id = r["user_id"]
+            if not u_id:
+                continue
             if u_id not in user_aggs:
                 user_aggs[u_id] = {
                     "name": r["name"],
@@ -360,11 +413,13 @@ async def get_metrics(
             u_entry["tokens_output"] += r["tokens_output"]
             u_entry["total_cost"] += r["total_cost"]
 
-            row_time = r["created_at"]
-            if not u_entry["last_use"] or row_time > u_entry["last_use"]:
-                u_entry["last_use"] = row_time
+            row_time = r.get("created_at")
+            if row_time and isinstance(row_time, str):
+                if not u_entry["last_use"] or row_time > u_entry["last_use"]:
+                    u_entry["last_use"] = row_time
 
-            u_entry["models_used"][r["model_name"]] += 1
+            if r.get("model_name"):
+                u_entry["models_used"][r["model_name"]] += 1
 
         by_user_list = []
         for u_id, val in user_aggs.items():
@@ -402,12 +457,14 @@ async def get_metrics(
         )
         for r in joined:
             try:
-                date_str = r["created_at"][:10]  # Get YYYY-MM-DD
-                timeline_aggs[date_str]["date"] = date_str
-                timeline_aggs[date_str]["requests"] += 1
-                timeline_aggs[date_str]["tokens_input"] += r["tokens_input"]
-                timeline_aggs[date_str]["tokens_output"] += r["tokens_output"]
-                timeline_aggs[date_str]["total_cost"] += r["total_cost"]
+                created_at_val = r.get("created_at")
+                if created_at_val and isinstance(created_at_val, str) and len(created_at_val) >= 10:
+                    date_str = created_at_val[:10]  # Get YYYY-MM-DD
+                    timeline_aggs[date_str]["date"] = date_str
+                    timeline_aggs[date_str]["requests"] += 1
+                    timeline_aggs[date_str]["tokens_input"] += r["tokens_input"]
+                    timeline_aggs[date_str]["tokens_output"] += r["tokens_output"]
+                    timeline_aggs[date_str]["total_cost"] += r["total_cost"]
             except Exception:
                 pass
 
@@ -435,10 +492,11 @@ async def get_metrics(
         }
 
         # Guardar en cache por 30s (no crítico)
-        try:
-            await cache_client.setex("admin:metrics", 30, json.dumps(result))
-        except Exception:
-            pass
+        if cache_client:
+            try:
+                await cache_client.setex(cache_key, 30, json.dumps(result))
+            except Exception:
+                pass
 
         return result
 
@@ -519,10 +577,11 @@ async def invite_user(
         pos_id = None
         if body.functional_role:
             try:
+                clean_role = body.functional_role.strip()
                 pos_res = (
                     supabase.table("positions")
                     .select("position_id")
-                    .eq("position_name", body.functional_role)
+                    .ilike("position_name", clean_role)
                     .execute()
                 )
                 if pos_res.data:
@@ -532,7 +591,7 @@ async def invite_user(
                         supabase.table("positions")
                         .insert(
                             {
-                                "position_name": body.functional_role,
+                                "position_name": clean_role,
                                 "department_id": dep_id,
                             }
                         )
@@ -546,9 +605,10 @@ async def invite_user(
         # 4. Chequear y crear usuario
         existing_user = None
         try:
-            auth_users = supabase.auth.admin.list_users()
-            if auth_users:
-                for u in auth_users:
+            raw_users = supabase.auth.admin.list_users()
+            users_list = getattr(raw_users, "users", raw_users) if raw_users else []
+            if isinstance(users_list, list):
+                for u in users_list:
                     if getattr(u, "email", "").lower() == body.email.lower():
                         existing_user = u
                         break
@@ -688,12 +748,19 @@ async def invite_user(
             await cache_client.delete("admin:metrics")
         except Exception:
             pass
+        
+        u_id_val = None
+        if new_user and hasattr(new_user, "id"):
+            u_id_val = str(new_user.id)
+        elif existing_user and hasattr(existing_user, "id"):
+            u_id_val = str(existing_user.id)
 
         response = {
             "status": "success",
             "action": action_type,
             "message": f"Usuario {action_type} exitosamente.",
             "email": body.email,
+            "user_id": u_id_val,
         }
         if temp_password:
             response["temp_password"] = temp_password
@@ -711,3 +778,262 @@ async def invite_user(
             detail=f"Error al procesar usuario: {str(e)}",
         )
 
+@router.get("/users")
+async def get_system_users(
+    request: Request,
+    current_user: dict = Depends(require_admin_or_qa),
+):
+    try:
+        supabase = SupabaseClient().db
+        auth_users = []
+        try:
+            raw_users = supabase.auth.admin.list_users()
+            if raw_users:
+                auth_users = getattr(raw_users, "users", raw_users)
+                if not isinstance(auth_users, list):
+                    auth_users = []
+        except Exception as auth_err:
+            logger.warning(f"Error listing auth users: {auth_err}")
+
+        profiles_res = supabase.table("profiles").select("*").execute()
+        emp_res = supabase.table("employee_profiles").select("*").execute()
+        deps_res = supabase.table("departments").select("*").execute()
+
+        profiles_dict = {p["user_id"]: p for p in (profiles_res.data or [])}
+        emp_dict = {e["user_id"]: e for e in (emp_res.data or [])}
+        deps_dict = {d["department_id"]: d["department_name"] for d in (deps_res.data or [])}
+
+        users = []
+        for u in auth_users:
+            u_id = str(u.id)
+            user_meta = getattr(u, "user_metadata", {}) or {}
+            app_meta = getattr(u, "app_metadata", {}) or {}
+
+            p_info = profiles_dict.get(u_id, {})
+            e_info = emp_dict.get(u_id, {})
+
+            email = getattr(u, "email", "") or e_info.get("work_email", "")
+            name = p_info.get("full_name") or user_meta.get("full_name") or user_meta.get("name") or (email.split("@")[0].capitalize() if email else "Usuario")
+            role = app_meta.get("role") or user_meta.get("role") or "user"
+            area = user_meta.get("area") or deps_dict.get(e_info.get("department_id"), "")
+            functional_role = user_meta.get("functional_role") or ""
+
+            users.append({
+                "user_id": u_id,
+                "name": name,
+                "email": email,
+                "role": role,
+                "area": area,
+                "functional_role": functional_role,
+            })
+
+        return {"status": "success", "users": users}
+    except Exception as e:
+        logger.error(f"Error fetching users: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno del servidor al obtener usuarios: {str(e)}",
+        )
+
+#CAMPAÑAS
+
+@router.get("/campaigns")
+async def get_campaigns(
+    request: Request,
+    current_user: dict = Depends(require_admin_or_qa),
+):
+    try:
+        supabase = SupabaseClient().db
+        campaigns_res = supabase.table("campaigns").select("*").execute()
+        campaigns = campaigns_res.data or []
+        
+        # If user is not admin, filter campaigns they are member of (unless RLS does it automatically)
+        # RLS in supabase handles member_see_own_campaign, but we are using service role here (db=admin),
+        # so we need to filter manually.
+        user_role = current_user.get("role", "").lower()
+        if user_role != "admin":
+            members_res = supabase.table("campaign_members").select("campaign_id").eq("user_id", current_user["id"]).execute()
+            user_campaign_ids = [m["campaign_id"] for m in (members_res.data or [])]
+            campaigns = [c for c in campaigns if c["campaign_id"] in user_campaign_ids]
+
+        return {"status": "success", "campaigns": campaigns}
+    except Exception as e:
+        logger.error(f"Error fetching campaigns: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno del servidor al obtener campañas: {str(e)}",
+        )
+
+@router.post("/campaigns")
+async def create_campaign(
+    request: Request,
+    campaign_data: dict,
+    current_user: dict = Depends(require_admin_or_qa),
+):
+    try:
+        supabase = SupabaseClient().db
+        insert_res = supabase.table("campaigns").insert(campaign_data).execute()
+        new_campaign = insert_res.data[0] if insert_res.data else None
+        return {"status": "success", "campaign": new_campaign}
+    except Exception as e:
+        logger.error(f"Error creating campaign: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno del servidor al crear campaña: {str(e)}",
+        )
+
+@router.put("/campaigns/{campaign_id}")
+async def update_campaign(
+    campaign_id: str,
+    request: Request,
+    campaign_data: dict,
+    current_user: dict = Depends(require_admin_or_qa),
+):
+    try:
+        supabase = SupabaseClient().db
+        update_res = (
+            supabase.table("campaigns")
+            .update(campaign_data)
+            .eq("campaign_id", campaign_id)
+            .execute()
+        )
+        updated_campaign = update_res.data[0] if update_res.data else None
+        return {"status": "success", "campaign": updated_campaign}
+    except Exception as e:
+        logger.error(f"Error updating campaign {campaign_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno del servidor al actualizar campaña: {str(e)}",
+        )
+
+@router.delete("/campaigns/{campaign_id}")
+async def delete_campaign(
+    campaign_id: str,
+    request: Request,
+    current_user: dict = Depends(require_admin_or_qa),
+):
+    try:
+        supabase = SupabaseClient().db
+        delete_res = (
+            supabase.table("campaigns")
+            .delete()
+            .eq("campaign_id", campaign_id)
+            .execute()
+        )
+        return {"status": "success", "deleted_count": len(delete_res.data or [])}
+    except Exception as e:
+        logger.error(f"Error deleting campaign {campaign_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno del servidor al eliminar campaña: {str(e)}",
+        )
+@router.get("/campaigns/{campaign_id}/members")
+async def get_campaign_members(
+    campaign_id: str,
+    request: Request,
+    current_user: dict = Depends(require_admin_or_qa),
+):
+    try:
+        supabase = SupabaseClient().db
+        members_res = (
+            supabase.table("campaign_members")
+            .select("*")
+            .eq("campaign_id", campaign_id)
+            .execute()
+        )
+        members = members_res.data or []
+
+        if members:
+            user_ids = [m["user_id"] for m in members]
+            profiles_res = supabase.table("profiles").select("*").in_("user_id", user_ids).execute()
+            emp_res = supabase.table("employee_profiles").select("*").in_("user_id", user_ids).execute()
+
+            profiles_dict = {p["user_id"]: p for p in (profiles_res.data or [])}
+            emp_dict = {e["user_id"]: e for e in (emp_res.data or [])}
+
+            auth_emails = {}
+            try:
+                all_auth = supabase.auth.admin.list_users()
+                if all_auth:
+                    auth_emails = {str(u.id): getattr(u, "email", "") for u in all_auth if hasattr(u, "id")}
+            except Exception:
+                pass
+
+            for m in members:
+                uid = m["user_id"]
+                p = profiles_dict.get(uid, {})
+                e = emp_dict.get(uid, {})
+                email_val = auth_emails.get(uid) or e.get("work_email") or ""
+                name_val = p.get("full_name") or (email_val.split("@")[0].capitalize() if "@" in email_val else "Usuario")
+                m["user_name"] = name_val
+                m["user_email"] = email_val
+
+        return {"status": "success", "members": members}
+    except Exception as e:
+        logger.error(f"Error fetching members for campaign {campaign_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno del servidor al obtener miembros de la campaña: {str(e)}",
+        )
+@router.delete("/campaigns/{id}/members/{user_id}")
+async def remove_campaign_member(
+    id: str,
+    user_id: str,
+    request: Request,
+    current_user: dict = Depends(require_admin_or_qa),
+):
+    try:
+        supabase = SupabaseClient().db
+        delete_res = (
+            supabase.table("campaign_members")
+            .delete()
+            .eq("campaign_id", id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return {"status": "success", "deleted_count": len(delete_res.data or [])}
+    except Exception as e:
+        logger.error(f"Error removing member {user_id} from campaign {id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno del servidor al eliminar miembro de la campaña: {str(e)}",
+        )
+
+@router.post("/campaigns/{id}/members")
+async def add_campaign_members(
+    id: str,
+    body: AddCampaignMemberRequest,
+    request: Request,
+    current_user: dict = Depends(require_admin_or_qa),
+):
+    try:
+        supabase = SupabaseClient().db
+        insert_data = {
+            "campaign_id": id,
+            "user_id": body.user_id,
+            "campaign_role": body.campaign_role,
+        }
+        insert_res = supabase.table("campaign_members").insert(insert_data).execute()
+        return {"status": "success", "added_members": insert_res.data or []}
+    except Exception as e:
+        logger.error(f"Error adding members to campaign {id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno del servidor al agregar miembros a la campaña: {str(e)}",
+        )
+@router.get("/training-insights")
+async def get_training_insights(
+    request: Request,
+    current_user: dict = Depends(require_admin),
+):
+    try:
+        supabase = SupabaseClient().db
+        insights_res = supabase.table("training_insights").select("*").execute()
+        insights = insights_res.data or []
+        return {"status": "success", "training_insights": insights}
+    except Exception as e:
+        logger.error(f"Error fetching training insights: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno del servidor al obtener insights de entrenamiento: {str(e)}",
+        )

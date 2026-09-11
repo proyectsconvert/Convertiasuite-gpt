@@ -11,6 +11,53 @@ class SupabaseRagRepository(IRagRepository):
         self.client = supabase_client
         self.table_name = "rag_chunks"
 
+    @staticmethod
+    def _filter_access(results: list[dict], access_context: dict | None = None) -> list[dict]:
+        if not results:
+            return []
+
+        if not access_context:
+            return [r for r in results if (r.get("metadata") or {}).get("scope") in (None, "public")]
+
+        user_id = str((access_context or {}).get("user_id") or "")
+        department_id = str((access_context or {}).get("department_id") or "")
+        campaign_id = str((access_context or {}).get("campaign_id") or "")
+
+        allowed = []
+        for row in results:
+            metadata = row.get("metadata") or {}
+            scope = metadata.get("scope") or "private"
+
+            if campaign_id:
+                chunk_campaign_id = str(metadata.get("campaign_id") or "")
+                if chunk_campaign_id and chunk_campaign_id != campaign_id:
+                    continue
+
+            if scope == "public":
+                allowed.append(row)
+                continue
+
+            if scope == "private":
+                if metadata.get("user_id") == user_id:
+                    allowed.append(row)
+                continue
+
+            if scope == "department":
+                if metadata.get("department_id") == department_id:
+                    allowed.append(row)
+                continue
+
+            if scope == "campaign":
+                if metadata.get("campaign_id") == campaign_id:
+                    allowed.append(row)
+                continue
+
+            # fallback privado con owner
+            if metadata.get("user_id") == user_id:
+                allowed.append(row)
+
+        return allowed
+
     async def get_pending_sources(self) -> list[dict]:
         try:
             response = self.client.db.rpc("get_pending_rag_sources", {}).execute()
@@ -51,13 +98,19 @@ class SupabaseRagRepository(IRagRepository):
             logger.error("Error replacing RAG chunks source_id=%s error=%s", source_id, str(e))
             raise
 
-    async def search(self, query_embedding: list[float], k: int = 5) -> list[dict]:
+    async def search(
+        self,
+        query_embedding: list[float],
+        k: int = 5,
+        access_context: dict | None = None,
+    ) -> list[dict]:
         try:
             response = self.client.db.rpc(
                 "match_rag_chunks",
                 {"query_embedding": query_embedding, "match_count": k},
             ).execute()
-            return response.data or []
+            rows = response.data or []
+            return self._filter_access(rows, access_context)
         except Exception as e:
             logger.error("Error searching RAG chunks: %s", str(e))
             return []

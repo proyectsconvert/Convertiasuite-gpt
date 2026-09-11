@@ -136,15 +136,17 @@ class AuthService:
                     "functional_role": user_metadata.get("functional_role"),
                 }
 
-            user_metadata = payload.get("user_metadata", {})
-            app_metadata = payload.get("app_metadata", {})
+            user_metadata = payload.get("user_metadata", {}) or {}
+            app_metadata = payload.get("app_metadata", {}) or {}
+
+            role_val = app_metadata.get("role") or user_metadata.get("role")
+            if not role_val and payload.get("role") and payload.get("role") != "authenticated":
+                role_val = payload.get("role")
 
             return {
                 "sub": payload.get("sub"),
                 "email": payload.get("email"),
-                "role": app_metadata.get("role")
-                or payload.get("role")
-                or "authenticated",
+                "role": role_val or "authenticated",
                 "name": user_metadata.get("full_name")
                 or user_metadata.get("name")
                 or payload.get("email"),
@@ -176,8 +178,9 @@ class AuthService:
     def _resolve_role(self, user) -> str:
 
         app_metadata = user.app_metadata or {}
+        user_metadata = user.user_metadata or {}
 
-        return app_metadata.get("role") or "authenticated"
+        return app_metadata.get("role") or user_metadata.get("role") or "authenticated"
 
     async def refresh_token(self, refresh_token: str) -> dict | None:
         try:
@@ -196,21 +199,16 @@ class AuthService:
 
             admin_client = SupabaseClient().admin
 
-            user_id = user.id
-            email = user.email
-            user_metadata = user.user_metadata or {}
+            user_id = str(user.id)
+            email = getattr(user, "email", "")
+            user_metadata = getattr(user, "user_metadata", {}) or {}
+            app_metadata = getattr(user, "app_metadata", {}) or {}
 
             name = user_metadata.get("full_name") or user_metadata.get("name")
             area = user_metadata.get("area")
             functional_role = user_metadata.get("functional_role")
 
-            # 1. Upsert profiles
-            p_data = {"user_id": user_id}
-            if name:
-                p_data["full_name"] = name
-            admin_client.table("profiles").upsert(p_data).execute()
-
-            # 2. Resolve department_id
+            # 1. Resolve department_id
             dep_id = None
             if area:
                 dep_res = (
@@ -230,13 +228,14 @@ class AuthService:
                     if dep_insert.data:
                         dep_id = dep_insert.data[0]["department_id"]
 
-            # 3. Resolve position_id
+            # 2. Resolve position_id
             pos_id = None
             if functional_role:
+                clean_role = functional_role.strip()
                 pos_res = (
                     admin_client.table("positions")
                     .select("position_id")
-                    .eq("position_name", functional_role)
+                    .ilike("position_name", clean_role)
                     .execute()
                 )
                 if pos_res.data:
@@ -245,12 +244,29 @@ class AuthService:
                     pos_insert = (
                         admin_client.table("positions")
                         .insert(
-                            {"position_name": functional_role, "department_id": dep_id}
+                            {"position_name": clean_role, "department_id": dep_id}
                         )
                         .execute()
                     )
                     if pos_insert.data:
                         pos_id = pos_insert.data[0]["position_id"]
+
+            is_admin_user = (
+                user_metadata.get("role") == "admin" or app_metadata.get("role") == "admin"
+            )
+
+            # 3. Upsert profiles table (including department_id, position_id, is_admin)
+            p_data = {"user_id": user_id}
+            if name:
+                p_data["full_name"] = name
+            if dep_id is not None:
+                p_data["department_id"] = dep_id
+            if pos_id is not None:
+                p_data["position_id"] = pos_id
+            if is_admin_user:
+                p_data["is_admin"] = True
+
+            admin_client.table("profiles").upsert(p_data).execute()
 
             # 4. Upsert employee_profiles
             emp_data = {"user_id": user_id, "work_email": email}
@@ -263,7 +279,7 @@ class AuthService:
             logger.info(f"Successfully synced user profile to database for: {email}")
         except Exception as e:
             logger.error(
-                f"Error in sync_user_profile_to_db for user {user.id}: {e}",
+                f"Error in sync_user_profile_to_db for user {getattr(user, 'id', 'unknown')}: {e}",
                 exc_info=True,
             )
 
@@ -375,17 +391,61 @@ class AuthService:
             return None
 
     def _format_user_response(self, user) -> dict:
-        """Format user response with all metadata fields"""
-        user_metadata = user.user_metadata or {}
-        app_metadata = user.app_metadata or {}
+        """Format user response with all metadata fields and DB relations"""
+        user_metadata = getattr(user, "user_metadata", {}) or {}
+        app_metadata = getattr(user, "app_metadata", {}) or {}
+
+        user_id = str(user.id)
+        area = user_metadata.get("area")
+        functional_role = user_metadata.get("functional_role")
+        role = app_metadata.get("role") or user_metadata.get("role") or "authenticated"
+
+        try:
+            from app.infra.clients.supabase_client import SupabaseClient
+            admin_client = SupabaseClient().admin
+
+            p_res = (
+                admin_client.table("profiles")
+                .select("department_id, position_id, is_admin")
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if p_res.data:
+                p_row = p_res.data[0]
+                if p_row.get("is_admin"):
+                    role = "admin"
+                dep_id = p_row.get("department_id")
+                pos_id = p_row.get("position_id")
+
+                if dep_id and not area:
+                    dep_res = (
+                        admin_client.table("departments")
+                        .select("department_name")
+                        .eq("department_id", dep_id)
+                        .execute()
+                    )
+                    if dep_res.data:
+                        area = dep_res.data[0]["department_name"]
+
+                if pos_id and not functional_role:
+                    pos_res = (
+                        admin_client.table("positions")
+                        .select("position_name")
+                        .eq("position_id", pos_id)
+                        .execute()
+                    )
+                    if pos_res.data:
+                        functional_role = pos_res.data[0]["position_name"]
+        except Exception as e:
+            logger.warning(f"Error resolving profile relations in _format_user_response: {e}")
 
         return {
-            "id": user.id,
+            "id": user_id,
             "name": (
                 user_metadata.get("full_name") or user_metadata.get("name") or "Usuario"
             ),
-            "email": user.email,
-            "role": app_metadata.get("role", "authenticated"),
-            "area": user_metadata.get("area"),
-            "functional_role": user_metadata.get("functional_role"),
+            "email": getattr(user, "email", ""),
+            "role": role,
+            "area": area,
+            "functional_role": functional_role,
         }

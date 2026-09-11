@@ -2,7 +2,6 @@ CHARS_PER_TOKEN = 4
 
 
 def split_into_chunks(text: str, max_tokens: int = 500, overlap: int = 50) -> list[str]:
-    """Split genérico por caracteres con solapamiento — fallback para texto plano."""
     max_chars = max_tokens * CHARS_PER_TOKEN
     overlap_chars = overlap * CHARS_PER_TOKEN
 
@@ -24,7 +23,6 @@ def split_into_chunks(text: str, max_tokens: int = 500, overlap: int = 50) -> li
 
 
 def _table_to_text(table: dict, index: int) -> str:
-    """Convierte {headers, rows, name} en un bloque de texto tabular legible."""
     headers = table.get("headers") or []
     rows = table.get("rows") or []
     if not headers and not rows:
@@ -44,11 +42,6 @@ def _table_to_text(table: dict, index: int) -> str:
 def chunks_from_parsed_content(
     parsed_content: dict, max_tokens: int = 500, overlap: int = 50
 ) -> list[tuple[str, dict]]:
-    """
-    Recibe el dict serializado de ParsedContent (text, sections, tables, ...)
-    tal como sale de la columna jsonb `documents.parsed_content`.
-    Devuelve lista de (texto_chunk, metadata) lista para embeber.
-    """
     results: list[tuple[str, dict]] = []
 
     sections = parsed_content.get("sections") or []

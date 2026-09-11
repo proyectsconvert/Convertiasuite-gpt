@@ -21,11 +21,15 @@ import {
   Zap,
   BarChart3,
   MessageCircle,
+  Megaphone,
+  Bot,
+  Award,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { chatApi } from "@/services/api";
+import { toast } from "sonner";
 
 function SidebarTooltip({
   text,
@@ -110,6 +114,8 @@ export default function ChatSidebar() {
     setSessions,
     appendSessions,
     setCommandOpen,
+    oliviaWidgetOpen,
+    toggleOliviaWidget,
   } = useAppStore();
 
   const navigate = useNavigate();
@@ -223,7 +229,46 @@ export default function ChatSidebar() {
   const isSkillsActive = location.pathname.startsWith("/app/skills");
   const isGroupChatActive = location.pathname.startsWith("/app/group-chats");
   const isSettingsActive = location.pathname.startsWith("/app/settings");
-  const isApplicationsActive = location.pathname === "/";
+  const isApplicationsActive = appsModalOpen;
+  const userRole = (user?.role || "").toLowerCase();
+  const functionalRole = (user?.functional_role || "").toLowerCase();
+  const isAdmin = userRole === "admin";
+  const isQA =
+    !isAdmin &&
+    (functionalRole.includes("qa") ||
+      functionalRole.includes("calidad") ||
+      functionalRole.includes("quality") ||
+      userRole === "qa" ||
+      userRole.includes("quality"));
+  const canAccessRoleTools = isAdmin || isQA;
+  const roleApps = [
+    ...(isAdmin
+      ? [
+          {
+            name: "Admin Dashboard",
+            icon: Shield,
+            url: "/app/admin",
+            description: "Administración de la plataforma",
+          },
+          {
+            name: "Gestión de Campañas",
+            icon: Megaphone,
+            url: "/app/campaigns",
+            description: "Gestiona campañas y operaciones",
+          },
+        ]
+      : []),
+    ...(canAccessRoleTools
+      ? [
+          {
+            name: "QA Dashboard",
+            icon: Award,
+            url: "/app/qa",
+            description: "Panel de calidad y auditoría",
+          },
+        ]
+      : []),
+  ];
   const userInitial = (user?.name?.[0] || user?.email?.[0] || "U").toUpperCase();
 
   return (
@@ -302,17 +347,20 @@ export default function ChatSidebar() {
               </button>
             </SidebarTooltip>
 
-            <SidebarTooltip text="Más Aplicaciones">
-              <button
-                onClick={() => setAppsModalOpen(true)}
-                className={`p-2.5 rounded-xl transition-all ${isApplicationsActive
-                    ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_15px_rgba(26,237,161,0.25)] backdrop-blur-md"
-                    : "text-muted-foreground hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 border border-transparent hover:border-white/15"
-                  }`}
-              >
-                <Boxes className="w-4 h-4" />
-              </button>
-            </SidebarTooltip>
+            {canAccessRoleTools && (
+              <SidebarTooltip text="Dashboards">
+                <button
+                  onClick={() => setAppsModalOpen(true)}
+                  className={`p-2.5 rounded-xl transition-all ${isApplicationsActive
+                      ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_15px_rgba(26,237,161,0.25)] backdrop-blur-md"
+                      : "text-muted-foreground hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 border border-transparent hover:border-white/15"
+                    }`}
+                  aria-label="Abrir dashboards"
+                >
+                  <Boxes className="w-4 h-4" />
+                </button>
+              </SidebarTooltip>
+            )}
 
             <SidebarTooltip text="Skills">
               <button
@@ -546,15 +594,6 @@ export default function ChatSidebar() {
                   )}
                 </button>
 
-                {user?.role?.toLowerCase() === "admin" && (
-                  <button
-                    onClick={() => navigate("/app/admin")}
-                    className="p-1.5 rounded-xl hover:bg-white/15 dark:hover:bg-white/10 transition-all border border-transparent hover:border-white/15 text-muted-foreground hover:text-foreground"
-                    title="Panel Admin"
-                  >
-                    <Shield className="w-3.5 h-3.5" />
-                  </button>
-                )}
 
                 <button
                   onClick={logout}
@@ -570,7 +609,7 @@ export default function ChatSidebar() {
 
         {/* ─── MODAL DE MÁS APLICACIONES (ULTRA LIQUID GLASS MODAL) ─── */}
         <AnimatePresence>
-          {appsModalOpen && (
+          {canAccessRoleTools && appsModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               {/* Backdrop con desfoque fluido */}
               <motion.div
@@ -612,42 +651,18 @@ export default function ChatSidebar() {
 
                 {/* Grid con tarjetas glass adaptativas */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 relative z-10">
-                  {[
-                    {
-                      name: "FLOW-IA",
-                      desc: "Workflows y automatizaciones",
-                      icon: Zap,
-                      url: "",
-                      badge: "Próximamente",
-                      cardStyle: "bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-500/40 text-cyan-500 dark:text-cyan-400",
-                      iconStyle: "bg-cyan-500/30 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30",
-                    },
-                    {
-                      name: "COD-IA",
-                      desc: "IDE en la nube con ejecución de código",
-                      icon: Code2,
-                      url: "",
-                      badge: "Próximamente",
-                      cardStyle: "bg-cyan-500/20 hover:bg-cyan-500/300 border-cyan-500/40 text-cyan-500 dark:text-cyan-400",
-                      iconStyle: "bg-cyan-500/30 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30",
-                    },
-                    {
-                      name: "DATA-IA",
-                      desc: "Análisis predictivo y Business Intelligence",
-                      icon: BarChart3,
-                      url: "",
-                      badge: "Próximamente",
-                      cardStyle: "bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-500/40 text-cyan-500 dark:text-cyan-400",
-                      iconStyle: "bg-cyan-500/30 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30",
-                    },
-                  ].map((app) => {
+                  {roleApps.map((app) => {
                     const AppIcon = app.icon;
                     return (
                       <button
                         key={app.name}
                         onClick={() => {
                           setAppsModalOpen(false);
-                          navigate(app.url);
+                          if (app.url) {
+                            navigate(app.url);
+                          } else {
+                            toast.info(`${app.name} estará disponible próximamente`);
+                          }
                         }}
                         className={`group relative flex items-start gap-3.5 p-3.5 rounded-2xl border backdrop-blur-xl transition-all duration-300 text-left hover:scale-[1.02] shadow-[0_4px_16px_rgba(0,0,0,0.1)] ${app.cardStyle}`}
                       >
@@ -667,7 +682,7 @@ export default function ChatSidebar() {
                             )}
                           </div>
                           <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">
-                            {app.desc}
+                            {app.description}
                           </p>
                         </div>
                       </button>

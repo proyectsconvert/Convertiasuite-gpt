@@ -17,5 +17,10 @@ class IRagRepository(ABC):
         pass
 
     @abstractmethod
-    async def search(self, query_embedding: list[float], k: int = 5) -> list[dict]:
+    async def search(
+        self,
+        query_embedding: list[float],
+        k: int = 5,
+        access_context: dict | None = None,
+    ) -> list[dict]:
         pass

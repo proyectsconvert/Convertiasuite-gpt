@@ -78,9 +78,10 @@ def create_or_restore_admin():
     print("\nBuscando usuario en Supabase Auth...")
     existing_user = None
     try:
-        auth_users = supabase.auth.admin.list_users()
-        if auth_users:
-            for u in auth_users:
+        raw_users = supabase.auth.admin.list_users()
+        users_list = getattr(raw_users, "users", raw_users) if raw_users else []
+        if isinstance(users_list, list):
+            for u in users_list:
                 if getattr(u, "email", "").lower() == email.lower():
                     existing_user = u
                     break

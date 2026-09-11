@@ -4,6 +4,7 @@ import { Outlet } from "react-router-dom";
 import { useAppStore } from "@/store/appStore";
 import ChatSidebar from "@/components/chat/ChatSidebar";
 import ArtifactsPanel from "@/components/chat/ArtifactsPanel";
+import OliviaAgentWidget from "@/components/agents/OliviaWidget";
 import { PanelLeft } from "lucide-react";
 
 export default function AppLayout() {
@@ -55,6 +56,7 @@ export default function AppLayout() {
           {artifactsPanelOpen && <ArtifactsPanel />}
         </>
       )}
+      <OliviaAgentWidget />
     </div>
   );
 }

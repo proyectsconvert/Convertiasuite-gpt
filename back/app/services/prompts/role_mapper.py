@@ -21,5 +21,18 @@ def map_functional_role_to_llm_role(functional_role: str | None) -> str | None:
         
     if "sst" in role_lower or "salud" in role_lower or "seguridad" in role_lower:
         return "medical"
+
+    if "agent" in role_lower or "agente" in role_lower:
+        return "agent"
+
+    if "back_office" in role_lower or "back office" in role_lower:
+        return "back_office"
+
+    if "quality" in role_lower or "calidad" in role_lower:
+        return "quality_analyst"
+
+    if "kam" in role_lower:
+        return "kam"
+
         
     return None

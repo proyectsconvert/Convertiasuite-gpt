@@ -23,9 +23,10 @@ from app.infra.repositories.supabase.memory_repository import (
 from app.infra.repositories.supabase.document_repository import (
     SupabaseDocumentRepository,
 )
+from app.infra.repositories.supabase.campaign_repository import SupabaseCampaignRepository
 from app.services.documents.document_processing.document_manager import DocumentManager
 from app.security.rate_limiting import limiter
-from app.api import chat, auth, documents, admin, skills, groupChats
+from app.api import chat, auth, documents, admin, skills, groupChats, agents
 from app.infra.clients.ollama_client import OllamaClient
 from app.infra.providers.ollama_provider import OllamaProvider
 from app.services.chat.intent_classifier import IntentClassifier
@@ -101,6 +102,10 @@ async def lifespan(app: FastAPI):
     app.state.rag_repository = SupabaseRagRepository(supabase_client)
     logger.info("RAG repository initialized")
 
+    # Initialize Campaign repository (modo agente para agentes de campaña)
+    app.state.campaign_repository = SupabaseCampaignRepository(supabase_client)
+    logger.info("Campaign repository initialized")
+
     logger.info("Application startup completed")
 
     asyncio.create_task(preload_ollama_models())
@@ -136,7 +141,6 @@ async def health_check(request: Request):
     results: dict = {}
     overall_healthy = True
 
-    # ── 1. Ollama ──────────────────────────────────────────────────────────────
     ollama_ok = False
     model_names: list = []
     qwen_loaded = False
@@ -160,7 +164,6 @@ async def health_check(request: Request):
     if not ollama_ok:
         overall_healthy = False
 
-    # ── 2. Redis ───────────────────────────────────────────────────────────────
     redis_ok = False
     try:
         redis_client = getattr(request.app.state, "cache", None)
@@ -176,7 +179,6 @@ async def health_check(request: Request):
     if not redis_ok:
         overall_healthy = False
 
-    # ── 3. Supabase ────────────────────────────────────────────────────────────
     supabase_ok = False
     try:
         supabase_client = SupabaseClient()
@@ -195,7 +197,6 @@ async def health_check(request: Request):
     if not supabase_ok:
         overall_healthy = False
 
-    # ── Respuesta global ───────────────────────────────────────────────────────
     if overall_healthy:
         global_status = "healthy"
         message = "Sistema listo para consultas" if qwen_loaded else "Sistema operativo — modelo cargándose"
@@ -247,3 +248,4 @@ app.include_router(documents.router)
 app.include_router(admin.router)
 app.include_router(skills.router)
 app.include_router(groupChats.router)
+app.include_router(agents.router)

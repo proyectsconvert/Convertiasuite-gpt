@@ -15,6 +15,7 @@ from app.dependencies.auth import get_current_user
 from app.services.chat.chat_service import process_chat
 from app.services.documents.document_processing.document_manager import DocumentManager
 from app.domain.interfaces.rag_repository import IRagRepository
+from app.services.prompts.prompt_templates import AGENT_MODE_PROMPTS
 from zoneinfo import ZoneInfo
 from app.schemas.chat import (
     ChatRequest,
@@ -49,13 +50,127 @@ def get_rag_repository(request: Request) -> IRagRepository | None:
     return getattr(request.app.state, "rag_repository", None)
 
 
+def get_campaign_repository(request: Request):
+    """
+    Repositorio para consultar membresías de campaña (campaign_members)
+    y registrar logs de queries de agente (agent_query_logs).
+
+    Debe registrarse en app.state (por ejemplo en el startup del app),
+    igual que memory_repo / document_manager / rag_repository.
+    """
+    return getattr(request.app.state, "campaign_repository", None)
+
+
 async def sse_message(event_type: str, data: dict) -> str:
     return f"data: {json.dumps({'type': event_type, **data})}\n\n"
 
-       
+
+# Helpers de contexto de agente (campañas)
+
+async def resolve_user_access_context(
+    user_id: str,
+    campaign_repository,
+) -> dict:
+    """
+    Arma el contexto mínimo de acceso para el RAG a partir de los
+    datos de perfil y campaña del usuario autenticado.
+    """
+    if campaign_repository is None:
+        return {"user_id": user_id}
+
+    try:
+        return await campaign_repository.get_user_access_context(user_id)
+    except Exception as e:
+        logger.warning(f"[rag_access_context] error consultando acceso user={user_id}: {e}")
+        return {"user_id": user_id}
+
+
+async def resolve_agent_context(
+    user_id: str,
+    campaign_repository,
+) -> Optional[dict]:
+    if campaign_repository is None:
+        return None
+
+    try:
+        membership = await campaign_repository.get_active_membership(user_id)
+    except Exception as e:
+        logger.error(f"[campaign_members] error consultando membresía user={user_id}: {e}")
+        return None
+
+    if not membership:
+        return None
+
+    return {
+        "campaign_id": membership["campaign_id"],
+        "campaign_role": membership.get("role", "agente"),
+        "campaign_name": membership.get("campaign_name"),
+        "campaign_data": membership.get("campaign_data", {}),
+    }
+
+
+def build_agent_system_context(agent_context: dict) -> str:
+    base = AGENT_MODE_PROMPTS.get("default", "")
+
+    campaign_block = (
+        "\n## CONTEXTO DE CAMPAÑA\n\n"
+        f"- Campaña activa: {agent_context.get('campaign_name') or agent_context['campaign_id']}\n"
+        f"- Rol del agente: {agent_context['campaign_role']}\n"
+    )
+
+    extra_data = agent_context.get("campaign_data") or {}
+    if extra_data:
+        campaign_block += "\nDatos adicionales de campaña:\n"
+        for key, value in extra_data.items():
+            campaign_block += f"- {key}: {value}\n"
+
+    return base + "\n" + campaign_block
+
+
+async def classify_query_safely(intent_classifier, text: str) -> Optional[str]:
+    if intent_classifier is None:
+        return None
+    try:
+        return await intent_classifier.classify(text)
+    except Exception as e:
+        logger.warning(f"[agent_query_logs] fallo clasificando intención: {e}")
+        return None
+
+
+async def log_agent_query(
+    campaign_repository,
+    *,
+    user_id: str,
+    campaign_id: str,
+    campaign_role: str,
+    query_text: str,
+    query_category: Optional[str],
+    rag_used: bool,
+    rag_sources: list,
+):
+    if campaign_repository is None:
+        return
+
+    try:
+        await campaign_repository.log_agent_query(
+            user_id=user_id,
+            campaign_id=campaign_id,
+            campaign_role=campaign_role,
+            query_text=query_text,
+            query_category=query_category,
+            rag_used=rag_used,
+            rag_sources=rag_sources,
+        )
+    except Exception as e:
+        logger.error(
+            f"[agent_query_logs] error registrando query "
+            f"user={user_id} campaign={campaign_id}: {e}"
+        )
+
+
+# Endpoints
 
 @router.post("/stream")
-
 async def send_message_stream(
     request: ChatRequest,
     http_request: Request,
@@ -65,16 +180,30 @@ async def send_message_stream(
     document_manager: DocumentManager = Depends(get_document_manager),
     intent_classifier=Depends(get_intent_classifier),
     rag_repository: IRagRepository | None = Depends(get_rag_repository),
+    campaign_repository=Depends(get_campaign_repository),
 ):
 
     user_id = current_user["id"]
+    user_role = current_user.get("role", "default")  # fuente de verdad: auth, no el body
+    request.user_role = user_role
+
+    # 1. Contexto de acceso del usuario para aplicar filtros del RAG.
+    access_context = await resolve_user_access_context(user_id, campaign_repository)
+
+    # 2. ¿Es agente de alguna campaña? Se resuelve SIEMPRE server-side.
+    agent_context = await resolve_agent_context(user_id, campaign_repository)
+
+    # 3. Prompt adicional de modo agente + datos de campaña, si aplica.
+    extra_system_prompt = (
+        build_agent_system_context(agent_context) if agent_context else None
+    )
 
     async def event_generator():
         session_id = None
         model = None
 
         try:
-            stream, model, session_id = await process_chat(
+            stream, model, session_id, rag_info = await process_chat(
                 request,
                 llm_provider,
                 memory_repo,
@@ -82,6 +211,7 @@ async def send_message_stream(
                 document_manager=document_manager,
                 intent_classifier=intent_classifier,
                 rag_repository=rag_repository,
+                access_context=access_context,
             )
 
             yield await sse_message(
@@ -98,8 +228,24 @@ async def send_message_stream(
 
             yield await sse_message("done", {"session_id": session_id})
 
+            # 4. Logging de la query del agente, una vez completada la respuesta.
+            if agent_context:
+                query_category = await classify_query_safely(
+                    intent_classifier, request.message
+                )
+                await log_agent_query(
+                    campaign_repository,
+                    user_id=user_id,
+                    campaign_id=agent_context["campaign_id"],
+                    campaign_role=agent_context["campaign_role"],
+                    query_text=request.message,
+                    query_category=query_category,
+                    rag_used=rag_info.get("used", False),
+                    rag_sources=rag_info.get("sources", []),
+                )
+
         except SecurityException:
-            fallback = get_safety_fallback(request.user_role)
+            fallback = get_safety_fallback(user_role)
 
             yield await sse_message(
                 "start", {"session_id": session_id or "unknown", "model": "security"}
@@ -112,7 +258,7 @@ async def send_message_stream(
         except Exception as e:
             logger.error(f"Unexpected error: {str(e)}")
 
-            fallback = get_safety_fallback(request.user_role)
+            fallback = get_safety_fallback(user_role)
 
             yield await sse_message(
                 "start", {"session_id": session_id or "unknown", "model": "error"}
@@ -132,45 +278,70 @@ async def send_message_stream(
         },
     )
 
+
 @router.post("/voice-stream")
 async def send_voice_stream(
     request: VoiceChatRequest,
-    http_request:Request,
-    current_user : dict = Depends(get_current_user),
-    llm_provider : ILlmProvider = Depends(get_llm_provider),
-    memory_repo : IMemoryRepository = Depends(get_memory_repo),
+    http_request: Request,
+    current_user: dict = Depends(get_current_user),
+    llm_provider: ILlmProvider = Depends(get_llm_provider),
+    memory_repo: IMemoryRepository = Depends(get_memory_repo),
     document_manager: DocumentManager = Depends(get_document_manager),
-    intent_classifier = Depends(get_intent_classifier),
-    rag_repository: IRagRepository | None = Depends(get_rag_repository,)
+    intent_classifier=Depends(get_intent_classifier),
+    rag_repository: IRagRepository | None = Depends(get_rag_repository),
+    campaign_repository=Depends(get_campaign_repository),
 ):
+    user_id = current_user["id"]
+    user_role = current_user.get("role", "default")  # fuente de verdad: auth, no el body
+
+    access_context = await resolve_user_access_context(user_id, campaign_repository)
+
+    agent_context = await resolve_agent_context(user_id, campaign_repository)
+    extra_system_prompt = (
+        build_agent_system_context(agent_context) if agent_context else None
+    )
+
     chat_request = ChatRequest(
         message=request.message,
-        user_role=request.user_role,
+        user_role=user_role,
         session_id=request.call_id,
     )
-    stream, model, session_id = await process_chat(
+
+    stream, model, session_id, rag_info = await process_chat(
         chat_request,
         llm_provider,
         memory_repo,
-        user_id=current_user["id"],
+        user_id=user_id,
         document_manager=document_manager,
         intent_classifier=intent_classifier,
         rag_repository=rag_repository,
+        access_context=access_context,
     )
 
-    return{
-        "status":"ok",
+    if agent_context:
+        query_category = await classify_query_safely(intent_classifier, request.message)
+        await log_agent_query(
+            campaign_repository,
+            user_id=user_id,
+            campaign_id=agent_context["campaign_id"],
+            campaign_role=agent_context["campaign_role"],
+            query_text=request.message,
+            query_category=query_category,
+            rag_used=rag_info.get("used", False),
+            rag_sources=rag_info.get("sources", []),
+        )
+
+    return {
+        "status": "ok",
         "session_id": session_id,
     }
+
+
 @router.get("/voice-greeting")
 async def voice_greeting(
     timezone: str = Query("UTC", description="Zona horaria del usuario, por ejemplo 'America/New_York'"),
     current_user: dict = Depends(get_current_user),
 ):
-    """
-    Genera el saludo inicial de OlivIA según la hora del día.
-    El texto se convierte directamente a voz usando Qwen TTS.
-    """
     try:
         import base64
         from app.infra.clients.tts_client import QwenTTSClient
@@ -221,7 +392,6 @@ async def voice_greeting(
         )
 
 
-
 @router.get("/sessions", response_model=SessionListResponse)
 async def list_sessions(
     current_user: dict = Depends(get_current_user),
@@ -236,10 +406,6 @@ async def list_sessions(
         cursor_updated_at=cursor_updated_at,
         cursor_id=cursor_id,
     )
-
-    # user_id = current_user["id"]
-    # sessions = await memory_repo.get_session_list(user_id)
-    # return SessionListResponse(sessions=sessions)
 
 
 @router.post("/sessions", response_model=SessionSummary)
@@ -525,15 +691,14 @@ async def upload_audio(
 
         # 3. Guardar audio en Supabase Storage
         audio_filename = f"voice_{uuid.uuid4()}.webm"
-        
-        audio_url = await upload_file_to_supabase(
-            memory_repo = memory_repo,
-            session_id = call_id,
-            filename = audio_filename,
-            file_bytes = contents,
-            content_type = "audio/webm",
 
-            )
+        audio_url = await upload_file_to_supabase(
+            memory_repo=memory_repo,
+            session_id=call_id,
+            filename=audio_filename,
+            file_bytes=contents,
+            content_type="audio/webm",
+        )
 
         # 4. Guardar mensaje del usuario en voice_call_messages
         await memory_repo.save_voice_message(
@@ -614,4 +779,3 @@ async def transcribe_audio_endpoint(
             status_code=500,
             detail=f"Error al transcribir el audio: {str(e)}",
         )
-

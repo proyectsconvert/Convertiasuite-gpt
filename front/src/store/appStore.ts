@@ -71,6 +71,13 @@ interface AppState {
   enabledSkillIds: string[];
   activeSkillPrompt: string | null;
 
+  /* Olivia Widget */
+  oliviaWidgetOpen: boolean;
+  oliviaSessionId: string | null;
+  setOliviaWidgetOpen: (open: boolean) => void;
+  toggleOliviaWidget: () => void;
+  setOliviaSessionId: (id: string | null) => void;
+
   /* Actions */
   setView: (view: AppView) => void;
   setAuthTab: (tab: AuthTab) => void;
@@ -181,7 +188,14 @@ export const useAppStore = create<AppState>()(
       enabledSkillIds: [],
       activeSkillPrompt: null,
 
+      oliviaWidgetOpen: false,
+      oliviaSessionId: null,
+
       /* UI ACTIONS */
+
+      setOliviaWidgetOpen: (open) => set({ oliviaWidgetOpen: open }),
+      toggleOliviaWidget: () => set((state) => ({ oliviaWidgetOpen: !state.oliviaWidgetOpen })),
+      setOliviaSessionId: (id) => set({ oliviaSessionId: id }),
 
       setView: (view) =>
         set({ view }),
@@ -516,6 +530,10 @@ export const useAppStore = create<AppState>()(
           state.selectedModel,
         enabledSkillIds:
           state.enabledSkillIds,
+        oliviaWidgetOpen:
+          state.oliviaWidgetOpen,
+        oliviaSessionId:
+          state.oliviaSessionId,
       }),
     }
   )

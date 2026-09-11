@@ -223,6 +223,7 @@ async def process_chat(
     document_manager: DocumentManager | None = None,
     intent_classifier: IntentClassifier | None = None,
     rag_repository: IRagRepository | None = None,
+    access_context: dict | None = None,
 ):
     model_name = None
     request_start = time.perf_counter()
@@ -404,17 +405,23 @@ async def process_chat(
                 history=sanitized_history,
             )
 
-        async def _get_rag_context() -> str:
+        async def _get_rag_context() -> tuple[str, dict]:
+            empty_info = {"used": False, "sources": []}
             if is_generic_chat(clean_input) or is_trivial_or_interjection(clean_input):
-                return ""
+                return "", empty_info
             if not rag_repository:
-                return ""
+                return "", empty_info
             try:
                 query_embedding = await embed_text(clean_input)
-                results = await rag_repository.search(query_embedding, k=3)
+                results = await rag_repository.search(
+                    query_embedding,
+                    k=3,
+                    access_context=access_context,
+                )
                 if not results:
-                    return ""
+                    return "", empty_info
                 fragments = []
+                sources = []
                 for r in results:
                     similarity = r.get("similarity", 0)
                     if similarity < 0.6:
@@ -422,6 +429,7 @@ async def process_chat(
                     content = r.get("content", "")
                     metadata = r.get("metadata") or {}
                     source = r.get("source_id", "documento")
+                    sources.append(source)
                     section = metadata.get("section_title", "")
                     header = f"### Fuente: {source}"
                     if section:
@@ -432,14 +440,14 @@ async def process_chat(
                     return (
                         "## CONTEXTO RAG (documentos embebidos relevantes):\n\n"
                         + "\n\n".join(fragments)
-                    )
+                    ), {"used": True, "sources": sources}
             except Exception as e:
                 logger.warning(
                     "RAG search failed session=%s error=%s",
                     session_id,
                     str(e),
                 )
-            return ""
+            return "", empty_info
 
         model_key = await _classify_intent()
 
@@ -460,13 +468,14 @@ async def process_chat(
         should_run_rag = (model_key in RAG_ENABLED_INTENTS) or (model_key == "default" and has_docs)
 
         if should_run_rag:
-            doc_context, rag_context = await asyncio.gather(
+            doc_context, (rag_context, rag_info) = await asyncio.gather(
                 _get_doc_context(),
                 _get_rag_context(),
             )
         else:
             doc_context = ""
             rag_context = ""
+            rag_info = {"used": False, "sources": []}
 
         # Combinar contexto de documentos por sesión con contexto RAG global
         if rag_context:
@@ -906,7 +915,7 @@ async def process_chat(
                     try:
                         tokens_in = len(request.message) // 4 if request.message else 0
                         tokens_out = len(full_response) // 4 if full_response else 0
-                        from app.services.usage_service import record_usage
+                        from app.services.usage.usage_service import record_usage
 
                         asyncio.create_task(
                             record_usage(
@@ -1000,6 +1009,7 @@ async def process_chat(
             wrapped_stream(),
             model_name,
             session_id,
+            rag_info,
         )
 
     except SecurityException:

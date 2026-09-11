@@ -43,3 +43,24 @@ async def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
             detail="No tienes permisos de administrador para acceder a esta sección.",
         )
     return current_user
+
+async def require_campaign_member(current_user: dict = Depends(get_current_user)) -> dict:
+    user_role = current_user.get("role", "").lower()
+    if user_role != "campaign_member":
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permisos de miembro de campaña para acceder a esta sección.",
+        )
+    return current_user
+
+async def require_admin_or_qa(current_user: dict = Depends(get_current_user)) -> dict:
+    user_role = current_user.get("role", "").lower()
+    functional_role = (current_user.get("functional_role") or "").lower()
+    
+    if user_role == "admin" or "qa" in functional_role:
+        return current_user
+        
+    raise HTTPException(
+        status_code=403,
+        detail="Se requieren permisos de administrador o QA para acceder a esta sección.",
+    )

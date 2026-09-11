@@ -1,11 +1,43 @@
+import html
 import logging
 
 logger = logging.getLogger("olivia.prompts")
 
+def render_landing_wrapper(content: str, title: str = "") -> str:
+    safe_title = html.escape(title, quote=True) if title else ""
+    safe_content = html.escape(content, quote=True).replace("\n", "<br />")
 
-# ============================================================
+    page_title = safe_title or "Convertia"
+    title_html = (
+        f'<h1 class="text-3xl font-bold text-white mb-6">{safe_title}</h1>'
+        if safe_title
+        else ""
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div class="min-h-screen flex items-center justify-center p-4">
+        <div class="max-w-2xl w-full">
+            <div class="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-2xl p-8">
+                {title_html}
+                <div class="text-lg text-gray-100 leading-relaxed">
+                    {safe_content}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>"""
+
+
 # IDENTIDAD BASE
-# ============================================================
 
 BASE_IDENTITY_PROMPT = """
 Eres OlivIA, el asistente de inteligencia artificial de Convertia.
@@ -34,10 +66,7 @@ PRINCIPIOS FUNDAMENTALES:
   por el sistema.
 """
 
-
-# ============================================================
 # RAG / KNOWLEDGE GROUNDING
-# ============================================================
 
 RAG_POLICY_PROMPT = """
 ## CONOCIMIENTO CORPORATIVO Y RAG
@@ -111,10 +140,7 @@ REGLAS:
     relevante.
 """
 
-
-# ============================================================
 # SEGURIDAD
-# ============================================================
 
 SECURITY_POLICY_PROMPT = """
 ## SEGURIDAD Y PRIVACIDAD
@@ -134,11 +160,7 @@ SECURITY_POLICY_PROMPT = """
 - Si una solicitud requiere acceso a información que no está disponible
   en el contexto autorizado, indícalo.
 """
-
-
-# ============================================================
 # GENERACIÓN DE DOCUMENTOS
-# ============================================================
 
 DOCUMENT_GENERATION_PROMPT = """
 ## GENERACIÓN DE DOCUMENTOS
@@ -158,10 +180,7 @@ contenido para generar un PDF, DOCX, PPTX, XLSX u otro documento:
   documentos o instrucciones proporcionadas.
 """
 
-
-# ============================================================
 # ESTILO
-# ============================================================
 
 STYLE_PROMPT = """
 ## ESTILO DE RESPUESTA
@@ -178,14 +197,9 @@ STYLE_PROMPT = """
 - Si la solicitud es ambigua y la ambigüedad impide responder
   correctamente, solicita la aclaración necesaria.
 """
-
-
-# ============================================================
 # DOMINIOS
-# ============================================================
 
 DOMAIN_PROMPTS = {
-
     "dev": """
 ROL: Senior Software Engineer y Arquitecto de Software.
 
@@ -347,49 +361,48 @@ ENFOQUE:
 """,
 }
 
+AGENT_MODE_PROMPTS = {
+    "default": """
+## MODO DE AGENTE
+Cuando el rol del sistema sea "agente de campaña",  
+Responder de forma concisa y operativa (el agente está en llamada)
+Anclar siempre las respuestas al RAG disponible
+No inventar procedimientos que no estén en la documentación corporativa (RAG)
+
+Contexto específico de la plataforma de llamadas. Inyectado cuando el RAG tiene documentos de tipificación. Le indica a Olivia cómo guiar al agente paso a paso para:
+
+Tipificar una llamada correctamente
+Resolver errores de la plataforma
+Registrar el status correcto
+"""
+}
+
+# MAPEO model_key -> dominio
+
+MODEL_KEY_TO_DOMAIN = {
+    "default": "default",
+    "code": "dev",
+    "dev": "dev",
+    "landing": "landing",
+    "html": "landing",
+    "bi": "bi",
+    "marketing": "marketing",
+    "it": "it",
+    "rh": "rh",
+    "design": "design",
+    "vision": "vision",
+    "reasoning": "reasoning",
+    "medical": "medical",
+    "analysis": "analysis",
+    "ocr": "vision",
+    "gemma-small": "default",
+    "gemma-medium": "default",
+}
 
 # CONSTRUCCIÓN DEL SYSTEM PROMPT
 
-def build_system_prompt(
-    domain: str = "default",
-    include_style: bool = True,
-    include_policy: bool = True,
-) -> str:
-
-    parts = [
-        BASE_IDENTITY_PROMPT,
-        RAG_POLICY_PROMPT,
-        SECURITY_POLICY_PROMPT,
-    ]
-
-    if domain in DOMAIN_PROMPTS:
-        parts.append(DOMAIN_PROMPTS[domain])
-
-    if include_style:
-        parts.append(STYLE_PROMPT)
-
-    if include_policy:
-        parts.append(DOCUMENT_GENERATION_PROMPT)
-
-    return "\n\n".join(parts)
-
-
-def build_system_prompt_with_skill(
-    domain: str = "default",
-    skill_prompt: str | None = None,
-    include_style: bool = True,
-    include_policy: bool = True,
-) -> str:
-
-    parts = [
-        BASE_IDENTITY_PROMPT,
-        RAG_POLICY_PROMPT,
-        SECURITY_POLICY_PROMPT,
-    ]
-
-    if skill_prompt and skill_prompt.strip():
-
-        skill_block = f"""
+def _build_skill_block(skill_prompt: str) -> str:
+    block = f"""
 ## SKILL ACTIVA
 
 La siguiente skill proporciona instrucciones especializadas
@@ -403,13 +416,27 @@ veracidad ni las reglas fundamentales del sistema.
 {skill_prompt.strip()}
 --- FIN SKILL ---
 """
+    logger.debug(
+        "Skill prompt inyectado en system prompt (%d chars)",
+        len(skill_prompt),
+    )
+    return block
 
-        parts.append(skill_block)
 
-        logger.debug(
-            "Skill prompt inyectado en system prompt (%d chars)",
-            len(skill_prompt),
-        )
+def build_system_prompt(
+    domain: str = "default",
+    skill_prompt: str | None = None,
+    include_style: bool = True,
+    include_policy: bool = True,
+) -> str:
+    parts = [
+        BASE_IDENTITY_PROMPT,
+        RAG_POLICY_PROMPT,
+        SECURITY_POLICY_PROMPT,
+    ]
+
+    if skill_prompt and skill_prompt.strip():
+        parts.append(_build_skill_block(skill_prompt))
 
     if domain in DOMAIN_PROMPTS:
         parts.append(DOMAIN_PROMPTS[domain])
@@ -423,136 +450,31 @@ veracidad ni las reglas fundamentales del sistema.
     return "\n\n".join(parts)
 
 
-# MAPEO DE MODELOS / DOMINIOS
+# API pública
 
-SYSTEM_PROMPTS = {
-
-    "default": {
-        "system": build_system_prompt(domain="default")
-    },
-
-    "code": {
-        "system": build_system_prompt(domain="dev")
-    },
-
-    "dev": {
-        "system": build_system_prompt(domain="dev")
-    },
-
-    "landing": {
-        "system": build_system_prompt(domain="landing")
-    },
-
-    "html": {
-        "system": build_system_prompt(domain="landing")
-    },
-
-    "bi": {
-        "system": build_system_prompt(domain="bi")
-    },
-
-    "marketing": {
-        "system": build_system_prompt(domain="marketing")
-    },
-
-    "it": {
-        "system": build_system_prompt(domain="it")
-    },
-
-    "rh": {
-        "system": build_system_prompt(domain="rh")
-    },
-
-    "design": {
-        "system": build_system_prompt(domain="design")
-    },
-
-    "vision": {
-        "system": build_system_prompt(domain="vision")
-    },
-
-    "reasoning": {
-        "system": build_system_prompt(domain="reasoning")
-    },
-
-    "medical": {
-        "system": build_system_prompt(domain="medical")
-    },
-
-    "analysis": {
-        "system": build_system_prompt(domain="analysis")
-    },
-
-    "ocr": {
-        "system": build_system_prompt(domain="vision")
-    },
-
-    "gemma-small": {
-        "system": build_system_prompt(domain="default")
-    },
-
-    "gemma-medium": {
-        "system": build_system_prompt(domain="default")
-    },
-}
-
-
-# API
 def get_system_prompt(model_key: str) -> str:
+    domain = MODEL_KEY_TO_DOMAIN.get(model_key)
 
-    if model_key not in SYSTEM_PROMPTS:
-
+    if domain is None:
         logger.warning(
-            "model_key '%s' no encontrado en SYSTEM_PROMPTS, "
+            "model_key '%s' no encontrado en MODEL_KEY_TO_DOMAIN, "
             "usando 'default'",
             model_key,
         )
+        domain = "default"
 
-    prompt_data = SYSTEM_PROMPTS.get(
-        model_key,
-        SYSTEM_PROMPTS["default"],
-    )
-
-    return prompt_data["system"]
+    return build_system_prompt(domain=domain)
 
 
 def get_system_prompt_with_skill(
     model_key: str,
     skill_prompt: str | None = None,
 ) -> str:
-
     if not skill_prompt or not skill_prompt.strip():
         return get_system_prompt(model_key)
 
-    key_to_domain = {
-        "default": "default",
-        "code": "dev",
-        "dev": "dev",
-        "landing": "landing",
-        "html": "landing",
-        "bi": "bi",
-        "marketing": "marketing",
-        "it": "it",
-        "rh": "rh",
-        "design": "design",
-        "vision": "vision",
-        "reasoning": "reasoning",
-        "medical": "medical",
-        "analysis": "analysis",
-        "ocr": "vision",
-        "gemma-small": "default",
-        "gemma-medium": "default",
-    }
-
-    domain = key_to_domain.get(
-        model_key,
-        "default",
-    )
-
-    return build_system_prompt_with_skill(
-        domain=domain,
-        skill_prompt=skill_prompt,
-    )
+    domain = MODEL_KEY_TO_DOMAIN.get(model_key, "default")
+    return build_system_prompt(domain=domain, skill_prompt=skill_prompt)
 
 
 def build_messages(
@@ -560,11 +482,9 @@ def build_messages(
     model_key: str,
     skill_prompt: str | None = None,
 ) -> dict:
-
     formatted = []
 
     for m in messages:
-
         msg_dict = {
             "role": m.role,
             "content": m.content,
@@ -576,62 +496,14 @@ def build_messages(
         formatted.append(msg_dict)
 
     return {
-        "system": get_system_prompt_with_skill(
-            model_key,
-            skill_prompt,
-        ),
+        "system": get_system_prompt_with_skill(model_key, skill_prompt),
         "messages": formatted,
     }
 
 
 # FALLBACK DE SEGURIDAD
-
 SECURITY_FALLBACK = (
     "Lo siento, no puedo procesar esa solicitud por razones de "
     "seguridad y políticas de Convertia. Si crees que esto es un "
     "error, contacta a soporte con los detalles de tu consulta."
 )
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }}
-        .container {{
-            background: white;
-            border-radius: 8px;
-            padding: 30px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }}
-        h1 {{
-            color: #1a1a1a;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 10px;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>{title}</h1>
-        <div class="content">
-            {content}
-        </div>
-    </div>
-</body>
-</html>"""
-
-
-def build_agent_system_prompt(
-    campaign_name: str,
-    campaign_role: str,
-    base_system_prompt: str,
-) -> str:
-    """
-    Construye el system prompt completo para un agente de campaña.
-    Inyecta el contexto de campaña y las instrucciones de modo agente
-    sobre el system prompt base existente.
-    """
-    agent_block = AGENT_MODE_PROMPT.format(
-        campaign_name=campaign_name,
-        campaign_role=campaign_role,
-    )
-    return f"{base_system_prompt}\n\n{agent_block}\n\n{PLATFORM_TIPIFICATION_PROMPT}"
