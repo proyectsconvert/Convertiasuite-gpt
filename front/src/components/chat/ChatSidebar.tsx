@@ -183,7 +183,13 @@ export default function ChatSidebar() {
     return () => observer.disconnect();
   }, [loadMore]);
 
-  const grouped = groupByDate(sessions);
+  const filteredSessions = sessions.filter(
+    (s) =>
+      !s.title?.toLowerCase().includes("olivia") &&
+      !s.title?.toLowerCase().includes("asistente de campaña")
+  );
+
+  const grouped = groupByDate(filteredSessions);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -233,6 +239,11 @@ export default function ChatSidebar() {
   const userRole = (user?.role || "").toLowerCase();
   const functionalRole = (user?.functional_role || "").toLowerCase();
   const isAdmin = userRole === "admin";
+  const isAgent =
+    userRole === "agent" ||
+    userRole === "agente" ||
+    functionalRole.includes("agent") ||
+    functionalRole.includes("agente");
   const isQA =
     !isAdmin &&
     (functionalRole.includes("qa") ||
@@ -362,17 +373,19 @@ export default function ChatSidebar() {
               </SidebarTooltip>
             )}
 
-            <SidebarTooltip text="Skills">
-              <button
-                onClick={() => navigate("/app/skills")}
-                className={`p-2.5 rounded-xl transition-all ${isSkillsActive
-                    ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_15px_rgba(26,237,161,0.25)] backdrop-blur-md"
-                    : "text-muted-foreground hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 border border-transparent hover:border-white/15"
-                  }`}
-              >
-                <Brain className="w-4 h-4" />
-              </button>
-            </SidebarTooltip>
+            {!isAgent && (
+              <SidebarTooltip text="Skills">
+                <button
+                  onClick={() => navigate("/app/skills")}
+                  className={`p-2.5 rounded-xl transition-all ${isSkillsActive
+                      ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_15px_rgba(26,237,161,0.25)] backdrop-blur-md"
+                      : "text-muted-foreground hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 border border-transparent hover:border-white/15"
+                    }`}
+                >
+                  <Brain className="w-4 h-4" />
+                </button>
+              </SidebarTooltip>
+            )}
 
             <SidebarTooltip text="Chat Grupal">
               <button

@@ -530,8 +530,6 @@ export const useAppStore = create<AppState>()(
           state.selectedModel,
         enabledSkillIds:
           state.enabledSkillIds,
-        oliviaWidgetOpen:
-          state.oliviaWidgetOpen,
         oliviaSessionId:
           state.oliviaSessionId,
       }),

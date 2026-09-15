@@ -43,8 +43,11 @@ export default function CommandPalette() {
     a.label.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
-  const filteredSessions = sessions.filter((s) =>
-    s.title.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredSessions = sessions.filter(
+    (s) =>
+      !s.title.toLowerCase().includes("olivia") &&
+      !s.title.toLowerCase().includes("asistente de campaña") &&
+      s.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const listItems = [

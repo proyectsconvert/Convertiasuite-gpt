@@ -1,5 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, ExternalLink, X } from "lucide-react";
+import {
+  Bot,
+  ExternalLink,
+  Lock,
+  Mail,
+  X,
+  Eye,
+  EyeOff,
+  Sparkles,
+  Zap,
+  HelpCircle,
+  PhoneCall,
+  AlertTriangle,
+  Radio,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import MessageBubble from "@/components/chat/MessageBubble";
@@ -10,10 +24,10 @@ import { useAppStore } from "@/store/appStore";
 import "./OliviaAgentWidget.css";
 
 const QUICK_ACTIONS = [
-  "¿Cómo tipifico?",
-  "Error en plataforma",
-  "¿Cuál es el status?",
-  "Procedimiento de llamada",
+  { label: "¿Cómo tipifico?", icon: Zap },
+  { label: "Procedimiento llamada", icon: PhoneCall },
+  { label: "¿Cuál es el status?", icon: HelpCircle },
+  { label: "Error en plataforma", icon: AlertTriangle },
 ];
 
 interface OliviaWidgetProps {
@@ -23,6 +37,7 @@ interface OliviaWidgetProps {
 export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidgetProps) {
   const {
     user,
+    login,
     oliviaWidgetOpen,
     setOliviaWidgetOpen,
     oliviaSessionId,
@@ -30,67 +45,102 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
   } = useAppStore();
 
   const isOpen = isStandalone ? true : oliviaWidgetOpen;
-  const setIsOpen = (open: boolean) => setOliviaWidgetOpen(open);
-
   const sessionId = oliviaSessionId;
   const setSessionId = (id: string | null) => setOliviaSessionId(id);
 
+  const isAuthenticated = !!user;
+  const userRole = (user?.role || "").toLowerCase();
+  const functionalRole = (user?.functional_role || "").toLowerCase();
+  const isAgent =
+    userRole === "agent" ||
+    userRole === "agente" ||
+    functionalRole.includes("agent") ||
+    functionalRole.includes("agente");
+
+
+  const campaignName = user?.campaign_name ?? null;
+
+  // --- Estado del chat ---
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
 
+  // --- Estado del login inline ---
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
+
   const endRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Olivia está disponible para todos los usuarios autenticados en el sistema
-  const canUseOliviaAgent = isStandalone || !!user;
-
   useEffect(() => {
-    if (!canUseOliviaAgent) {
-      return;
-    }
+    if (!isAuthenticated) return;
 
     if (sessionId && messages.length === 0) {
-      chatApi.getHistory(sessionId).then((res) => {
-        if (res.messages) setMessages(res.messages);
-      }).catch((error: Error) => {
-        if (error.message.includes("HTTP 404")) {
-          setSessionId(null);
-          setMessages([]);
-        } else {
-          console.error("Error loading Olivia history:", error);
-        }
-      });
+      chatApi
+        .getHistory(sessionId)
+        .then((res) => {
+          if (res.messages) setMessages(res.messages);
+        })
+        .catch((error: Error) => {
+          if (error.message.includes("HTTP 404")) {
+            setSessionId(null);
+            setMessages([]);
+          } else {
+            console.error("Error loading Olivia history:", error);
+          }
+        });
     }
-  }, [sessionId, canUseOliviaAgent]);
+  }, [sessionId, isAuthenticated]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({
-      behavior: "smooth",
-    });
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingContent]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen && !isStandalone) {
-        setIsOpen(false);
+        // FIX: setIsOpen no existía. El único setter real del estado de
+        // apertura es setOliviaWidgetOpen (del store); isOpen es una const
+        // derivada, no state local.
+        setOliviaWidgetOpen(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, isStandalone]);
 
-  if (!canUseOliviaAgent) {
-    return null;
+  async function handleWidgetLogin(e: React.FormEvent) {
+    e.preventDefault();
+    if (loginLoading) return;
+
+    setLoginError("");
+    setLoginLoading(true);
+
+    try {
+      const success = await login(loginEmail, loginPassword);
+
+      if (!success) {
+        setLoginError("Correo o contraseña incorrectos.");
+        return;
+      }
+
+      setLoginPassword("");
+    } catch (err) {
+      console.error(err);
+      setLoginError("No fue posible iniciar sesión.");
+    } finally {
+      setLoginLoading(false);
+    }
   }
 
   const sendMessage = async (text?: string) => {
     const message = (text ?? input).trim();
 
-    if (!message || isLoading) {
-      return;
-    }
+    if (!message || isLoading) return;
 
     setInput("");
     setIsLoading(true);
@@ -111,14 +161,8 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
     try {
       let currentSessionId = sessionId;
 
-      /*
-       * Crear una sesión independiente para Olivia Agent.
-       */
       if (!currentSessionId) {
-        const session = await chatApi.createSession(
-          "Olivia - Asistente de campaña"
-        );
-
+        const session = await chatApi.createSession("Olivia - Asistente de campaña");
         currentSessionId = session.id;
         setSessionId(session.id);
       }
@@ -131,13 +175,9 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
           session_id: currentSessionId,
           functional_role: user?.functional_role,
         },
-        {
-          signal: controller.signal,
-        }
+        { signal: controller.signal }
       )) {
-        if (controller.signal.aborted) {
-          break;
-        }
+        if (controller.signal.aborted) break;
 
         if (chunk.type === "chunk" && chunk.content) {
           fullResponse += chunk.content;
@@ -147,17 +187,11 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
 
       if (!controller.signal.aborted && currentSessionId) {
         const history = await chatApi.getHistory(currentSessionId);
-
-        if (history.messages) {
-          setMessages(history.messages);
-        }
+        if (history.messages) setMessages(history.messages);
       }
     } catch (error) {
       if (!controller.signal.aborted) {
-        console.error(
-          "Error enviando mensaje a Olivia Agent:",
-          error
-        );
+        console.error("Error enviando mensaje a Olivia Agent:", error);
       }
     } finally {
       setIsLoading(false);
@@ -168,7 +202,6 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
 
   const handleStop = () => {
     abortControllerRef.current?.abort();
-
     abortControllerRef.current = null;
     setIsLoading(false);
     setStreamingContent("");
@@ -178,7 +211,6 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
     const width = 380;
     const height = 580;
 
-    // Probar la API Document Picture-in-Picture (Mantener siempre encima de WhatsApp y otras apps del SO)
     if ("documentPictureInPicture" in window) {
       try {
         const pipWindow = await (window as any).documentPictureInPicture.requestWindow({
@@ -217,14 +249,13 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
 
         pipWindow.document.body.appendChild(iframe);
 
-        toast.success("Olivia fijada siempre por encima de WhatsApp y otras apps (Always-On-Top)");
+        toast.success("OlivIA fijada siempre por encima de WhatsApp y otras apps (Always-On-Top)");
         return;
       } catch (err) {
         console.warn("Document PiP fallback a ventana estándar:", err);
       }
     }
 
-    // Fallback a ventana popout estándar
     const left = window.screen.width - width - 50;
     const top = 100;
     window.open(
@@ -232,39 +263,47 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
       "OliviaAgentPopup",
       `width=${width},height=${height},left=${left},top=${top},resizable=yes,status=no,toolbar=no,menubar=no,location=no`
     );
-    toast.success("Olivia abierta en ventana emergente independiente");
+    toast.success("OlivIA abierta en ventana flotante Always-On-Top");
   };
+
+  const userName = user?.name ? user.name.split(" ")[0] : "Agente";
 
   return (
     <>
-      {/* Trigger (Solo si no es standalone) - Abre directamente la ventana flotante desacoplada */}
+      {/* Botón flotante estilizado */}
       {!isStandalone && (
         <button
           type="button"
           className="olivia-agent-trigger"
           onClick={handlePopOut}
-          aria-label="Abrir Olivia Flotante"
-          title="Abrir Olivia en ventana emergente flotante superpuesta (Always-On-Top)"
+          aria-label="Abrir OlivIA Flotante"
+          title="Abrir OlivIA en ventana flotante superpuesta (Always-On-Top)"
         >
-          <Bot size={22} />
+          <div className="olivia-agent-trigger-glow" />
+          <Bot size={24} className="relative z-10" />
+          <span className="olivia-agent-trigger-badge" />
         </button>
       )}
 
-      {/* Widget */}
       {(isStandalone || isOpen) && (
         <aside className={`olivia-agent-widget ${isStandalone ? "standalone" : ""}`}>
-          {/* Header */}
+          {/* Header estilizado */}
           <header className="olivia-agent-header">
             <div className="olivia-agent-header-info">
               <div className="olivia-agent-avatar">
                 <Bot size={18} />
+                <span className="olivia-agent-status-dot" />
               </div>
 
-              <div>
-                <h2>Olivia {isStandalone ? "(Flotante)" : ""}</h2>
-
-                <p>
-                  {user?.functional_role ?? "Agente"}
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5">
+                  <h2 className="olivia-brand-title">OlivIA</h2>
+                </div>
+                <p className="olivia-header-role">
+                  {isAuthenticated ? (user?.functional_role ?? "Asistente Activo") : "Inicia sesión para continuar"}
+                  {campaignName && isAuthenticated && (
+                    <span className="ml-1 text-xs text-muted-foreground">({campaignName})</span>
+                  )}
                 </p>
               </div>
             </div>
@@ -274,99 +313,193 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
                 <button
                   type="button"
                   onClick={handlePopOut}
-                  className="olivia-agent-close hover:text-primary transition-colors"
+                  className="olivia-agent-header-btn"
                   aria-label="Desacoplar en ventana flotante"
-                  title="Desacoplar / Abrir en ventana emergente independiente (Superponer sobre otras apps)"
+                  title="Desacoplar en ventana emergente Always-On-Top (Superponer sobre otras apps)"
                 >
-                  <ExternalLink size={18} />
+                  <ExternalLink size={16} />
                 </button>
               )}
 
               {!isStandalone && (
                 <button
                   type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="olivia-agent-close hover:text-destructive transition-colors"
-                  aria-label="Cerrar Olivia"
+                  onClick={() => setOliviaWidgetOpen(false)}
+                  className="olivia-agent-header-btn hover:text-destructive"
+                  aria-label="Cerrar OlivIA"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               )}
             </div>
           </header>
 
-          {/* Quick actions */}
-          <div className="olivia-agent-actions">
-            {QUICK_ACTIONS.map((action) => (
-              <button
-                key={action}
-                type="button"
-                onClick={() => sendMessage(action)}
-                disabled={isLoading}
-                className="olivia-agent-chip"
-              >
-                {action}
-              </button>
-            ))}
-          </div>
-
-          {/* Chat */}
-          <div className="olivia-agent-messages">
-            {messages.map((message, index) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                previousMessage={
-                  index > 0
-                    ? messages[index - 1]
-                    : undefined
-                }
-                sessionId={sessionId ?? undefined}
-              />
-            ))}
-
-            {streamingContent && (
-              <MessageBubble
-                message={{
-                  id: "streaming",
-                  role: "assistant",
-                  content: streamingContent,
-                  timestamp: new Date(),
-                }}
-                isStreaming
-                previousMessage={
-                  messages[messages.length - 1]
-                }
-                sessionId={sessionId ?? undefined}
-              />
-            )}
-
-            {isLoading && !streamingContent && (
-              <div className="olivia-agent-loading">
-                <Bot size={18} />
-
-                <div className="olivia-agent-dots">
-                  <span />
-                  <span />
-                  <span />
+          {!isAuthenticated ? (
+            // --- Vista de login inline estilizada ---
+            <div className="olivia-agent-login-wrapper">
+              <div className="olivia-agent-login-hero">
+                <div className="olivia-login-avatar-ring">
+                  <Bot size={28} />
                 </div>
+                <h3>Bienvenido a OlivIA</h3>
+                <p>Tu copiloto inteligente Always-On-Top para optimizar tu gestión en tiempo real</p>
               </div>
-            )}
 
-            <div ref={endRef} />
-          </div>
+              <form onSubmit={handleWidgetLogin} className="olivia-agent-login">
+                <div className="olivia-agent-login-field">
+                  <Mail className="olivia-agent-login-icon" size={15} />
+                  <input
+                    type="email"
+                    placeholder="correo@empresa.com"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                  />
+                </div>
 
-          {/* Input */}
-          <div className="olivia-agent-input">
-            <ChatInput
-              value={input}
-              onChange={setInput}
-              onSend={() => sendMessage()}
-              isLoading={isLoading}
-              variant="agent"
-              onStop={handleStop}
-            />
-          </div>
+                <div className="olivia-agent-login-field">
+                  <Lock className="olivia-agent-login-icon" size={15} />
+                  <input
+                    type={showLoginPassword ? "text" : "password"}
+                    placeholder="Contraseña"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    className="olivia-agent-pw-toggle"
+                  >
+                    {showLoginPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+
+                {loginError && (
+                  <div className="olivia-agent-login-error">
+                    <AlertTriangle size={13} className="flex-shrink-0" />
+                    <span>{loginError}</span>
+                  </div>
+                )}
+
+                <button type="submit" disabled={loginLoading} className="olivia-agent-login-submit">
+                  {loginLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      Verificando credenciales...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-1.5">
+                      <Sparkles size={14} /> Ingresar a OlivIA
+                    </span>
+                  )}
+                </button>
+              </form>
+            </div>
+          ) : !isAgent ? (
+            // --- Vista para usuarios sin rol de agente ---
+            <div className="olivia-agent-empty-state my-auto">
+              <div className="olivia-empty-icon-wrap">
+                <Bot size={32} />
+              </div>
+              <h4>Acceso para Agentes</h4>
+              <p>
+                OlivIA está habilitada exclusivamente para usuarios con rol o función de <strong>Agente</strong> en campaña.
+              </p>
+            </div>
+          ) : (
+            // --- Vista de chat estilizada ---
+            <div className="olivia-agent-chat-container">
+              {/* Quick actions chips */}
+              <div className="olivia-agent-actions">
+                {QUICK_ACTIONS.map(({ label, icon: Icon }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => sendMessage(label)}
+                    disabled={isLoading}
+                    className="olivia-agent-chip"
+                  >
+                    <Icon size={12} className="text-emerald-500 dark:text-emerald-400" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Messages area */}
+              <div className="olivia-agent-messages">
+                {messages.length === 0 && !streamingContent && (
+                  <div className="olivia-agent-empty-state">
+                    <div className="olivia-empty-icon-wrap">
+                      <Bot size={32} />
+                      <div className="olivia-empty-glow" />
+                    </div>
+                    <h4>¡Hola, {userName}! 👋</h4>
+                    <p>
+                      Estoy lista para apoyarte con tipificaciones, objeciones y procedimientos de campaña en tiempo real.
+                    </p>
+                    <div className="olivia-empty-hint">
+                      <Radio size={12} className="text-emerald-500 animate-pulse" />
+                    </div>
+                  </div>
+                )}
+
+                {messages.map((message, index) => (
+                  <MessageBubble
+                    key={message.id}
+                    message={message}
+                    previousMessage={index > 0 ? messages[index - 1] : undefined}
+                    sessionId={sessionId ?? undefined}
+                  />
+                ))}
+
+                {streamingContent && (
+                  <MessageBubble
+                    message={{
+                      id: "streaming",
+                      role: "assistant",
+                      content: streamingContent,
+                      timestamp: new Date(),
+                    }}
+                    isStreaming
+                    previousMessage={messages[messages.length - 1]}
+                    sessionId={sessionId ?? undefined}
+                  />
+                )}
+
+                {isLoading && !streamingContent && (
+                  <div className="olivia-agent-loading">
+                    <div className="olivia-agent-loading-avatar">
+                      <Bot size={14} />
+                    </div>
+                    <div className="olivia-agent-dots">
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+                    <span className="text-[11px] text-muted-foreground ml-1">OlivIA está pensando...</span>
+                  </div>
+                )}
+
+                <div ref={endRef} />
+              </div>
+
+              {/* Chat Input */}
+              <div className="olivia-agent-input">
+                <ChatInput
+                  value={input}
+                  onChange={setInput}
+                  onSend={() => sendMessage()}
+                  isLoading={isLoading}
+                  variant="agent"
+                  onStop={handleStop}
+                />
+              </div>
+            </div>
+          )}
         </aside>
       )}
     </>

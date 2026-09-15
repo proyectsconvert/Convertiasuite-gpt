@@ -39,6 +39,9 @@ class AddCampaignMemberRequest(BaseModel):
     user_id: str
     campaign_role: str = "agent"  # agent, kam, quality_analyst, back_office
 
+class UpdateCampaignMemberStatusRequest(BaseModel):
+    is_active: bool
+
 class CampaignMemberResponse(BaseModel):
     member_id: str
     campaign_id: str

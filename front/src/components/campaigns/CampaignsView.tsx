@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { adminApi, Campaign, CampaignMember, SystemUser } from "@/services/api";
-import { Users, Plus, Trash2, RefreshCw, X, Save, UserPlus, Search } from "lucide-react";
+import { Users, Plus, Trash2, RefreshCw, X, Save, UserPlus, Search, Edit } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 
 export default function CampaignsView() {
@@ -226,6 +226,7 @@ export default function CampaignsView() {
       toast.error("Error al quitar miembro");
     }
   };
+ 
 
   const isAdmin = user?.role?.toLowerCase() === "admin";
 
@@ -349,6 +350,28 @@ export default function CampaignsView() {
               <div className="border-b border-border/40 pb-4">
                 <h2 className="text-xl font-bold">{selectedCampaign.campaign_name}</h2>
                 <p className="text-sm text-muted-foreground mt-1">{selectedCampaign.description || "No hay descripción"}</p>
+
+                {isAdmin && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const newStatus = !selectedCampaign.is_active;
+                        adminApi.updateCampaign(selectedCampaign.campaign_id, { is_active: newStatus })
+                          .then(() => {
+                            toast.success(`Campaña ${newStatus ? "activada" : "desactivada"}`);
+                            fetchCampaigns();
+                            setSelectedCampaign({ ...selectedCampaign, is_active: newStatus });
+                          })
+                          .catch(() => {
+                            toast.error("Error al actualizar el estado de la campaña");
+                          });
+                      }}
+                      className="text-xs font-medium text-primary hover:bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-md transition-colors"
+                    >
+                      {selectedCampaign.is_active ? "Desactivar" : "Activar"}
+                    </button>
+                  </div>
+                )}        
               </div>
               
               <div>
@@ -420,6 +443,7 @@ export default function CampaignsView() {
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
+      
                                 </td>
                               )}
                             </tr>

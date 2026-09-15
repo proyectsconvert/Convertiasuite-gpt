@@ -407,13 +407,31 @@ function SkillCard({
   );
 }
 
+// Maps a user's area/department name to the skill category it corresponds to.
+// Returns the matching category string, or null if no match found.
+function areaToCategory(area: string | null | undefined): string | null {
+  if (!area) return null;
+  const a = area.toLowerCase().trim();
+  if (a.includes("bi") || a.includes("business intelligence") || a.includes("datos") || a.includes("data")) return "BI";
+  if (a.includes("desarrollo") || a.includes("dev") || a.includes("it") || a.includes("software") || a.includes("tecnolog")) return "Desarrollo";
+  if (a.includes("diseño") || a.includes("dise") || a.includes("design") || a.includes("ux") || a.includes("ui")) return "Diseño";
+  if (a.includes("reclutamiento") || a.includes("r&s") || a.includes("rs") || a.includes("rrhh") || a.includes("talento") || a.includes("recursos humanos") || a.includes("hr")) return "R&S";
+  // Marketing / Ventas could be added here in the future
+  if (a.includes("marketing") || a.includes("ventas") || a.includes("comercial")) return "Marketing";
+  return null;
+}
+
 export default function SkillsView() {
-  const { skills, setSkills, enabledSkillIds, toggleSkill } = useAppStore();
+  const { skills, setSkills, enabledSkillIds, toggleSkill, user } = useAppStore();
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [showAllAreas, setShowAllAreas] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+
+  // Derived: the category that maps to the current user's area
+  const userAreaCategory = useMemo(() => areaToCategory(user?.area), [user?.area]);
 
   const loadSkills = useCallback(async () => {
     setLoading(true);
@@ -438,17 +456,27 @@ export default function SkillsView() {
           s.description.toLowerCase().includes(search.toLowerCase()) ||
           s.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()))
         : true;
+      // Area filter: if user has a mapped area and showAllAreas is off, restrict to that area's category
+      const matchArea =
+        !showAllAreas && userAreaCategory
+          ? s.category === userAreaCategory
+          : true;
+      // Category filter: from sidebar click (overrides area filter if explicitly selected)
       const matchCategory = categoryFilter
         ? s.category === categoryFilter
         : true;
-      return matchSearch && matchCategory;
+      return matchSearch && matchArea && matchCategory;
     });
-  }, [skills, search, categoryFilter]);
+  }, [skills, search, categoryFilter, showAllAreas, userAreaCategory]);
 
   const categories = useMemo(() => {
-    const cats = new Set(skills.map((s) => s.category).filter(Boolean));
+    // When showing all areas, list all categories; otherwise only the user's area category
+    const baseSkills = !showAllAreas && userAreaCategory
+      ? skills.filter(s => s.category === userAreaCategory)
+      : skills;
+    const cats = new Set(baseSkills.map((s) => s.category).filter(Boolean));
     return Array.from(cats).sort();
-  }, [skills]);
+  }, [skills, showAllAreas, userAreaCategory]);
 
   const enabledSkills = useMemo(
     () => skills.filter((skill) => enabledSkillIds.includes(skill.id)),
@@ -467,9 +495,34 @@ export default function SkillsView() {
             <Sparkles className="w-4 h-4 text-primary" />
             Skills
           </h2>
+          {/* Area badge */}
+          {userAreaCategory && (
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Área: <span className="font-semibold text-foreground">{userAreaCategory}</span>
+            </p>
+          )}
         </div>
 
-        {/* Filter by status */}
+        {/* View scope toggle */}
+        <div className="px-3 mb-3">
+          <button
+            onClick={() => {
+              setShowAllAreas((prev) => !prev);
+              setCategoryFilter("");
+            }}
+            className={cn(
+              "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all border",
+              showAllAreas
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-border/50 text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
+            )}
+          >
+            <Globe className="w-3.5 h-3.5 flex-shrink-0" />
+            {showAllAreas ? "Viendo todas las áreas" : "Ver todas las áreas"}
+          </button>
+        </div>
+
+        {/* Filter: all within scope */}
         <nav className="space-y-0.5 mb-4">
           <button
             onClick={() => setCategoryFilter("")}
@@ -481,9 +534,9 @@ export default function SkillsView() {
             )}
           >
             <SlidersHorizontal className="w-4 h-4 flex-shrink-0" />
-            Todas
+            {showAllAreas ? "Todas" : "Mi área"}
             <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
-              {skills.length}
+              {filteredSkills.length}
             </span>
           </button>
         </nav>
@@ -580,14 +633,31 @@ export default function SkillsView() {
             )}
           </div>
 
-          {/* Mobile category filter */}
-          <div className="lg:hidden">
+          {/* Mobile: area toggle + category filter */}
+          <div className="lg:hidden flex items-center gap-2">
+            {userAreaCategory && (
+              <button
+                onClick={() => {
+                  setShowAllAreas((prev) => !prev);
+                  setCategoryFilter("");
+                }}
+                className={cn(
+                  "h-9 px-3 rounded-xl text-xs font-medium border transition-all whitespace-nowrap",
+                  showAllAreas
+                    ? "border-primary/40 bg-primary/10 text-primary"
+                    : "border-border/50 bg-secondary/50 text-muted-foreground"
+                )}
+              >
+                <Globe className="w-3.5 h-3.5 inline mr-1" />
+                {showAllAreas ? "Todas las áreas" : "Mi área"}
+              </button>
+            )}
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="h-9 px-3 rounded-xl border border-border/50 bg-secondary/50 text-xs text-foreground outline-none"
             >
-              <option value="">Todas</option>
+              <option value="">{showAllAreas ? "Todas" : "Mi área"}</option>
               {categories.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}

@@ -422,13 +422,15 @@ veracidad ni las reglas fundamentales del sistema.
     )
     return block
 
-
 def build_system_prompt(
     domain: str = "default",
     skill_prompt: str | None = None,
+    campaign_context: dict | None = None,
+    agent_mode: bool = False,
     include_style: bool = True,
     include_policy: bool = True,
 ) -> str:
+
     parts = [
         BASE_IDENTITY_PROMPT,
         RAG_POLICY_PROMPT,
@@ -441,6 +443,21 @@ def build_system_prompt(
     if domain in DOMAIN_PROMPTS:
         parts.append(DOMAIN_PROMPTS[domain])
 
+    if campaign_context is not None:
+        from .operations import (
+            OPERATIONS_PROMPT,
+            build_campaign_context_prompt,
+            AGENT_MODE_PROMPT,
+        )
+
+        parts.append(OPERATIONS_PROMPT)
+        parts.append(
+            build_campaign_context_prompt(campaign_context)
+        )
+
+        if agent_mode:
+            parts.append(AGENT_MODE_PROMPT)
+
     if include_style:
         parts.append(STYLE_PROMPT)
 
@@ -449,10 +466,13 @@ def build_system_prompt(
 
     return "\n\n".join(parts)
 
-
 # API pública
 
-def get_system_prompt(model_key: str) -> str:
+def get_system_prompt(
+    model_key: str,
+    campaign_context: dict | None = None,
+    agent_mode: bool = False,
+) -> str:
     domain = MODEL_KEY_TO_DOMAIN.get(model_key)
 
     if domain is None:
@@ -463,24 +483,34 @@ def get_system_prompt(model_key: str) -> str:
         )
         domain = "default"
 
-    return build_system_prompt(domain=domain)
+    return build_system_prompt(
+        domain=domain,
+        campaign_context=campaign_context,
+        agent_mode=agent_mode,
+    )
 
 
 def get_system_prompt_with_skill(
     model_key: str,
     skill_prompt: str | None = None,
+    campaign_context: dict | None = None,
+    agent_mode: bool = False,
 ) -> str:
-    if not skill_prompt or not skill_prompt.strip():
-        return get_system_prompt(model_key)
-
     domain = MODEL_KEY_TO_DOMAIN.get(model_key, "default")
-    return build_system_prompt(domain=domain, skill_prompt=skill_prompt)
+    return build_system_prompt(
+        domain=domain,
+        skill_prompt=skill_prompt if skill_prompt and skill_prompt.strip() else None,
+        campaign_context=campaign_context,
+        agent_mode=agent_mode,
+    )
 
 
 def build_messages(
     messages: list,
     model_key: str,
     skill_prompt: str | None = None,
+    campaign_context: dict | None = None,
+    agent_mode: bool = False,
 ) -> dict:
     formatted = []
 
@@ -496,7 +526,12 @@ def build_messages(
         formatted.append(msg_dict)
 
     return {
-        "system": get_system_prompt_with_skill(model_key, skill_prompt),
+        "system": get_system_prompt_with_skill(
+            model_key,
+            skill_prompt=skill_prompt,
+            campaign_context=campaign_context,
+            agent_mode=agent_mode,
+        ),
         "messages": formatted,
     }
 

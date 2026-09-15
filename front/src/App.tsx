@@ -1,11 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppLayout from "./components/layout/AppLayout";
 import AuthPage from "./components/auth/AuthPage";
-import LandingPage from "./components/landing/LandingPage";
 import ChatView from "./components/chat/ChatView";
 import SettingsView from "./components/settings/SettingsView";
 import AdminDashboard from "./components/admin/AdminDashboard";
@@ -20,6 +19,25 @@ import { ReactNode } from "react";
 import UpdatePassword from "./components/auth/UpdatePassword";
 import ForgotPassword from "./components/auth/ForgotPassword";
 const queryClient = new QueryClient();
+
+// Wrapper que solo monta el widget flotante global cuando el usuario es Agente y fuera de /agent-widget
+function GlobalWidget() {
+  const location = useLocation();
+  const { isAuthenticated, user } = useAppStore();
+  if (!isAuthenticated || location.pathname === "/agent-widget") return null;
+
+  const userRole = (user?.role || "").toLowerCase();
+  const functionalRole = (user?.functional_role || "").toLowerCase();
+  const isAgent =
+    userRole === "agent" ||
+    userRole === "agente" ||
+    functionalRole.includes("agent") ||
+    functionalRole.includes("agente");
+
+  if (!isAgent) return null;
+
+  return <OliviaAgentWidget />;
+}
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAppStore();
@@ -49,6 +67,19 @@ function AdminOrQARoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function NonAgentRoute({ children }: { children: ReactNode }) {
+  const { user } = useAppStore();
+  const userRole = (user?.role || "").toLowerCase();
+  const funcRole = (user?.functional_role || "").toLowerCase();
+  const isAgent =
+    userRole === "agent" ||
+    userRole === "agente" ||
+    funcRole.includes("agent") ||
+    funcRole.includes("agente");
+  if (isAgent) return <Navigate to="/app/chat" replace />;
+  return <>{children}</>;
+}
+
 function PublicRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAppStore();
   if (isAuthenticated) return <Navigate to="/app/chat" replace />;
@@ -62,7 +93,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route
             path="/login"
             element={
@@ -91,7 +122,14 @@ const App = () => (
             <Route path="chat" element={<ChatView />} />
             <Route path="group-chats" element={<InternalChatView />} />
             <Route path="documents" element={<DocumentsView />} />
-            <Route path="skills" element={<SkillsView />} />
+            <Route
+              path="skills"
+              element={
+                <NonAgentRoute>
+                  <SkillsView />
+                </NonAgentRoute>
+              }
+            />
             <Route path="settings" element={<SettingsView />} />
             <Route
               path="admin"
@@ -123,15 +161,14 @@ const App = () => (
           <Route
             path="/agent-widget"
             element={
-              <ProtectedRoute>
-                <div className="h-screen w-screen bg-background overflow-hidden flex flex-col">
-                  <OliviaAgentWidget isStandalone={true} />
-                </div>
-              </ProtectedRoute>
+              <div className="h-screen w-screen bg-background overflow-hidden flex flex-col">
+                <OliviaAgentWidget isStandalone={true} />
+              </div>
             }
           />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
+        <GlobalWidget />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

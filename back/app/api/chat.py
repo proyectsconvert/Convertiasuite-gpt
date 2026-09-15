@@ -212,6 +212,8 @@ async def send_message_stream(
                 intent_classifier=intent_classifier,
                 rag_repository=rag_repository,
                 access_context=access_context,
+                campaign_context=agent_context,
+                agent_mode=bool(agent_context),
             )
 
             yield await sse_message(
@@ -316,6 +318,8 @@ async def send_voice_stream(
         intent_classifier=intent_classifier,
         rag_repository=rag_repository,
         access_context=access_context,
+        campaign_context=agent_context,
+        agent_mode=bool(agent_context),
     )
 
     if agent_context:
@@ -761,10 +765,6 @@ async def transcribe_audio_endpoint(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):
-    """
-    Endpoint para transcripción pura de audio a texto (STT).
-    Se usa para el botón de micrófono en el chat input (dictado).
-    """
     try:
         from app.services.transcription_service import transcribe_audio
 
@@ -779,3 +779,32 @@ async def transcribe_audio_endpoint(
             status_code=500,
             detail=f"Error al transcribir el audio: {str(e)}",
         )
+
+@router.get("/campaign-context")
+async def chat_campaign_context(
+    current_user: dict = Depends(get_current_user),
+    campaign_repository=Depends(get_campaign_repository),
+):
+
+    user_id = current_user.get("id")
+    agent_context = await resolve_agent_context(user_id, campaign_repository)
+    if not agent_context:
+        return {
+            "has_active_campaign": False,
+            "campaign_id": None,
+            "campaign_name": None,
+            "campaign_role": None,
+            "tracking_format": {},
+            "pricing_config": {},
+            "platform_config": {},
+        }
+
+    return {
+        "has_active_campaign": True,
+        "campaign_id": agent_context.get("campaign_id"),
+        "campaign_name": agent_context.get("campaign_name"),
+        "campaign_role": agent_context.get("campaign_role"),
+        "tracking_format": agent_context.get("campaign_data", {}).get("tracking_format") or agent_context.get("tracking_format", {}),
+        "pricing_config": agent_context.get("campaign_data", {}).get("pricing_config") or agent_context.get("pricing_config", {}),
+        "platform_config": agent_context.get("campaign_data", {}).get("platform_config") or agent_context.get("platform_config", {}),
+    }

@@ -170,8 +170,16 @@ export default function ChatInput({
   onStop,
   onOpenVoice,
 }: ChatInputProps) {
-  const { selectedModel, currentChatId, skills, enabledSkillIds, setSkills } = useAppStore();
+  const { selectedModel, currentChatId, skills, enabledSkillIds, setSkills, user } = useAppStore();
   const { toast } = useToast();
+
+  const userRole = (user?.role || "").toLowerCase();
+  const functionalRole = (user?.functional_role || "").toLowerCase();
+  const isAgent =
+    userRole === "agent" ||
+    userRole === "agente" ||
+    functionalRole.includes("agent") ||
+    functionalRole.includes("agente");
   
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -375,6 +383,11 @@ export default function ChatInput({
   const handleInputChange = useCallback((newValue: string) => {
     onChange(newValue);
 
+    if (isAgent) {
+      setShowMentionDropdown(false);
+      return;
+    }
+
     const cursorPos = textareaRef.current?.selectionStart ?? newValue.length;
     const textBeforeCursor = newValue.substring(0, cursorPos);
     const atMatch = textBeforeCursor.match(/(?:^|\s)@(\S*)$/);
@@ -392,7 +405,7 @@ export default function ChatInput({
     setSelectedSkillsForMessage((prev) =>
       prev.filter((s) => newValue.includes(`@${s.name}`))
     );
-  }, [onChange]);
+  }, [onChange, isAgent]);
 
   // FILE PROCESSING
   const processFile = async (file: File) => {
@@ -990,9 +1003,11 @@ export default function ChatInput({
                 placeholder={
                   uploadState === "uploading"
                     ? "Procesando..."
-                    : enabledSkills.length > 0
-                      ? "Envía un mensaje — escribe @ para usar una skill"
-                      : "Envía un mensaje — activa una skill para usar @"
+                    : isAgent
+                      ? "Envía un mensaje a Convert-IA..."
+                      : enabledSkills.length > 0
+                        ? "Envía un mensaje — escribe @ para usar una skill"
+                        : "Envía un mensaje — activa una skill para usar @"
                 }
                 className="w-full resize-none bg-transparent px-4 pt-3.5 pb-1.5 text-[15px] leading-relaxed text-foreground outline-none focus:outline-none focus:ring-0 focus:border-transparent placeholder:text-muted-foreground/50 min-h-[48px] max-h-[200px] disabled:opacity-50"
               />

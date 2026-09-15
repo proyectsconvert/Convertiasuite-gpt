@@ -5,18 +5,18 @@ from typing import AsyncGenerator
 class ILlmProvider(ABC):
     @abstractmethod
     async def generate(
-        self, messages: list, model_key: str
+        self, messages: list, model_key: str, **kwargs
     ) -> AsyncGenerator[str, None]:
         pass
 
     @abstractmethod
     async def generate_stream(
-        self, messages: list, model_key: str
+        self, messages: list, model_key: str, **kwargs
     ) -> AsyncGenerator[str, None]:
         pass
 
     @abstractmethod
     async def generate_once(
-        self, prompt: str, model_key: str
+        self, prompt: str, model_key: str, **kwargs
     ) -> AsyncGenerator[str, None]:
         pass

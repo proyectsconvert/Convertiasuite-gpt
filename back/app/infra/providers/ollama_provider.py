@@ -15,12 +15,22 @@ class OllamaProvider(ILlmProvider):
         self.models = None
 
     async def generate(
-        self, messages: list, model_key: str
+        self, messages: list, model_key: str, **kwargs
     ) -> AsyncGenerator[str, None]:
         models = get_model_config()
         model_info = models.get(model_key, models["default"])
 
-        msg_dict = build_messages(messages, model_key)
+        campaign_context = kwargs.get("campaign_context")
+        agent_mode = kwargs.get("agent_mode", False)
+        skill_prompt = kwargs.get("skill_prompt")
+
+        msg_dict = build_messages(
+            messages,
+            model_key,
+            skill_prompt=skill_prompt,
+            campaign_context=campaign_context,
+            agent_mode=agent_mode,
+        )
         # Ensure language enforcement is explicit and at the top of the system prompt
         if msg_dict and "system" in msg_dict:
             enforced = "Responde SIEMPRE en español. Respuestas solo en español.\n\n"
@@ -48,7 +58,7 @@ class OllamaProvider(ILlmProvider):
             yield chunk
 
     async def generate_once(
-        self, prompt: str, model_key: str
+        self, prompt: str, model_key: str, **kwargs
     ) -> AsyncGenerator[str, None]:
         models = get_model_config()
         model_info = models.get(model_key, models["default"])
@@ -82,11 +92,21 @@ class OllamaProvider(ILlmProvider):
         ):
             yield chunk
 
-    async def generate_stream(self, messages: list, model_key: str):
+    async def generate_stream(self, messages: list, model_key: str, **kwargs):
         models = get_model_config()
         model_info = models.get(model_key, models["default"])
 
-        msg_dict = build_messages(messages, model_key)
+        campaign_context = kwargs.get("campaign_context")
+        agent_mode = kwargs.get("agent_mode", False)
+        skill_prompt = kwargs.get("skill_prompt")
+
+        msg_dict = build_messages(
+            messages,
+            model_key,
+            skill_prompt=skill_prompt,
+            campaign_context=campaign_context,
+            agent_mode=agent_mode,
+        )
         # Ensure language enforcement is explicit and at the top of the system prompt
         if msg_dict and "system" in msg_dict:
             enforced = "Responde SIEMPRE en español. Respuestas solo en español.\n\n"

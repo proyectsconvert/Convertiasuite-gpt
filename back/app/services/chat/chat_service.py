@@ -224,6 +224,8 @@ async def process_chat(
     intent_classifier: IntentClassifier | None = None,
     rag_repository: IRagRepository | None = None,
     access_context: dict | None = None,
+    campaign_context: dict | None = None,
+    agent_mode: bool = False,
 ):
     model_name = None
     request_start = time.perf_counter()
@@ -629,6 +631,8 @@ async def process_chat(
         stream = llm_provider.generate_stream(
             model_messages,
             model_key,
+            campaign_context=campaign_context,
+            agent_mode=agent_mode,
         )
 
         async def wrapped_stream():
