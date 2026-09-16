@@ -27,7 +27,7 @@ from app.infra.repositories.supabase.campaign_repository import SupabaseCampaign
 from app.services.documents.document_processing.document_manager import DocumentManager
 from app.security.rate_limiting import limiter
 from app.infra.clients.ollama_client import OllamaClient
-from app.api import chat, auth, documents, admin, skills, groupChats, agents, campaigns
+from app.api import chat, auth, documents, admin, skills, groupChats, agents, campaigns, qa
 from app.infra.providers.ollama_provider import OllamaProvider
 from app.services.chat.intent_classifier import IntentClassifier
 from app.rag.supabase_rag_repository import SupabaseRagRepository
@@ -250,3 +250,4 @@ app.include_router(skills.router)
 app.include_router(groupChats.router)
 app.include_router(agents.router)
 app.include_router(campaigns.router)
+app.include_router(qa.router)

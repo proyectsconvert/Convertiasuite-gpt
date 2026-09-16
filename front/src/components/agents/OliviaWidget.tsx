@@ -13,6 +13,7 @@ import {
   PhoneCall,
   AlertTriangle,
   Radio,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,12 +24,89 @@ import { useAppStore } from "@/store/appStore";
 
 import "./OliviaAgentWidget.css";
 
-const QUICK_ACTIONS = [
-  { label: "¿Cómo tipifico?", icon: Zap },
-  { label: "Procedimiento llamada", icon: PhoneCall },
-  { label: "¿Cuál es el status?", icon: HelpCircle },
-  { label: "Error en plataforma", icon: AlertTriangle },
+export interface QuickAction {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  promptText: string;
+  channel?: "chat" | "whatsapp" | "email";
+}
+
+export interface QuickActionGroup {
+  categoryId: string;
+  categoryLabel: string;
+  icon: LucideIcon;
+  actions: QuickAction[];
+}
+
+export const QUICK_ACTION_GROUPS: QuickActionGroup[] = [
+  {
+    categoryId: "frequent_queries",
+    categoryLabel: "Consultas Frecuentes",
+    icon: Zap,
+    actions: [
+      {
+        id: "tipificacion",
+        label: "¿Cómo tipifico?",
+        icon: Zap,
+        promptText: "¿Cuáles son las reglas y pasos para tipificar esta llamada?",
+      },
+      {
+        id: "procedimiento",
+        label: "Procedimiento llamada",
+        icon: PhoneCall,
+        promptText: "Muestra el protocolo estándar de atención telefónica.",
+      },
+      {
+        id: "status",
+        label: "¿Cuál es el status?",
+        icon: HelpCircle,
+        promptText: "¿Cómo verifico el estado del lead o transacción?",
+      },
+      {
+        id: "error_plataforma",
+        label: "Error en plataforma",
+        icon: AlertTriangle,
+        promptText: "Pasos a seguir en caso de error en la plataforma.",
+      },
+    ],
+  },
 ];
+
+// Sección de acciones rápidas extraída correctamente fuera del componente principal
+interface QuickActionsSectionProps {
+  onSelectAction: (action: QuickAction) => void;
+}
+
+export function OliviaQuickActionsSection({ onSelectAction }: QuickActionsSectionProps) {
+  const [activeCategory, setActiveCategory] = useState<string>("frequent_queries");
+
+  return (
+    <div className="olivia-quick-actions-section">
+      {QUICK_ACTION_GROUPS.map((group) => (
+        <div key={group.categoryId} className="olivia-action-group">
+          <h3 className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+            <group.icon size={14} />
+            {group.categoryLabel}
+          </h3>
+          <div className="flex flex-wrap gap-1.5">
+            {group.actions.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                onClick={() => onSelectAction(action)}
+                className="olivia-agent-chip"
+              >
+                <action.icon size={12} className="text-emerald-500 dark:text-emerald-400" />
+                <span>{action.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 interface OliviaWidgetProps {
   isStandalone?: boolean;
@@ -56,7 +134,6 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
     userRole === "agente" ||
     functionalRole.includes("agent") ||
     functionalRole.includes("agente");
-
 
   const campaignName = user?.campaign_name ?? null;
 
@@ -103,15 +180,12 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen && !isStandalone) {
-        // FIX: setIsOpen no existía. El único setter real del estado de
-        // apertura es setOliviaWidgetOpen (del store); isOpen es una const
-        // derivada, no state local.
         setOliviaWidgetOpen(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, isStandalone]);
+  }, [isOpen, isStandalone, setOliviaWidgetOpen]);
 
   async function handleWidgetLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -415,11 +489,11 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
             <div className="olivia-agent-chat-container">
               {/* Quick actions chips */}
               <div className="olivia-agent-actions">
-                {QUICK_ACTIONS.map(({ label, icon: Icon }) => (
+                {QUICK_ACTION_GROUPS.flatMap((group) => group.actions).map(({ label, promptText, icon: Icon }) => (
                   <button
                     key={label}
                     type="button"
-                    onClick={() => sendMessage(label)}
+                    onClick={() => sendMessage(promptText)}
                     disabled={isLoading}
                     className="olivia-agent-chip"
                   >
@@ -462,7 +536,7 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
                       id: "streaming",
                       role: "assistant",
                       content: streamingContent,
-                      timestamp: new Date(),
+                      timestamp: new Date().toISOString(),
                     }}
                     isStreaming
                     previousMessage={messages[messages.length - 1]}

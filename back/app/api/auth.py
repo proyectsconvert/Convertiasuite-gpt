@@ -40,28 +40,13 @@ async def login(
     session = auth_data["session"]
     user = auth_data["user"]
 
-    user_metadata = user.user_metadata or {}
-
-    app_metadata = user.app_metadata or {}
-
-    user_data = {
-        "id": user.id,
-        "name": (
-            user_metadata.get("full_name") or user_metadata.get("name") or "Usuario"
-        ),
-        "email": user.email,
-        "role": (
-            app_metadata.get("role")
-            or user_metadata.get("role")
-            or "authenticated"
-        ),
-        "area": user_metadata.get("area"),
-        "functional_role": user_metadata.get("functional_role"),
-    }
+    # Use _format_user_response to resolve role from employee_profiles → roles table
+    user_data = auth_service._format_user_response(user)
 
     logger.info(
-        "User authenticated user_id=%s",
+        "User authenticated user_id=%s role=%s",
         user.id,
+        user_data.get("role"),
     )
 
     return TokenResponse(
@@ -224,7 +209,12 @@ async def refresh_token(
                 user_metadata.get("full_name") or user_metadata.get("name") or "Usuario"
             ),
             "email": user.email,
-            "role": app_metadata.get("role") or user_metadata.get("role") or "authenticated",
+            "role": (
+                app_metadata.get("role")
+                or user_metadata.get("role")
+                or (user.role if user.role not in (None, "authenticated") else None)
+                or "authenticated"
+            ),
             "area": user_metadata.get("area"),
             "functional_role": user_metadata.get("functional_role"),
         },

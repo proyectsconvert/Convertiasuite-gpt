@@ -1004,7 +1004,7 @@ export default function ChatInput({
                   uploadState === "uploading"
                     ? "Procesando..."
                     : isAgent
-                      ? "Envía un mensaje a Convert-IA..."
+                      ? "Envía un mensaje a Olivi-IA..."
                       : enabledSkills.length > 0
                         ? "Envía un mensaje — escribe @ para usar una skill"
                         : "Envía un mensaje — activa una skill para usar @"

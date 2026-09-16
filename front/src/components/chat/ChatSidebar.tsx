@@ -232,12 +232,13 @@ export default function ChatSidebar() {
 
   const isChatActive = location.pathname === "/app/chat";
   const isDocActive = location.pathname.startsWith("/app/documents");
+  const isQAActive = location.pathname.startsWith("/app/qa");
   const isSkillsActive = location.pathname.startsWith("/app/skills");
   const isGroupChatActive = location.pathname.startsWith("/app/group-chats");
   const isSettingsActive = location.pathname.startsWith("/app/settings");
   const isApplicationsActive = appsModalOpen;
-  const userRole = (user?.role || "").toLowerCase();
-  const functionalRole = (user?.functional_role || "").toLowerCase();
+  const userRole = (user?.role || "").trim().toLowerCase();
+  const functionalRole = (user?.functional_role || "").trim().toLowerCase();
   const isAdmin = userRole === "admin";
   const isAgent =
     userRole === "agent" ||
@@ -250,8 +251,12 @@ export default function ChatSidebar() {
       functionalRole.includes("calidad") ||
       functionalRole.includes("quality") ||
       userRole === "qa" ||
+      userRole.includes("qa") ||
       userRole.includes("quality"));
   const canAccessRoleTools = isAdmin || isQA;
+
+  // DEBUG: remove after fixing
+  console.log("[ChatSidebar] user.role=", user?.role, "| user.functional_role=", user?.functional_role, "| isQA=", isQA, "| canAccessRoleTools=", canAccessRoleTools);
   const roleApps = [
     ...(isAdmin
       ? [
@@ -260,12 +265,18 @@ export default function ChatSidebar() {
             icon: Shield,
             url: "/app/admin",
             description: "Administración de la plataforma",
+            badge: "Admin",
+            cardStyle: "bg-violet-500/10 border-violet-500/30 hover:border-violet-500/50 hover:bg-violet-500/20",
+            iconStyle: "bg-violet-500/20 text-violet-400",
           },
           {
             name: "Gestión de Campañas",
             icon: Megaphone,
             url: "/app/campaigns",
             description: "Gestiona campañas y operaciones",
+            badge: "Admin",
+            cardStyle: "bg-orange-500/10 border-orange-500/30 hover:border-orange-500/50 hover:bg-orange-500/20",
+            iconStyle: "bg-orange-500/20 text-orange-400",
           },
         ]
       : []),
@@ -276,6 +287,9 @@ export default function ChatSidebar() {
             icon: Award,
             url: "/app/qa",
             description: "Panel de calidad y auditoría",
+            badge: "QA",
+            cardStyle: "bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/50 hover:bg-emerald-500/20",
+            iconStyle: "bg-emerald-500/20 text-emerald-400",
           },
         ]
       : []),
@@ -358,7 +372,22 @@ export default function ChatSidebar() {
               </button>
             </SidebarTooltip>
 
-            {canAccessRoleTools && (
+            {isQA && (
+              <SidebarTooltip text="Dashboard QA">
+                <button
+                  onClick={() => navigate("/app/qa")}
+                  className={`p-2.5 rounded-xl transition-all ${isQAActive
+                      ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_15px_rgba(26,237,161,0.25)] backdrop-blur-md"
+                      : "text-muted-foreground hover:text-foreground hover:bg-white/15 dark:hover:bg-white/10 border border-transparent hover:border-white/15"
+                    }`}
+                  aria-label="Abrir dashboard QA"
+                >
+                  <Award className="w-4 h-4" />
+                </button>
+              </SidebarTooltip>
+            )}
+
+            {isAdmin && (
               <SidebarTooltip text="Dashboards">
                 <button
                   onClick={() => setAppsModalOpen(true)}
@@ -465,6 +494,7 @@ export default function ChatSidebar() {
                     ⌘K
                   </span>
                 </button>
+
               </div>
 
               {/* Chat Sessions History List */}
