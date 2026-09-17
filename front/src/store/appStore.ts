@@ -157,6 +157,22 @@ interface AppState {
   ) => Promise<ChatArtifact | null>;
 }
 
+const getStoredSession = () => {
+  if (typeof window === "undefined") return { user: null, accessToken: null };
+
+  try {
+    const rawUser = window.localStorage.getItem("user");
+    const accessToken = window.localStorage.getItem("accessToken");
+
+    return {
+      user: rawUser ? JSON.parse(rawUser) : null,
+      accessToken,
+    };
+  } catch {
+    return { user: null, accessToken: null };
+  }
+};
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -171,9 +187,9 @@ export const useAppStore = create<AppState>()(
       darkMode: false,
       commandOpen: false,
 
-      user: null,
-      accessToken: null,
-      isAuthenticated: false,
+      user: getStoredSession().user,
+      accessToken: getStoredSession().accessToken,
+      isAuthenticated: !!getStoredSession().accessToken && !!getStoredSession().user,
 
       currentChatId: null,
       sessions: [],
@@ -513,6 +529,22 @@ export const useAppStore = create<AppState>()(
 
     {
       name: "convertia-store",
+      merge: (persistedState, currentState) => {
+        const merged = {
+          ...currentState,
+          ...(persistedState as Partial<AppState>),
+        };
+
+        const stored = getStoredSession();
+
+        if (stored.accessToken && stored.user) {
+          merged.user = stored.user;
+          merged.accessToken = stored.accessToken;
+          merged.isAuthenticated = true;
+        }
+
+        return merged;
+      },
 
       partialize: (state) => ({
         user: state.user,

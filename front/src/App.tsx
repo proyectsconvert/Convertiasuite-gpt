@@ -14,6 +14,7 @@ import QADashboard from "./components/qa/QADashboard";
 import InternalChatView from "./components/roomia/ChatView";
 import OliviaAgentWidget from "./components/agents/OliviaWidget";
 import CampaignsView from "./components/campaigns/CampaignsView";
+import LandingPage from "./components/landing/LandingPage";
 import { useAppStore } from "./store/appStore";
 import { ReactNode } from "react";
 import UpdatePassword from "./components/auth/UpdatePassword";
@@ -86,6 +87,12 @@ function PublicRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function RootRedirect() {
+  const { isAuthenticated } = useAppStore();
+  if (isAuthenticated) return <Navigate to="/app/chat" replace />;
+  return <LandingPage />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -93,7 +100,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<RootRedirect />} />
           <Route
             path="/login"
             element={
@@ -166,7 +173,7 @@ const App = () => (
               </div>
             }
           />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/app/chat" replace />} />
         </Routes>
         <GlobalWidget />
       </BrowserRouter>
