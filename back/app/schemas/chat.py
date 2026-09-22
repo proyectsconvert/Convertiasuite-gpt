@@ -81,3 +81,8 @@ class SessionListResponse(BaseModel):
     has_more: bool = False
     next_cursor_updated_at: Optional[str] = None
     next_cursor_id: Optional[str] = None
+
+class FeedbackRequest(BaseModel):
+    message_id: str
+    feedback_rating: bool
+    feedback_notes: Optional[str] = None

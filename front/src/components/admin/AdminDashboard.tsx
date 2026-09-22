@@ -17,6 +17,10 @@ import {
   X,
   Mail,
   Lock,
+  Headset,
+  MessageSquare,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -38,6 +42,7 @@ import { adminApi, authApi, AdminMetricsResponse, UserMetric } from "@/services/
 import { toast } from "sonner";
 import { normalizePosition } from "@/lib/utils";
 import { ComboboxSelect } from "@/components/ui/combobox-select";
+import QuickActionsPanel from "./QuickActionsPanel";
 
 const COLORS = [
   "#8f8cff",
@@ -76,6 +81,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [data, setData] = useState<AdminMetricsResponse | null>(null);
+  const [ccData, setCcData] = useState<any>(null);
 
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
@@ -173,11 +179,12 @@ export default function AdminDashboard() {
     else setLoading(true);
 
     try {
-      const response = await adminApi.getMetrics(
-        selectedUserId || undefined,
-        days || undefined
-      );
-      setData(response);
+      const [metricsRes, ccRes] = await Promise.all([
+        adminApi.getMetrics(selectedUserId || undefined, days || undefined),
+        adminApi.getCallCenterMetrics(days || undefined, undefined) // You can add campaign filter later if needed
+      ]);
+      setData(metricsRes);
+      setCcData(ccRes);
     } catch (error: any) {
       console.error("Error loading metrics:", error);
       let msg = "Error al cargar las métricas del servidor";
@@ -741,6 +748,114 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+        {/* ─── CALL CENTER MODULE ─── */}
+        {ccData && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 mt-6">
+            <div className="rounded-2xl border border-border/50 bg-card p-5 shadow-sm space-y-4">
+              <div className="flex items-center gap-2">
+                <Headset className="w-5 h-5 text-primary" />
+                <div>
+                  <h2 className="text-[20px] font-bold text-foreground">Top Objeciones Frecuentes</h2>
+                  <p className="text-[13px] text-muted-foreground mt-0.5">Las objeciones más reportadas por los agentes</p>
+                </div>
+              </div>
+              <div className="space-y-3 mt-4">
+                {ccData.top_objections?.length > 0 ? (
+                  ccData.top_objections.map((obj: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between p-3 rounded-xl border border-border/40 bg-secondary/20">
+                      <div className="flex items-center gap-3 overflow-hidden pr-4">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                          {idx + 1}
+                        </div>
+                        <p className="text-[13px] font-medium text-foreground truncate">{obj.query_text}</p>
+                      </div>
+                      <div className="text-[12px] font-bold text-primary shrink-0 bg-primary/10 px-2.5 py-1 rounded-lg">
+                        {obj.count}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6 text-sm text-muted-foreground">No hay objeciones registradas en este periodo</div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/50 bg-card p-5 shadow-sm space-y-4">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-[#5bb8b5]" />
+                <div>
+                  <h2 className="text-[20px] font-bold text-foreground">Distribución de Consultas CC</h2>
+                  <p className="text-[13px] text-muted-foreground mt-0.5">Frecuencia por categoría de Call Center</p>
+                </div>
+              </div>
+              <div className="h-[280px] w-full relative mt-4">
+                {ccData.by_category?.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={ccData.by_category}
+                      layout="vertical"
+                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.4} className="stroke-border/30" />
+                      <XAxis type="number" fontSize={10} tickLine={false} tick={{ fill: "var(--color-muted-foreground, #999)" }} />
+                      <YAxis type="category" dataKey="label" width={100} fontSize={10} tickLine={false} tick={{ fill: "var(--color-muted-foreground, #999)" }} />
+                      <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--color-secondary, rgba(0,0,0,0.05))" }} />
+                      <Bar dataKey="count" name="Consultas" fill="#5bb8b5" radius={[0, 4, 4, 0]} barSize={20}>
+                        {ccData.by_category.map((entry: any, index: number) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center h-full flex items-center justify-center text-sm text-muted-foreground">Sin datos de categorías CC</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── CC: DESGLOSE POR CAMPAÑA ─── */}
+        {ccData && ccData.by_campaign?.length > 0 && (
+          <div className="rounded-2xl border border-border/50 bg-card p-5 shadow-sm space-y-4">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-amber-500" />
+              <div>
+                <h2 className="text-[20px] font-bold text-foreground">Objeciones e Inconformidades por Campaña</h2>
+                <p className="text-[13px] text-muted-foreground mt-0.5">
+                  Distribución de categorías de Call Center por campaña activa
+                </p>
+              </div>
+            </div>
+            <div className="h-[300px] w-full mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={ccData.by_campaign}
+                  margin={{ top: 5, right: 20, left: 0, bottom: 30 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} className="stroke-border/30" />
+                  <XAxis
+                    dataKey="campaign_name"
+                    fontSize={11}
+                    tickLine={false}
+                    tick={{ fill: "var(--color-muted-foreground, #999)" }}
+                    angle={-20}
+                    textAnchor="end"
+                  />
+                  <YAxis fontSize={10} tickLine={false} tick={{ fill: "var(--color-muted-foreground, #999)" }} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} cursor={{ fill: "rgba(0,0,0,0.06)" }} />
+                  <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }} />
+                  <Bar dataKey="objecion" name="Objeciones" stackId="a" fill="#8f8cff" radius={[0,0,0,0]} />
+                  <Bar dataKey="inconformidad" name="Inconformidades" stackId="a" fill="#f97316" />
+                  <Bar dataKey="cierre_llamada" name="Cierre Llamada" stackId="a" fill="#1aeda1" />
+                  <Bar dataKey="tipificacion" name="Tipificación" stackId="a" fill="#5bb8b5" />
+                  <Bar dataKey="escalamiento" name="Escalamientos" stackId="a" fill="#7c6cf0" />
+                  <Bar dataKey="consulta_producto" name="Consulta Producto" stackId="a" fill="#facc15" radius={[4,4,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
 
         {/* ─── DETAILED USAGE BY PROFILE TABLE ─── */}
         <div className="rounded-2xl border border-border/50 bg-card p-5 shadow-sm space-y-4">
@@ -913,8 +1028,10 @@ export default function AdminDashboard() {
                 )}
               </tbody>
             </table>
-          </div>
         </div>
+
+        {/* ─── QUICK ACTIONS PANEL ─── */}
+        <QuickActionsPanel />
       </div>
 
       {/* ─── INVITE USER MODAL ─── */}

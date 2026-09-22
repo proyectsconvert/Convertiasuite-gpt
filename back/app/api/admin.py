@@ -508,6 +508,245 @@ async def get_metrics(
         )
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# GAP-04 — Módulo Call Center: objeciones, tipificaciones, inconformidades
+# ──────────────────────────────────────────────────────────────────────────────
+
+CC_CATEGORIES = {
+    "objecion",
+    "inconformidad",
+    "cierre_llamada",
+    "tipificacion",
+    "escalamiento",
+    "consulta_producto",
+}
+
+CC_LABELS = {
+    "objecion": "Objeciones",
+    "inconformidad": "Inconformidades",
+    "cierre_llamada": "Cierre de Llamada",
+    "tipificacion": "Tipificación",
+    "escalamiento": "Escalamientos",
+    "consulta_producto": "Consultas de Producto",
+}
+
+
+@router.get("/metrics/call-center")
+async def get_call_center_metrics(
+    request: Request,
+    days: int = 30,
+    campaign_id: str | None = None,
+    current_user: dict = Depends(require_admin_or_qa),
+):
+    """
+    Retorna métricas de call center extraídas de agent_query_logs:
+    - Frecuencia de cada categoría CC (objecion, inconformidad, etc.)
+    - Desglose por campaña (si hay varias)
+    - Tendencia diaria de objeciones
+    - Top 10 consultas de objeciones (textos más frecuentes)
+    """
+    try:
+        supabase = SupabaseClient().db
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+        # ─── Fetch logs ────────────────────────────────────────────────────────
+        query = (
+            supabase
+            .table("agent_query_logs")
+            .select("log_id, user_id, campaign_id, query_text, query_category, rag_used, created_at")
+            .gte("created_at", cutoff)
+        )
+        if campaign_id:
+            query = query.eq("campaign_id", campaign_id)
+
+        resp = query.execute()
+        logs = getattr(resp, "data", []) or []
+
+        # Filtrar solo categorías CC
+        cc_logs = [l for l in logs if (l.get("query_category") or "") in CC_CATEGORIES]
+
+        # ─── 1. Frecuencia por categoría ───────────────────────────────────────
+        cat_counts: dict = {}
+        for log in cc_logs:
+            cat = log.get("query_category") or "sin_categoria"
+            cat_counts[cat] = cat_counts.get(cat, 0) + 1
+
+        by_category = [
+            {
+                "category": cat,
+                "label": CC_LABELS.get(cat, cat),
+                "count": count,
+                "percentage": round(count / len(cc_logs) * 100, 1) if cc_logs else 0,
+            }
+            for cat, count in sorted(cat_counts.items(), key=lambda x: x[1], reverse=True)
+        ]
+
+        # ─── 2. Desglose por campaña ───────────────────────────────────────────
+        camp_cat: dict = defaultdict(lambda: defaultdict(int))
+        camp_names: dict = {}
+        for log in cc_logs:
+            cid = log.get("campaign_id") or "sin_campaña"
+            cat = log.get("query_category") or "sin_categoria"
+            camp_cat[cid][cat] += 1
+            if cid not in camp_names:
+                camp_names[cid] = cid[:8] if len(cid) > 12 else cid
+
+        by_campaign = []
+        for cid, cats in camp_cat.items():
+            entry = {"campaign_id": cid, "campaign_name": camp_names.get(cid, cid)}
+            for cat in CC_CATEGORIES:
+                entry[cat] = cats.get(cat, 0)
+            entry["total"] = sum(cats.values())
+            by_campaign.append(entry)
+        by_campaign.sort(key=lambda x: x["total"], reverse=True)
+
+        # ─── 3. Tendencia diaria (últimos `days`) ──────────────────────────────
+        daily: dict = defaultdict(lambda: {cat: 0 for cat in CC_CATEGORIES})
+        for log in cc_logs:
+            created_at = log.get("created_at") or ""
+            if len(created_at) >= 10:
+                day = created_at[:10]
+                cat = log.get("query_category") or "sin_categoria"
+                if cat in CC_CATEGORIES:
+                    daily[day][cat] += 1
+
+        daily_trend = [
+            {"date": day, **cats}
+            for day, cats in sorted(daily.items())
+        ]
+
+        # ─── 4. Top 10 textos de objeciones ───────────────────────────────────
+        obj_logs = [l for l in cc_logs if l.get("query_category") == "objecion"]
+        obj_text_counts: dict = {}
+        for log in obj_logs:
+            text = (log.get("query_text") or "").strip()
+            if text:
+                obj_text_counts[text] = obj_text_counts.get(text, 0) + 1
+
+        top_objections = [
+            {"query_text": t, "count": c}
+            for t, c in sorted(obj_text_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        ]
+
+        # ─── 5. Tasa de resolución con RAG ────────────────────────────────────
+        rag_by_cat: dict = defaultdict(lambda: {"rag": 0, "total": 0})
+        for log in cc_logs:
+            cat = log.get("query_category") or "sin_categoria"
+            rag_by_cat[cat]["total"] += 1
+            if log.get("rag_used"):
+                rag_by_cat[cat]["rag"] += 1
+
+        rag_resolution = [
+            {
+                "category": cat,
+                "label": CC_LABELS.get(cat, cat),
+                "rag_used": v["rag"],
+                "total": v["total"],
+                "rag_rate": round(v["rag"] / v["total"] * 100, 1) if v["total"] > 0 else 0,
+            }
+            for cat, v in rag_by_cat.items()
+        ]
+
+        return {
+            "summary": {
+                "total_cc_queries": len(cc_logs),
+                "total_logs_period": len(logs),
+                "days": days,
+            },
+            "by_category": by_category,
+            "by_campaign": by_campaign,
+            "daily_trend": daily_trend,
+            "top_objections": top_objections,
+            "rag_resolution": rag_resolution,
+        }
+
+    except Exception as e:
+        logger.error(f"[call-center metrics] {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GAP-01 — Quick Actions CRUD
+# ──────────────────────────────────────────────────────────────────────────────
+
+class QuickActionBase(BaseModel):
+    label: str
+    description: str
+    prompt: str
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    icon_color: Optional[str] = None
+    is_active: bool = True
+    order_index: int = 0
+
+class QuickActionCreate(QuickActionBase):
+    pass
+
+class QuickActionUpdate(BaseModel):
+    label: Optional[str] = None
+    description: Optional[str] = None
+    prompt: Optional[str] = None
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    icon_color: Optional[str] = None
+    is_active: Optional[bool] = None
+    order_index: Optional[int] = None
+
+@router.get("/quick-actions")
+async def get_quick_actions(current_user: dict = Depends(require_admin)):
+    try:
+        supabase = SupabaseClient().db
+        resp = supabase.table("quick_actions").select("*").order("order_index").execute()
+        return {"status": "success", "actions": resp.data or []}
+    except Exception as e:
+        logger.error(f"Error fetching quick actions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/quick-actions")
+async def create_quick_action(
+    action: QuickActionCreate,
+    current_user: dict = Depends(require_admin)
+):
+    try:
+        supabase = SupabaseClient().db
+        resp = supabase.table("quick_actions").insert(action.model_dump()).execute()
+        return {"status": "success", "action": resp.data[0] if resp.data else None}
+    except Exception as e:
+        logger.error(f"Error creating quick action: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/quick-actions/{action_id}")
+async def update_quick_action(
+    action_id: str,
+    action: QuickActionUpdate,
+    current_user: dict = Depends(require_admin)
+):
+    try:
+        supabase = SupabaseClient().db
+        update_data = action.model_dump(exclude_unset=True)
+        update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+        resp = supabase.table("quick_actions").update(update_data).eq("action_id", action_id).execute()
+        return {"status": "success", "action": resp.data[0] if resp.data else None}
+    except Exception as e:
+        logger.error(f"Error updating quick action: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/quick-actions/{action_id}")
+async def delete_quick_action(
+    action_id: str,
+    current_user: dict = Depends(require_admin)
+):
+    try:
+        supabase = SupabaseClient().db
+        supabase.table("quick_actions").delete().eq("action_id", action_id).execute()
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Error deleting quick action: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 @router.post("/users/invite")
 async def invite_user(
     body: InviteUserRequest,

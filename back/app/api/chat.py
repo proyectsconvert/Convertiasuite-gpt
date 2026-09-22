@@ -24,6 +24,7 @@ from app.schemas.chat import (
     SessionSummary,
     MessageDTO,
     VoiceChatRequest,
+    FeedbackRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,22 @@ def get_campaign_repository(request: Request):
 
 async def sse_message(event_type: str, data: dict) -> str:
     return f"data: {json.dumps({'type': event_type, **data})}\n\n"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GAP-01 — Chat Quick Actions
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/quick-actions")
+async def get_chat_quick_actions(current_user: dict = Depends(get_current_user)):
+    try:
+        from app.infra.clients.supabase_client import SupabaseClient
+        supabase = SupabaseClient().db
+        resp = supabase.table("quick_actions").select("*").eq("is_active", True).order("order_index").execute()
+        return {"status": "success", "actions": resp.data or []}
+    except Exception as e:
+        logger.error(f"Error fetching quick actions for chat: {e}", exc_info=True)
+        return {"status": "error", "actions": []}
 
 
 # Helpers de contexto de agente (campañas)
@@ -808,3 +825,32 @@ async def chat_campaign_context(
         "pricing_config": agent_context.get("campaign_data", {}).get("pricing_config") or agent_context.get("pricing_config", {}),
         "platform_config": agent_context.get("campaign_data", {}).get("platform_config") or agent_context.get("platform_config", {}),
     }
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GAP-09 — Feedback por respuesta
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.post("/feedback")
+async def submit_feedback(
+    req: FeedbackRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        from app.infra.clients.supabase_client import SupabaseClient
+        supabase = SupabaseClient().db
+        
+        # We ensure we only update logs belonging to this user
+        resp = (
+            supabase.table("agent_query_logs")
+            .update({
+                "feedback_rating": req.feedback_rating,
+                "feedback_notes": req.feedback_notes
+            })
+            .eq("message_id", req.message_id)
+            .eq("user_id", current_user["id"])
+            .execute()
+        )
+        return {"status": "success", "message": "Feedback registrado"}
+    except Exception as e:
+        logger.error(f"Error saving feedback: {e}", exc_info=True)
+        return {"status": "error", "message": str(e)}

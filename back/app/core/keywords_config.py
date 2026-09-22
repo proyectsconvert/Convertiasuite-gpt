@@ -115,7 +115,132 @@ KEYWORDS_LANDING = [
 ]
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# CALL CENTER — Categorías de tipificación
+# ──────────────────────────────────────────────────────────────────────────────
+
+KEYWORDS_TIPIFICACION = [
+    "tipifica",
+    "tipificar",
+    "tipificación",
+    "clasificar llamada",
+    "registrar llamada",
+    "anotar la llamada",
+    "resultado de la llamada",
+    "código de tipificación",
+    "motivo de llamada",
+    "razón de la llamada",
+]
+
+KEYWORDS_OBJECION = [
+    "objeción",
+    "objeciones",
+    "no me interesa",
+    "ya tengo",
+    "está muy caro",
+    "es muy caro",
+    "no tengo dinero",
+    "no tengo presupuesto",
+    "déjame pensarlo",
+    "dejame pensarlo",
+    "lo voy a pensar",
+    "lo va a pensar",
+    "lo vamos a pensar",
+    "no es el momento",
+    "llámeme después",
+    "llameme despues",
+    "tengo que consultarlo",
+    "rebatir",
+    "superar objeción",
+    "manejar objeción",
+    "cliente dice que no",
+    "respuesta al cliente",
+    "argumento de venta",
+]
+
+KEYWORDS_CIERRE_LLAMADA = [
+    "cerrar la llamada",
+    "cierre de llamada",
+    "cómo cerrar",
+    "como cerrar",
+    "despedida",
+    "frase de cierre",
+    "finalizar llamada",
+    "terminar la llamada",
+    "agendar cita",
+    "agendar visita",
+    "concretar venta",
+    "confirmar pedido",
+    "cliente acepta",
+    "cliente interesado",
+    "el cliente dijo que sí",
+    "venta exitosa",
+    "venta cerrada",
+]
+
+KEYWORDS_INCONFORMIDAD = [
+    "inconformidad",
+    "queja",
+    "reclamo",
+    "insatisfecho",
+    "muy molesto",
+    "cliente molesto",
+    "cliente enojado",
+    "cliente furioso",
+    "mala experiencia",
+    "no funciona",
+    "no llegó",
+    "no recibí",
+    "no me lo enviaron",
+    "me cobraron de más",
+    "cobro incorrecto",
+    "error en la factura",
+    "pésimo servicio",
+    "nunca llegó",
+    "no han resuelto",
+    "llevo esperando",
+]
+
+KEYWORDS_CONSULTA_PRODUCTO = [
+    "cómo funciona",
+    "como funciona",
+    "información del producto",
+    "información del servicio",
+    "qué incluye",
+    "que incluye",
+    "características",
+    "beneficios",
+    "diferencia entre",
+    "cuánto cuesta",
+    "precio de",
+    "disponibilidad",
+    "stock",
+    "tienen el",
+    "ofrecen",
+    "qué planes hay",
+    "opciones disponibles",
+    "tiempo de entrega",
+    "garantía",
+]
+
+KEYWORDS_ESCALAMIENTO = [
+    "escalar",
+    "escalamiento",
+    "transferir al supervisor",
+    "quiero hablar con el jefe",
+    "quiero hablar con un supervisor",
+    "supervisor",
+    "hablar con alguien más",
+    "área especializada",
+    "derivar",
+    "transferir la llamada",
+    "no puedo resolver",
+    "no tengo autorización",
+    "caso especial",
+]
+
 ALL_KEYWORDS = {
+    # Técnicos
     "vision": KEYWORDS_VISION,
     "analysis": KEYWORDS_ANALYSIS,
     "code": KEYWORDS_CODE,
@@ -123,6 +248,13 @@ ALL_KEYWORDS = {
     "reasoning": KEYWORDS_REASONING,
     "ocr": KEYWORDS_OCR,
     "medical": KEYWORDS_MEDICAL,
+    # Call center
+    "tipificacion": KEYWORDS_TIPIFICACION,
+    "objecion": KEYWORDS_OBJECION,
+    "cierre_llamada": KEYWORDS_CIERRE_LLAMADA,
+    "inconformidad": KEYWORDS_INCONFORMIDAD,
+    "consulta_producto": KEYWORDS_CONSULTA_PRODUCTO,
+    "escalamiento": KEYWORDS_ESCALAMIENTO,
 }
 
 GENERIC_CHAT_TERMS = [

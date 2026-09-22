@@ -32,6 +32,7 @@ _GENERIC_CHAT_TERMS = [
 
 VALID_DOMAIN_KEYS = frozenset(
     {
+        # Técnicos
         "code",
         "analysis",
         "reasoning",
@@ -45,6 +46,13 @@ VALID_DOMAIN_KEYS = frozenset(
         "design",
         "landing",
         "default",
+        # Call center
+        "tipificacion",
+        "objecion",
+        "cierre_llamada",
+        "inconformidad",
+        "consulta_producto",
+        "escalamiento",
     }
 )
 
@@ -57,6 +65,16 @@ _CLASSIFICATION_SYSTEM = (
 
 _CLASSIFICATION_USER_TEMPLATE = """\
 Categorías válidas y cuándo usarlas:
+
+[CALL CENTER]
+- tipificacion     → pide ayuda para tipificar, registrar o clasificar una llamada
+- objecion        → el cliente objeta: precio, tiempo, interés; el agente quiere rebatirla
+- cierre_llamada  → quiere cerrar la llamada, concretar la venta, despedirse bien
+- inconformidad   → cliente con queja, reclamo, molestia, mala experiencia
+- consulta_producto → preguntas sobre qué incluye, precio, disponibilidad del producto/servicio
+- escalamiento    → necesita transferir al supervisor o a un área especializada
+
+[TÉCNICO / GENERAL]
 - code      → programación, código, bugs, scripts, HTML, APIs, desarrollo
 - analysis  → análisis de datos, reportes, hojas de cálculo, métricas, BI
 - reasoning → razonamiento lógico, deducciones, paso a paso, lógica
@@ -96,24 +114,43 @@ class IntentClassifier:
             KEYWORDS_REASONING,
             KEYWORDS_OCR,
             KEYWORDS_MEDICAL,
+            KEYWORDS_TIPIFICACION,
+            KEYWORDS_OBJECION,
+            KEYWORDS_CIERRE_LLAMADA,
+            KEYWORDS_INCONFORMIDAD,
+            KEYWORDS_CONSULTA_PRODUCTO,
+            KEYWORDS_ESCALAMIENTO,
             GENERIC_CHAT_TERMS,
         )
 
         msg_lower = (message or "").lower()
 
-        # If it matches ANY generic chat term EXACTLY as a word, skip classification
+        # Si coincide con saludo genérico, no clasificar
         from app.core.keywords_config import matches_any
         if matches_any(msg_lower, GENERIC_CHAT_TERMS):
             return None
 
+        # — Call center primero (más probables en un contexto de agentes) —
+        if matches_any(msg_lower, KEYWORDS_OBJECION):
+            return "objecion"
+        if matches_any(msg_lower, KEYWORDS_INCONFORMIDAD):
+            return "inconformidad"
+        if matches_any(msg_lower, KEYWORDS_CIERRE_LLAMADA):
+            return "cierre_llamada"
+        if matches_any(msg_lower, KEYWORDS_TIPIFICACION):
+            return "tipificacion"
+        if matches_any(msg_lower, KEYWORDS_ESCALAMIENTO):
+            return "escalamiento"
+        if matches_any(msg_lower, KEYWORDS_CONSULTA_PRODUCTO):
+            return "consulta_producto"
+
+        # — Técnicos —
         if matches_any(msg_lower, KEYWORDS_VISION):
             return "vision"
         if matches_any(msg_lower, KEYWORDS_ANALYSIS):
             return "analysis"
         if matches_any(msg_lower, KEYWORDS_LANDING):
             return "landing"
-
-
         if matches_any(msg_lower, KEYWORDS_CODE):
             return "code"
         if matches_any(msg_lower, KEYWORDS_REASONING):

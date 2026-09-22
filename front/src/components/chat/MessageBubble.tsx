@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion } from "framer-motion";
-import { ChatMessage, documentsApi } from "@/services/api";
+import { ChatMessage, documentsApi, chatApi } from "@/services/api";
 import remarkGfm from "remark-gfm";
 import { useAppStore } from "@/store/appStore";
 import {
@@ -115,6 +115,7 @@ export default function MessageBubble({
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  const [feedbackSending, setFeedbackSending] = useState(false);
   const { setActiveArtifact } = useAppStore();
 
   const isUser = message.role === "user";
@@ -195,6 +196,21 @@ export default function MessageBubble({
       // Ignore clipboard write failures
     }
   }, [message.content]);
+
+  const handleFeedback = useCallback(async (type: "up" | "down") => {
+    if (feedbackSending) return;
+    const newVal = feedback === type ? null : type;
+    setFeedback(newVal);
+    if (newVal === null) return;
+    setFeedbackSending(true);
+    try {
+      await chatApi.submitFeedback(message.id, newVal === "up");
+    } catch (e) {
+      console.error("Error al guardar feedback:", e);
+    } finally {
+      setFeedbackSending(false);
+    }
+  }, [feedback, feedbackSending, message.id]);
 
   const handleDownload = useCallback(
     async (format: string, filename: string, content: string) => {
@@ -849,25 +865,25 @@ export default function MessageBubble({
                     )}
                   </button>
                   <button
-                    onClick={() => setFeedback(feedback === "up" ? null : "up")}
+                    onClick={() => handleFeedback("up")}
+                    disabled={feedbackSending}
                     className={`p-1.5 rounded-lg transition-colors ${
                       feedback === "up"
                         ? "text-success bg-success/10"
                         : "text-muted-foreground/60 hover:text-foreground hover:bg-secondary"
-                    }`}
+                    } disabled:opacity-50`}
                     aria-label="Me gusta"
                   >
                     <ThumbsUp className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={() =>
-                      setFeedback(feedback === "down" ? null : "down")
-                    }
+                    onClick={() => handleFeedback("down")}
+                    disabled={feedbackSending}
                     className={`p-1.5 rounded-lg transition-colors ${
                       feedback === "down"
                         ? "text-destructive bg-destructive/10"
                         : "text-muted-foreground/60 hover:text-foreground hover:bg-secondary"
-                    }`}
+                    } disabled:opacity-50`}
                     aria-label="No me gusta"
                   >
                     <ThumbsDown className="w-3.5 h-3.5" />
