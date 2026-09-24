@@ -9,6 +9,9 @@ import dateutil.parser
 from collections import defaultdict
 import os
 
+from typing import Optional
+
+from pydantic import BaseModel
 from app.dependencies.auth import get_current_user, require_admin, require_admin_or_qa
 from app.infra.clients.supabase_client import SupabaseClient
 from app.schemas.admin import InviteUserRequest, AddCampaignMemberRequest
