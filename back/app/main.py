@@ -27,7 +27,16 @@ from app.infra.repositories.supabase.campaign_repository import SupabaseCampaign
 from app.services.documents.document_processing.document_manager import DocumentManager
 from app.security.rate_limiting import limiter
 from app.infra.clients.ollama_client import OllamaClient
-from app.api import chat, auth, documents, admin, skills, groupChats, agents, campaigns, qa
+from app.api import chat, documents
+
+# ── Módulos migrados ────────────────────────────────────────────────────────
+from app.modules.admin import router as admin_module
+from app.modules.shared.auth import router as auth_module
+from app.modules.shared.skills import router as skills_module
+from app.modules.shared.qa import router as qa_module
+from app.modules.shared.group_chats import router as group_chats_module
+from app.modules.campaigns import router as campaigns_module
+from app.modules.agent import router as agent_module
 from app.infra.providers.ollama_provider import OllamaProvider
 from app.services.chat.intent_classifier import IntentClassifier
 from app.rag.supabase_rag_repository import SupabaseRagRepository
@@ -242,12 +251,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
+app.include_router(auth_module.router)
 app.include_router(chat.router)
 app.include_router(documents.router)
-app.include_router(admin.router)
-app.include_router(skills.router)
-app.include_router(groupChats.router)
-app.include_router(agents.router)
-app.include_router(campaigns.router)
-app.include_router(qa.router)
+app.include_router(admin_module.router)
+app.include_router(skills_module.router)
+app.include_router(group_chats_module.router)
+app.include_router(agent_module.router)
+app.include_router(campaigns_module.router)
+app.include_router(qa_module.router)

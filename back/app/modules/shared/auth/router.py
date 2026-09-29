@@ -268,4 +268,3 @@ async def get_organization_options():
     except Exception as e:
         logger.exception(f"Error fetching organization options: {e}")
         return {"areas": [], "functional_roles": []}
-

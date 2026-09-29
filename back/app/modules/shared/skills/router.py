@@ -29,7 +29,7 @@ class SkillListResponse(BaseModel):
 
 
 
-SKILLS_ROOT = Path(__file__).resolve().parent.parent / "capabilities" / "skills"
+SKILLS_ROOT = Path(__file__).resolve().parent.parent.parent.parent / "capabilities" / "skills"
 
 
 def _load_skills() -> List[SkillResponse]:

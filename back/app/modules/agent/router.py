@@ -28,14 +28,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agents", tags=["chat-agents"])
 
 
-@router.post("/agents/me")
+@router.post("/me")
 async def get_current_agent(
     current_user: dict = Depends(get_current_user),
 ):
     return current_user 
 
 
-@router.get("/agents/{agent_id}/chat", response_model=MessageDTO)
+@router.get("/{agent_id}/chat", response_model=MessageDTO)
 async def chat_with_agent(
     agent_id: str,
     chat_request: ChatRequest,
@@ -43,7 +43,7 @@ async def chat_with_agent(
 ):
     pass
 
-@router.get("/agents/campaign/{id}/members")
+@router.get("/campaign/{id}/members")
 async def get_campaign_members(
     id: str,
     members: List[str] = Form(...),
@@ -51,14 +51,14 @@ async def get_campaign_members(
 ):
     pass
 
-@router.get("/agents/campaign/{id}/training-insights")
+@router.get("/campaign/{id}/training-insights")
 async def get_campaign_training_insights(
     id: str,
     current_user: dict = Depends(get_current_user),
 ):
     pass
 
-@router.get("/agents/campaign/{id}/query-logs")
+@router.get("/campaign/{id}/query-logs")
 async def get_campaign_query_logs(
     id: str,
     current_user: dict = Depends(get_current_user),

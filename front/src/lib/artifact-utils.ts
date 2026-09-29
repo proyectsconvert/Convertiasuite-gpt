@@ -1,5 +1,5 @@
-import { ChatMessage } from "@/services/api";
-import { ChatArtifact } from "@/store/appStore";
+import { ChatMessage } from "@/modules/shared/services/api";
+import { ChatArtifact } from "@/modules/shared/store/appStore";
 
 
 export function extractArtifactsFromMessage(

@@ -1,3 +1,5 @@
-from app.api import chat, auth, documents, admin, skills, agents, campaigns, qa
+# Módulos pendientes de migración a app/modules/
+# chat.py y documents.py se migrarán en la siguiente iteración
+from app.api import chat, documents
 
-__all__ = ["chat", "auth", "documents", "admin", "skills", "agents", "campaigns", "qa"]
+__all__ = ["chat", "documents"]
