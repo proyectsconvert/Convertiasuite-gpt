@@ -8,18 +8,23 @@ class SupabaseClient:
 
         self._anon: Client = create_client(settings.supabase_url, settings.supabase_key)
 
-        self._admin: Client = create_client(
+        self._service: Client = create_client(
             settings.supabase_url, settings.supabase_service_key
         )
+
+    @property
+    def db(self) -> Client:
+        """Cliente anon — respeta Row Level Security. Usar por defecto."""
+        return self._anon
 
     @property
     def anon(self) -> Client:
         return self._anon
 
     @property
-    def admin(self) -> Client:
-        return self._admin
+    def service(self) -> Client:
+        return self._service
 
     @property
-    def db(self) -> Client:
-        return self._admin
+    def admin(self) -> Client:
+        return self._service

@@ -1,6 +1,6 @@
 from app.domain.interfaces.llm_provider import ILlmProvider
 from app.core.model_config import get_model_config
-from app.services.prompts.prompt_templates import build_messages
+from back.app.services.prompts.templates.prompt_templates import build_messages
 from app.domain.entities.message import Message
 from datetime import datetime, UTC
 from typing import AsyncGenerator

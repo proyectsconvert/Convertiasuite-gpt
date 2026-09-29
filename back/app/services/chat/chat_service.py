@@ -35,7 +35,7 @@ from app.services.prompts.response_validator import (
     ResponseValidator,
 )
 
-from app.services.prompts.prompt_templates import render_landing_wrapper
+from back.app.services.prompts.templates.prompt_templates import render_landing_wrapper
 from app.services.prompts.role_mapper import map_functional_role_to_llm_role
 
 from app.security.output_guard import (

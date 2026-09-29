@@ -15,7 +15,7 @@ from app.dependencies.auth import get_current_user
 from app.services.chat.chat_service import process_chat
 from app.services.documents.document_processing.document_manager import DocumentManager
 from app.domain.interfaces.rag_repository import IRagRepository
-from app.services.prompts.prompt_templates import AGENT_MODE_PROMPTS
+from back.app.services.prompts.templates.prompt_templates import AGENT_MODE_PROMPTS
 from zoneinfo import ZoneInfo
 from app.schemas.chat import (
     ChatRequest,
