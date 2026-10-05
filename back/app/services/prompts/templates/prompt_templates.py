@@ -444,13 +444,14 @@ def build_system_prompt(
         parts.append(DOMAIN_PROMPTS[domain])
 
     if campaign_context is not None:
-        from .operations import (
-            OPERATIONS_PROMPT,
+        from ..operations import (
+            get_operations_mode_prompt,
             build_campaign_context_prompt,
             AGENT_MODE_PROMPT,
         )
 
-        parts.append(OPERATIONS_PROMPT)
+        campaign_role = campaign_context.get("campaign_role")
+        parts.append(get_operations_mode_prompt(campaign_role))
         parts.append(
             build_campaign_context_prompt(campaign_context)
         )

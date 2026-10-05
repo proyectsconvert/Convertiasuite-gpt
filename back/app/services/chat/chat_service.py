@@ -31,12 +31,12 @@ from app.security.input_sanitizer import (
     truncate_history_by_tokens,
 )
 
-from app.services.prompts.response_validator import (
+from app.services.prompts.validators.response_validator import (
     ResponseValidator,
 )
 
-from app.services.prompts.prompt_templates import render_landing_wrapper
-from app.services.prompts.role_mapper import map_functional_role_to_llm_role
+from app.services.prompts.templates.landing_wrapper import render_landing_wrapper
+from app.services.prompts.roles import map_functional_role_to_llm_role
 
 from app.security.output_guard import (
     OutputValidationAction,

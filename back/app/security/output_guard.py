@@ -124,7 +124,7 @@ def sanitize_output(text: str) -> str | None:
 
 
 def get_safety_fallback(role: str = "default") -> str:
-    from app.services.prompts.fallback_templates import (
+    from app.services.prompts.templates.fallback_templates import (
         FallbackResponseProvider,
         FallbackTemplate,
     )
@@ -132,7 +132,7 @@ def get_safety_fallback(role: str = "default") -> str:
     return FallbackResponseProvider.get_fallback(role, FallbackTemplate.SAFETY_BLOCK)
 
 def get_unavailable_fallback(role: str = "default") -> str:
-    from app.services.prompts.fallback_templates import (
+    from app.services.prompts.templates.fallback_templates import (
         FallbackResponseProvider,
         FallbackTemplate,
     )
@@ -141,7 +141,7 @@ def get_unavailable_fallback(role: str = "default") -> str:
 
 
 def get_timeout_fallback(role: str = "default") -> str:
-    from app.services.prompts.fallback_templates import (
+    from app.services.prompts.templates.fallback_templates import (
         FallbackResponseProvider,
         FallbackTemplate,
     )

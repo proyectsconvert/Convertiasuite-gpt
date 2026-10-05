@@ -3,7 +3,7 @@ import re
 
 from app.domain.contracts import PromptContract, ResponseFormat
 from app.domain.entities.safety_response import SafetyResponse
-from app.services.prompts.fallback_templates import (
+from ..templates.fallback_templates import (
     FallbackResponseProvider,
     FallbackTemplate,
 )

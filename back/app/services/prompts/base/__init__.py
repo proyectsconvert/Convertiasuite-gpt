@@ -1,0 +1,12 @@
+"""Prompts base: aplican a TODOS los dominios."""
+from .document import DOCUMENT_GENERATION_PROMPT
+from .identity import BASE_IDENTITY_PROMPT
+from .rag_policy import RAG_POLICY_PROMPT
+from .security import SECURITY_FALLBACK, SECURITY_POLICY_PROMPT
+from .style import AGENT_STYLE_PROMPT, STYLE_PROMPT
+
+__all__ = [
+    "BASE_IDENTITY_PROMPT", "RAG_POLICY_PROMPT", "SECURITY_POLICY_PROMPT",
+    "SECURITY_FALLBACK", "STYLE_PROMPT", "AGENT_STYLE_PROMPT",
+    "DOCUMENT_GENERATION_PROMPT",
+]
