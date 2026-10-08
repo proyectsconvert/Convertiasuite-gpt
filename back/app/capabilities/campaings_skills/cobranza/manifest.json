@@ -1,0 +1,9 @@
+{
+  "id": "cobranza",
+  "name": "Plantilla de Cobranza",
+  "description": "Copiloto de cobranza para agentes. Proporciona scripts de contacto, estrategias de negociación y manejo de objeciones adaptados a la campaña activa.",
+  "category": "Operaciones",
+  "icon": "wallet",
+  "version": "1.0.0",
+  "tags": ["cobranza", "recuperacion", "cartera", "negociacion", "mora"]
+}

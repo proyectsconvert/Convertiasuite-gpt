@@ -1,0 +1,9 @@
+{
+  "id": "ventas",
+  "name": "Plantilla de Ventas",
+  "description": "Copiloto de ventas para agentes. Proporciona guías de apertura, manejo de objeciones y técnicas de cierre adaptadas a la campaña activa.",
+  "category": "Operaciones",
+  "icon": "trending-up",
+  "version": "1.0.0",
+  "tags": ["ventas", "comercial", "objeciones", "cierre", "argumentario"]
+}

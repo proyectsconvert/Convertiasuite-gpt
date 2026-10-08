@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { adminApi, Campaign, CampaignMember, SystemUser } from "@/modules/shared/services/api";
-import { Users, Plus, Trash2, RefreshCw, X, Save, UserPlus, Search, Edit } from "lucide-react";
+import { adminApi, Campaign, CampaignMember, SystemUser, AvailableSkill, CampaignSkill } from "@/modules/shared/services/api";
+import { Users, Plus, Trash2, RefreshCw, X, Save, UserPlus, Search, Edit, Sparkles, BookOpen, ShieldCheck } from "lucide-react";
 import { useAppStore } from "@/modules/shared/store/appStore";
 
 export default function CampaignsView() {
@@ -65,9 +65,141 @@ export default function CampaignsView() {
     }
   };
 
+  // Skills state
+  const [skills, setSkills] = useState<CampaignSkill[]>([]);
+  const [loadingSkills, setLoadingSkills] = useState(false);
+  const [availableSkills, setAvailableSkills] = useState<AvailableSkill[]>([]);
+  const [loadingAvailableSkills, setLoadingAvailableSkills] = useState(false);
+
+  // Skill Modals state
+  const [showAssignSkillModal, setShowAssignSkillModal] = useState(false);
+  const [selectedSkillId, setSelectedSkillId] = useState("");
+  const [skillCustomContent, setSkillCustomContent] = useState("");
+  const [isSubmittingSkill, setIsSubmittingSkill] = useState(false);
+
+  const [editingSkill, setEditingSkill] = useState<CampaignSkill | null>(null);
+  const [editSkillCustomContent, setEditSkillCustomContent] = useState("");
+
+  const loadCampaignSkills = async (campaignId: string) => {
+    try {
+      setLoadingSkills(true);
+      const res = await adminApi.getCampaignSkills(campaignId);
+      if (res.skills) {
+        setSkills(res.skills);
+      }
+    } catch (e) {
+      toast.error("Error al cargar habilidades de la campaña");
+    } finally {
+      setLoadingSkills(false);
+    }
+  };
+
+  const loadAvailableSkills = async () => {
+    try {
+      setLoadingAvailableSkills(true);
+      const res = await adminApi.getAvailableSkills();
+      if (res.skills) {
+        setAvailableSkills(res.skills);
+      }
+    } catch (e) {
+      toast.error("Error al cargar la lista de habilidades disponibles");
+    } finally {
+      setLoadingAvailableSkills(false);
+    }
+  };
+
   const handleSelectCampaign = (c: Campaign) => {
     setSelectedCampaign(c);
     loadMembers(c.campaign_id);
+    loadCampaignSkills(c.campaign_id);
+  };
+
+  const openAssignSkillModal = () => {
+    loadAvailableSkills();
+    setSelectedSkillId("");
+    setSkillCustomContent("");
+    setShowAssignSkillModal(true);
+  };
+
+  const handleAssignSkill = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCampaign) return;
+    if (!selectedSkillId) {
+      toast.error("Por favor selecciona una habilidad");
+      return;
+    }
+    try {
+      setIsSubmittingSkill(true);
+      await adminApi.assignCampaignSkill(
+        selectedCampaign.campaign_id,
+        selectedSkillId,
+        skillCustomContent
+      );
+      toast.success("Habilidad asignada exitosamente a la campaña");
+      setShowAssignSkillModal(false);
+      setSelectedSkillId("");
+      setSkillCustomContent("");
+      loadCampaignSkills(selectedCampaign.campaign_id);
+    } catch (e: any) {
+      toast.error(e?.message || "Error al asignar la habilidad");
+    } finally {
+      setIsSubmittingSkill(false);
+    }
+  };
+
+  const handleOpenEditSkill = (skill: CampaignSkill) => {
+    setEditingSkill(skill);
+    setEditSkillCustomContent(skill.custom_content || "");
+  };
+
+  const handleSaveSkillEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCampaign || !editingSkill) return;
+    try {
+      setIsSubmittingSkill(true);
+      await adminApi.updateCampaignSkill(
+        selectedCampaign.campaign_id,
+        editingSkill.id,
+        editSkillCustomContent,
+        editingSkill.is_active
+      );
+      toast.success("Instrucciones personalizadas actualizadas");
+      setEditingSkill(null);
+      loadCampaignSkills(selectedCampaign.campaign_id);
+    } catch (e: any) {
+      toast.error(e?.message || "Error al actualizar la habilidad");
+    } finally {
+      setIsSubmittingSkill(false);
+    }
+  };
+
+  const handleToggleSkillActive = async (skill: CampaignSkill) => {
+    if (!selectedCampaign) return;
+    try {
+      const newStatus = !skill.is_active;
+      await adminApi.updateCampaignSkill(
+        selectedCampaign.campaign_id,
+        skill.id,
+        skill.custom_content,
+        newStatus
+      );
+      toast.success(`Habilidad ${newStatus ? "activada" : "desactivada"}`);
+      loadCampaignSkills(selectedCampaign.campaign_id);
+    } catch (e) {
+      toast.error("Error al cambiar estado de la habilidad");
+    }
+  };
+
+  const handleRemoveSkill = async (assignmentId: string) => {
+    if (!selectedCampaign) return;
+    if (!window.confirm("¿Seguro que deseas desvincular esta habilidad de la campaña?")) return;
+    try {
+      await adminApi.removeCampaignSkill(selectedCampaign.campaign_id, assignmentId);
+      toast.success("Habilidad desvinculada");
+      loadCampaignSkills(selectedCampaign.campaign_id);
+    } catch (e) {
+      toast.error("Error al quitar la habilidad");
+    }
   };
 
   const deleteCampaign = async (id: string) => {
@@ -89,6 +221,22 @@ export default function CampaignsView() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState("");
   const [newCampaignDesc, setNewCampaignDesc] = useState("");
+  const [selectedSkillsForCreation, setSelectedSkillsForCreation] = useState<string[]>([]);
+  const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
+
+  const openCreateCampaignModal = () => {
+    setNewCampaignName("");
+    setNewCampaignDesc("");
+    setSelectedSkillsForCreation([]);
+    loadAvailableSkills();
+    setShowCreateModal(true);
+  };
+
+  const handleToggleSkillForCreation = (skillId: string) => {
+    setSelectedSkillsForCreation((prev) =>
+      prev.includes(skillId) ? prev.filter((id) => id !== skillId) : [...prev, skillId]
+    );
+  };
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,18 +245,36 @@ export default function CampaignsView() {
       return;
     }
     try {
-      await adminApi.createCampaign({
+      setIsCreatingCampaign(true);
+      const res = await adminApi.createCampaign({
         campaign_name: newCampaignName,
         description: newCampaignDesc,
         is_active: true,
       });
-      toast.success("Campaña creada");
+
+      const createdId = res.campaign?.campaign_id;
+      if (createdId && selectedSkillsForCreation.length > 0) {
+        // Asignar habilidades seleccionadas al momento de crear
+        await Promise.all(
+          selectedSkillsForCreation.map((skillId) =>
+            adminApi.assignCampaignSkill(createdId, skillId)
+          )
+        );
+      }
+
+      toast.success("Campaña creada exitosamente con sus habilidades asignadas");
       setShowCreateModal(false);
       setNewCampaignName("");
       setNewCampaignDesc("");
+      setSelectedSkillsForCreation([]);
       fetchCampaigns();
-    } catch (e) {
-      toast.error("Error al crear la campaña");
+      if (res.campaign) {
+        handleSelectCampaign(res.campaign);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Error al crear la campaña");
+    } finally {
+      setIsCreatingCampaign(false);
     }
   };
 
@@ -284,7 +450,7 @@ export default function CampaignsView() {
           </button>
           {isAdmin && (
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={openCreateCampaignModal}
               className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-medium text-sm shadow-sm"
             >
               <Plus className="w-4 h-4" /> Crear Campaña
@@ -454,6 +620,117 @@ export default function CampaignsView() {
                   </div>
                 )}
               </div>
+
+              {/* Seccion Skills de la Campaña */}
+              <div className="pt-6 border-t border-border/40">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-primary" /> Habilidades & Protocolos de Campaña
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Plantillas y reglas operativas (Ventas, Cobranza, Tipificación, etc.) inyectadas al agente OlivIA.
+                    </p>
+                  </div>
+                  {isAdmin && (
+                    <button
+                      onClick={openAssignSkillModal}
+                      className="flex items-center gap-1.5 text-xs font-medium text-primary hover:bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-md transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Asignar Habilidad
+                    </button>
+                  )}
+                </div>
+
+                {loadingSkills ? (
+                  <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-muted-foreground" /></div>
+                ) : skills.length === 0 ? (
+                  <div className="bg-card border border-dashed border-border/60 rounded-xl p-6 text-center">
+                    <Sparkles className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                    <p className="text-sm font-medium text-foreground">Sin habilidades asignadas</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                      Asigna plantillas de cobranza, ventas o atención al cliente para guiar la interacción del copiloto en esta campaña.
+                    </p>
+                    {isAdmin && (
+                      <button
+                        onClick={openAssignSkillModal}
+                        className="mt-3 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Asignar primera habilidad
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {skills.map((skill) => (
+                      <div
+                        key={skill.id}
+                        className={`p-4 rounded-xl border transition-all ${
+                          skill.is_active ? "border-border/80 bg-card shadow-sm" : "border-border/40 bg-card/40 opacity-70"
+                        }`}
+                      >
+                        <div className="flex justify-between items-start gap-4">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2.5 rounded-lg bg-primary/10 text-primary font-semibold text-sm mt-0.5">
+                              <Sparkles className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-semibold">{skill.skill_name}</h4>
+                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                                  skill.is_active ? 'bg-green-500/10 text-green-500' : 'bg-muted text-muted-foreground'
+                                }`}>
+                                  {skill.is_active ? "Activa" : "Inactiva"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">{skill.skill_description}</p>
+                              {skill.custom_content && (
+                                <div className="mt-2.5 p-2.5 bg-secondary/30 rounded-lg border border-border/40 text-xs">
+                                  <span className="font-semibold text-foreground/80 block mb-1 text-[11px]">
+                                    Instrucciones específicas de esta campaña:
+                                  </span>
+                                  <p className="text-muted-foreground whitespace-pre-wrap font-mono text-[11px] line-clamp-3">
+                                    {skill.custom_content}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {isAdmin && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => handleOpenEditSkill(skill)}
+                                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                                title="Editar personalización"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleToggleSkillActive(skill)}
+                                className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                                  skill.is_active
+                                    ? "border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
+                                    : "border-green-500/30 text-green-500 hover:bg-green-500/10"
+                                }`}
+                              >
+                                {skill.is_active ? "Desactivar" : "Activar"}
+                              </button>
+                              <button
+                                onClick={() => handleRemoveSkill(skill.id)}
+                                className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                title="Quitar habilidad"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-3">
@@ -469,23 +746,26 @@ export default function CampaignsView() {
       {/* Modal Crear Campaña */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-5 border-b border-border/40 bg-secondary/20">
-              <h3 className="font-bold text-lg">Crear Nueva Campaña</h3>
+              <div>
+                <h3 className="font-bold text-lg">Crear Nueva Campaña</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Configura el nombre y selecciona las habilidades operativas iniciales</p>
+              </div>
               <button onClick={() => setShowCreateModal(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleCreateCampaign} className="p-5 flex flex-col gap-4">
+            <form onSubmit={handleCreateCampaign} className="p-5 flex flex-col gap-4 max-h-[85vh] overflow-y-auto">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nombre</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nombre de la Campaña *</label>
                 <input
                   required
                   type="text"
                   value={newCampaignName}
                   onChange={(e) => setNewCampaignName(e.target.value)}
                   className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                  placeholder="Ej: Ventas Q3"
+                  placeholder="Ej: ETB Cobranza, Claro Ventas..."
                 />
               </div>
               <div className="space-y-1.5">
@@ -493,11 +773,68 @@ export default function CampaignsView() {
                 <textarea
                   value={newCampaignDesc}
                   onChange={(e) => setNewCampaignDesc(e.target.value)}
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all resize-none h-24"
-                  placeholder="Descripción de la campaña..."
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all resize-none h-20"
+                  placeholder="Descripción de los objetivos o alcance de la campaña..."
                 />
               </div>
-              <div className="pt-2 flex justify-end gap-2 mt-2">
+
+              {/* Selección de Skills al crear */}
+              <div className="space-y-2 pt-2 border-t border-border/40">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-primary" /> Asignar Habilidades Iniciales
+                  </label>
+                  <span className="text-[10px] text-muted-foreground font-medium bg-secondary px-2 py-0.5 rounded-full">
+                    {selectedSkillsForCreation.length} seleccionadas
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Selecciona los protocolos que estarán disponibles para el copiloto en esta campaña desde su creación:
+                </p>
+
+                {loadingAvailableSkills ? (
+                  <div className="flex justify-center p-4"><RefreshCw className="animate-spin text-muted-foreground w-4 h-4" /></div>
+                ) : availableSkills.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic p-2 border border-dashed rounded-lg text-center">
+                    No hay plantillas de habilidades registradas en el sistema.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2 mt-1">
+                    {availableSkills.map((sk) => {
+                      const isSelected = selectedSkillsForCreation.includes(sk.id);
+                      return (
+                        <div
+                          key={sk.id}
+                          onClick={() => handleToggleSkillForCreation(sk.id)}
+                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${
+                            isSelected
+                              ? "border-primary bg-primary/10 shadow-sm"
+                              : "border-border/60 hover:border-border hover:bg-secondary/30"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            className="mt-1 rounded text-primary focus:ring-primary pointer-events-none"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-xs text-foreground">{sk.name}</span>
+                              <span className="text-[9px] bg-secondary px-2 py-0.5 rounded-full text-muted-foreground capitalize">
+                                {sk.category}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{sk.description}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2 border-t border-border/40 mt-2">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
@@ -507,8 +844,14 @@ export default function CampaignsView() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+                  disabled={isCreatingCampaign}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50"
                 >
+                  {isCreatingCampaign ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
                   Crear Campaña
                 </button>
               </div>
@@ -716,6 +1059,161 @@ export default function CampaignsView() {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Asignar Habilidad */}
+      {showAssignSkillModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-border/40 bg-secondary/20">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary" />
+                <h3 className="font-bold text-lg">Asignar Habilidad a la Campaña</h3>
+              </div>
+              <button onClick={() => setShowAssignSkillModal(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleAssignSkill} className="p-5 flex flex-col gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Seleccionar Habilidad Base *
+                </label>
+                {loadingAvailableSkills ? (
+                  <div className="flex justify-center p-4"><RefreshCw className="animate-spin text-muted-foreground" /></div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2">
+                    {availableSkills.map((sk) => {
+                      const isAlreadyAssigned = skills.some((s) => s.skill_id === sk.id);
+                      return (
+                        <div
+                          key={sk.id}
+                          onClick={() => !isAlreadyAssigned && setSelectedSkillId(sk.id)}
+                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between ${
+                            selectedSkillId === sk.id
+                              ? "border-primary bg-primary/10 shadow-sm"
+                              : isAlreadyAssigned
+                              ? "border-border/30 opacity-50 cursor-not-allowed bg-secondary/20"
+                              : "border-border/60 hover:border-border hover:bg-secondary/30"
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm">{sk.name}</span>
+                              <span className="text-[10px] bg-secondary px-2 py-0.5 rounded-full text-muted-foreground capitalize">
+                                {sk.category}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">{sk.description}</p>
+                          </div>
+                          {isAlreadyAssigned && (
+                            <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+                              Ya asignada
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5 mt-2">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex justify-between">
+                  <span>Instrucciones Específicas de la Campaña (Opcional)</span>
+                </label>
+                <textarea
+                  value={skillCustomContent}
+                  onChange={(e) => setSkillCustomContent(e.target.value)}
+                  placeholder="Escribe reglas o guiones específicos para este cliente/campaña. Se añadirán a la plantilla base de forma segura..."
+                  className="w-full bg-background border border-border rounded-lg p-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all font-mono resize-none h-28"
+                />
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                  Las instrucciones se sanitizan automáticamente y no modifican las reglas base del sistema.
+                </p>
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2 border-t border-border/40 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAssignSkillModal(false)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-secondary transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingSkill || !selectedSkillId}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSubmittingSkill ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  Asignar Habilidad
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Personalización Habilidad */}
+      {editingSkill && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-border/40 bg-secondary/20">
+              <div>
+                <h3 className="font-bold text-lg">Personalizar: {editingSkill.skill_name}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{editingSkill.skill_description}</p>
+              </div>
+              <button onClick={() => setEditingSkill(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveSkillEdit} className="p-5 flex flex-col gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Instrucciones Específicas de esta Campaña
+                </label>
+                <textarea
+                  value={editSkillCustomContent}
+                  onChange={(e) => setEditSkillCustomContent(e.target.value)}
+                  placeholder="Modifica los protocolos específicos, promociones de la campaña o guiones particulares..."
+                  className="w-full bg-background border border-border rounded-lg p-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all font-mono resize-none h-36"
+                />
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                  Estas instrucciones se adjuntan después del prompt base de la habilidad.
+                </p>
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2 border-t border-border/40 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingSkill(null)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-secondary transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingSkill}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSubmittingSkill ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

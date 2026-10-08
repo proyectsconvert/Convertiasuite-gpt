@@ -36,6 +36,7 @@ from app.modules.shared.skills import router as skills_module
 from app.modules.shared.qa import router as qa_module
 from app.modules.shared.group_chats import router as group_chats_module
 from app.modules.campaigns import router as campaigns_module
+from app.modules.campaigns import skills_router as campaign_skills_module
 from app.modules.agent import router as agent_module
 from app.infra.providers.ollama_provider import OllamaProvider
 from app.services.chat.intent_classifier import IntentClassifier
@@ -259,4 +260,8 @@ app.include_router(skills_module.router)
 app.include_router(group_chats_module.router)
 app.include_router(agent_module.router)
 app.include_router(campaigns_module.router)
+app.include_router(campaign_skills_module.router)
 app.include_router(qa_module.router)
+
+from app.api import external
+app.include_router(external.router)

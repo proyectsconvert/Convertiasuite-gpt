@@ -2,7 +2,12 @@ import logging
 import asyncio
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import APIKeyHeader
 from app.services.auth.auth_service import AuthService
+from app.infra.clients.supabase_client import SupabaseClient
+from fastapi.security import APIKeyHeader
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -96,3 +101,56 @@ async def require_admin_or_qa(current_user: dict = Depends(get_current_user)) ->
         status_code=403,
         detail="Se requieren permisos de administrador o QA para acceder a esta sección.",
     )
+
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+async def verify_api_key(
+    api_key: str = Depends(api_key_header),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict:
+    token = api_key
+    if not token and credentials:
+        token = credentials.credentials
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Falta API Key de autenticación externa",
+        )
+
+    import asyncio
+    
+    try:
+        supabase = SupabaseClient().admin
+        
+        # Consultar la base de datos para verificar la key
+        res = await asyncio.to_thread(
+            lambda: supabase.table("api_keys")
+            .select("*")
+            .eq("api_key", token)
+            .eq("is_active", True)
+            .execute()
+        )
+
+        if not res.data:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="API Key inválida o inactiva",
+            )
+            
+        client_data = res.data[0]
+        
+        # Devolver una estructura que simula un "usuario" para que el resto del sistema no se rompa
+        return {
+            "id": client_data["id"],
+            "client_name": client_data["client_name"],
+            "role": "external_api"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error verificando API Key: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno verificando credenciales",
+        )

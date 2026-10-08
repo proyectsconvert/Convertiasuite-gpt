@@ -65,9 +65,6 @@ async def sse_message(event_type: str, data: dict) -> str:
     return f"data: {json.dumps({'type': event_type, **data})}\n\n"
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# GAP-01 — Chat Quick Actions
-# ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/quick-actions")
 async def get_chat_quick_actions(current_user: dict = Depends(get_current_user)):

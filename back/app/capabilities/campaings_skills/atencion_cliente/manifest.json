@@ -1,0 +1,9 @@
+{
+  "id": "atencion_cliente",
+  "name": "Script de Atención al Cliente",
+  "description": "Guía de atención al cliente para agentes. Proporciona estructura de llamada, frases clave, manejo de situaciones difíciles y estándares de calidad.",
+  "category": "Operaciones",
+  "icon": "headphones",
+  "version": "1.0.0",
+  "tags": ["atencion", "cliente", "servicio", "calidad", "script"]
+}

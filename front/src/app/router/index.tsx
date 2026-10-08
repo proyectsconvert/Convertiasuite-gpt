@@ -22,6 +22,7 @@ import SettingsView from "@/modules/shared/components/settings/SettingsView";
 import AdminDashboard from "@/modules/admin/components/admin/AdminDashboard";
 import CampaignsView from "@/modules/admin/components/campaigns/CampaignsView";
 import QADashboard from "@/modules/admin/components/qa/QADashboard";
+import { ApiKeysManager } from "@/modules/admin/components/ApiKeysManager";
 import OliviaAgentWidget from "@/modules/agent/components/agents/OliviaWidget";
 import { useAppStore } from "@/modules/shared/store/appStore";
 
@@ -79,6 +80,10 @@ export function AppRouter() {
           <Route
             path="campaigns"
             element={<AdminRoute><CampaignsView /></AdminRoute>}
+          />
+          <Route
+            path="api-keys"
+            element={<AdminRoute><ApiKeysManager /></AdminRoute>}
           />
           <Route
             path="qa"

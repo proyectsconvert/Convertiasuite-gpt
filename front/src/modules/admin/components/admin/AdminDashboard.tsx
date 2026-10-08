@@ -200,7 +200,7 @@ export default function AdminDashboard() {
               const parsed = JSON.parse(error.message.substring(jsonIdx));
               if (parsed.detail) msg = typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail);
             }
-          } catch (_) {}
+          } catch (_) { }
         }
       }
       toast.error(msg);
@@ -304,6 +304,14 @@ export default function AdminDashboard() {
               <RefreshCw
                 className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`}
               />
+            </button>
+
+            <button
+              onClick={() => navigate("/app/api-keys")}
+              className="flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary/80 border border-border transition-all"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Ver API Keys
             </button>
 
             <select
@@ -845,12 +853,12 @@ export default function AdminDashboard() {
                   <YAxis fontSize={10} tickLine={false} tick={{ fill: "var(--color-muted-foreground, #999)" }} />
                   <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} cursor={{ fill: "rgba(0,0,0,0.06)" }} />
                   <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }} />
-                  <Bar dataKey="objecion" name="Objeciones" stackId="a" fill="#8f8cff" radius={[0,0,0,0]} />
+                  <Bar dataKey="objecion" name="Objeciones" stackId="a" fill="#8f8cff" radius={[0, 0, 0, 0]} />
                   <Bar dataKey="inconformidad" name="Inconformidades" stackId="a" fill="#f97316" />
                   <Bar dataKey="cierre_llamada" name="Cierre Llamada" stackId="a" fill="#1aeda1" />
                   <Bar dataKey="tipificacion" name="Tipificación" stackId="a" fill="#5bb8b5" />
                   <Bar dataKey="escalamiento" name="Escalamientos" stackId="a" fill="#7c6cf0" />
-                  <Bar dataKey="consulta_producto" name="Consulta Producto" stackId="a" fill="#facc15" radius={[4,4,0,0]} />
+                  <Bar dataKey="consulta_producto" name="Consulta Producto" stackId="a" fill="#facc15" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -982,8 +990,8 @@ export default function AdminDashboard() {
                       <td className="px-4 py-3.5">
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${user.role.toLowerCase() === "admin"
-                              ? "bg-primary/10 text-primary border border-primary/20"
-                              : "bg-secondary text-muted-foreground"
+                            ? "bg-primary/10 text-primary border border-primary/20"
+                            : "bg-secondary text-muted-foreground"
                             }`}
                         >
                           {user.role}

@@ -10,6 +10,11 @@ from app.schemas.admin import (
     UpdateCampaignMemberStatusRequest,
     CampaignMemberResponse,
 )
+from app.services.audit.internal_audit_service import (
+    audit_log,
+    ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE,
+    ENTITY_CAMPAIGN,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +24,7 @@ router = APIRouter(
 )
 
 
+@router.get("")
 @router.get("/")
 async def get_campaigns(
     current_user: dict = Depends(require_admin),
@@ -48,6 +54,7 @@ async def get_campaigns(
         raise HTTPException(status_code=500, detail="Failed to fetch campaigns")
 
 
+@router.post("")
 @router.post("/")
 async def create_campaign(
     body: CreateCampaignRequest,
@@ -64,15 +71,37 @@ async def create_campaign(
             "tracking_format": body.tracking_format,
             "pricing_config": body.pricing_config,
             "platform_config": body.platform_config,
-            "created_by": current_user["id"],
         }
         
-        res = supabase.table("campaigns").insert(campaign_data).execute()
+        user_id = current_user.get("id") if isinstance(current_user, dict) else getattr(current_user, "id", None)
+        try:
+            insert_payload = {**campaign_data}
+            if user_id:
+                insert_payload["created_by"] = user_id
+            res = supabase.table("campaigns").insert(insert_payload).execute()
+        except Exception as insert_err:
+            if "created_by" in str(insert_err) or "PGRST204" in str(insert_err):
+                logger.warning("Column 'created_by' not present in campaigns table schema, inserting without it.")
+                res = supabase.table("campaigns").insert(campaign_data).execute()
+            else:
+                raise insert_err
         
         if not res.data:
             raise HTTPException(status_code=400, detail="Failed to create campaign")
         
         campaign = res.data[0]
+
+        # Auditoría: registrar creación
+        user_id = current_user.get("id") if isinstance(current_user, dict) else getattr(current_user, "id", None)
+        await audit_log(
+            supabase=supabase,
+            user_id=user_id,
+            action=ACTION_CREATE,
+            entity_type=ENTITY_CAMPAIGN,
+            entity_id=campaign["campaign_id"],
+            new_value=campaign,
+            ip_address=request.client.host if request.client else None,
+        )
         
         return {
             "status": "success",
@@ -130,6 +159,18 @@ async def update_campaign(
             raise HTTPException(status_code=404, detail="Campaign not found")
         
         campaign = res.data[0]
+
+        # Auditoría: registrar actualización con los campos que cambiaron
+        user_id = current_user.get("id") if isinstance(current_user, dict) else getattr(current_user, "id", None)
+        await audit_log(
+            supabase=supabase,
+            user_id=user_id,
+            action=ACTION_UPDATE,
+            entity_type=ENTITY_CAMPAIGN,
+            entity_id=campaign_id,
+            old_value=update_data,   # los campos antes de cambiar (aproximado)
+            new_value=campaign,
+        )
         
         return {
             "status": "success",
@@ -167,6 +208,18 @@ async def delete_campaign(
         
         if not res.data:
             raise HTTPException(status_code=404, detail="Campaign not found")
+
+        deleted = res.data[0]
+        # Auditoría: registrar eliminación con el estado que tenía
+        user_id = current_user.get("id") if isinstance(current_user, dict) else getattr(current_user, "id", None)
+        await audit_log(
+            supabase=supabase,
+            user_id=user_id,
+            action=ACTION_DELETE,
+            entity_type=ENTITY_CAMPAIGN,
+            entity_id=campaign_id,
+            old_value=deleted,
+        )
         
         return {"status": "success"}
     except HTTPException:

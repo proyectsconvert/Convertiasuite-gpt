@@ -1,0 +1,9 @@
+{
+  "id": "tipificacion",
+  "name": "Guía de Tipificación",
+  "description": "Guía para tipificar correctamente el resultado de cada gestión según los estándares de la campaña. Incluye criterios de selección y errores comunes.",
+  "category": "Operaciones",
+  "icon": "clipboard-list",
+  "version": "1.0.0",
+  "tags": ["tipificacion", "registro", "resultado", "gestion", "crm"]
+}

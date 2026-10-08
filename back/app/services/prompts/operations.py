@@ -154,7 +154,16 @@ No asumas una campaña ni atribuyas procedimientos específicos
 a una campaña determinada.
 """
 
-    return f"""
+    skills_prompt = ""
+    campaign_skills = campaign_context.get("campaign_skills")
+    if campaign_skills:
+        try:
+            from app.modules.campaigns.skills_router import build_campaign_skills_prompt
+            skills_prompt = build_campaign_skills_prompt(campaign_skills)
+        except Exception:
+            pass
+
+    base_prompt = f"""
 ## CAMPAÑA ACTIVA
 
 Campaña: {campaign_context.get("campaign_name")}
@@ -184,4 +193,9 @@ o condición comercial, consultalo en el rag de la campaña activa.
 ### Configuración comercial
 
 {campaign_context.get("pricing_config") or {}}
-"""
+"""
+    if skills_prompt:
+        base_prompt += f"\n\n{skills_prompt}"
+
+    return base_prompt
+
