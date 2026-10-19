@@ -13,6 +13,11 @@ import {
   PhoneCall,
   AlertTriangle,
   Radio,
+  Phone,
+  PhoneOff,
+  Copy,
+  Check,
+  Lightbulb,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -21,6 +26,7 @@ import MessageBubble from "@/modules/shared/components/chat/MessageBubble";
 import ChatInput from "@/modules/shared/components/chat/ChatInput";
 import { chatApi, ChatMessage } from "@/modules/shared/services/api";
 import { useAppStore } from "@/modules/shared/store/appStore";
+import { useInConcert } from "@/modules/agent/hooks/useInConcert";
 
 import "./OliviaAgentWidget.css";
 
@@ -142,6 +148,17 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [copiedPhrase, setCopiedPhrase] = useState(false);
+  const [showSimMenu, setShowSimMenu] = useState(false);
+
+  // --- Integración inConcert CTI Copilot ---
+  const {
+    inCall,
+    activeInteractionId,
+    latestSuggestion,
+    simulateCall,
+    endSimulatedCall,
+  } = useInConcert();
 
   // --- Estado del login inline ---
   const [loginEmail, setLoginEmail] = useState("");
@@ -408,6 +425,84 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
             </div>
           </header>
 
+          {/* Banner de Modo Copiloto inConcert */}
+          {inCall && (
+            <div className="bg-emerald-950/60 border-b border-emerald-500/30 px-3 py-2 flex items-center justify-between text-xs animate-in fade-in duration-200">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <span className="font-semibold text-emerald-300 tracking-wide uppercase text-[11px]">
+                  En Llamada (inConcert)
+                </span>
+                {activeInteractionId && (
+                  <span className="text-[10px] text-emerald-400/80 font-mono">
+                    #{String(activeInteractionId).slice(-6)}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={endSimulatedCall}
+                className="text-[10px] px-2 py-0.5 rounded bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-600/40 transition flex items-center gap-1"
+                title="Finalizar llamada"
+              >
+                <PhoneOff size={10} />
+                <span>Colgar</span>
+              </button>
+            </div>
+          )}
+
+          {/* Tarjeta de Sugerencia Reactiva del Copiloto (DQLE-36) */}
+          {inCall && latestSuggestion && (
+            <div className="mx-3 my-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="p-1 rounded bg-amber-500/20 text-amber-400">
+                    <Lightbulb size={13} />
+                  </span>
+                  <span className="text-[11px] font-bold text-amber-300 tracking-wide uppercase">
+                    {latestSuggestion.trigger_type === "hostility"
+                      ? "⚠️ Contención Inmediata"
+                      : latestSuggestion.trigger_type === "buying_signal"
+                      ? "🎯 Señal de Cierre"
+                      : `💡 ${latestSuggestion.protocol_applied || "Recomendación"}`}
+                  </span>
+                </div>
+                <span className="text-[10px] text-amber-400/80 font-mono">
+                  {Math.round(latestSuggestion.confidence * 100)}% certeza
+                </span>
+              </div>
+
+              {latestSuggestion.recommended_action && (
+                <p className="text-[11px] text-muted-foreground mb-2">
+                  <strong className="text-foreground">Acción:</strong> {latestSuggestion.recommended_action}
+                </p>
+              )}
+
+              <div className="p-2 rounded bg-background/90 border border-border/60 text-xs font-medium text-foreground relative">
+                "{latestSuggestion.suggested_phrase}"
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(latestSuggestion.suggested_phrase);
+                      setCopiedPhrase(true);
+                      toast.success("Frase recomendada copiada al portapapeles");
+                      setTimeout(() => setCopiedPhrase(false), 2000);
+                    }}
+                    className="px-2 py-0.5 rounded bg-muted hover:bg-primary hover:text-primary-foreground text-muted-foreground text-[10px] transition flex items-center gap-1 font-semibold"
+                    title="Copiar frase para responder al cliente"
+                  >
+                    {copiedPhrase ? <Check size={11} /> : <Copy size={11} />}
+                    <span>{copiedPhrase ? "Copiada" : "Copiar Frase"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {!isAuthenticated ? (
             // --- Vista de login inline estilizada ---
             <div className="olivia-agent-login-wrapper">
@@ -487,7 +582,7 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
           ) : (
             // --- Vista de chat estilizada ---
             <div className="olivia-agent-chat-container">
-              {/* Quick actions chips */}
+              {/* Quick actions chips + CTI Simulator */}
               <div className="olivia-agent-actions">
                 {QUICK_ACTION_GROUPS.flatMap((group) => group.actions).map(({ label, promptText, icon: Icon }) => (
                   <button
@@ -501,7 +596,65 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
                     <span>{label}</span>
                   </button>
                 ))}
+
+                {/* Botón para simular evento inConcert */}
+                <button
+                  type="button"
+                  onClick={() => setShowSimMenu(!showSimMenu)}
+                  className="olivia-agent-chip border-dashed border-amber-500/40 text-amber-500"
+                  title="Simular llamada CTI inConcert para probar el Copiloto"
+                >
+                  <Phone size={12} />
+                  <span>Simular inConcert</span>
+                </button>
               </div>
+
+              {/* Menú de simulación de escenarios inConcert */}
+              {showSimMenu && (
+                <div className="mx-3 mb-2 p-2 rounded border border-amber-500/30 bg-amber-500/5 text-xs flex flex-wrap gap-1.5 items-center">
+                  <span className="text-[10px] font-semibold text-amber-400 uppercase mr-1">Pruebas CTI:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      simulateCall("price");
+                      setShowSimMenu(false);
+                    }}
+                    className="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[11px]"
+                  >
+                    Objeción Precio
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      simulateCall("interest");
+                      setShowSimMenu(false);
+                    }}
+                    className="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-[11px]"
+                  >
+                    Señal de Compra
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      simulateCall("distrust");
+                      setShowSimMenu(false);
+                    }}
+                    className="px-2 py-0.5 rounded bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 text-[11px]"
+                  >
+                    Desconfianza
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      simulateCall("aggression");
+                      setShowSimMenu(false);
+                    }}
+                    className="px-2 py-0.5 rounded bg-red-500/20 hover:bg-red-500/30 text-red-200 text-[11px]"
+                  >
+                    Hostilidad
+                  </button>
+                </div>
+              )}
 
               {/* Messages area */}
               <div className="olivia-agent-messages">

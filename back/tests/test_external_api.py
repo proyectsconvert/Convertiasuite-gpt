@@ -31,8 +31,12 @@ class TestExternalChat(unittest.IsolatedAsyncioTestCase):
             )
             mock_classify.return_value = "greeting"
 
+            mock_http_request = MagicMock()
+            mock_http_request.client.host = "127.0.0.1"
+
             response = await external_chat(
                 request,
+                mock_http_request,
                 current_tenant={"id": "tenant-123"},
                 llm_provider=mock_llm_provider,
                 memory_repo=mock_memory_repo,

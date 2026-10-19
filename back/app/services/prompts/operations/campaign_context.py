@@ -1,4 +1,3 @@
-"""Bloque de CAMPAÑA ACTIVA (los datos configurables se tratan como no confiables)."""
 
 import json
 

@@ -7,8 +7,15 @@ from .campaign_types import (
     VENTAS_OPERATIONS_PROMPT,
     get_operations_mode_prompt,
 )
+from .call_protocols import (
+    BASE_PROTOCOL,
+    PROTOCOL_BY_SIGNAL,
+    build_messages as build_protocol_messages,
+)
 
 __all__ = [
     "OPERATIONS_PROMPT", "VENTAS_OPERATIONS_PROMPT", "COBRANZA_OPERATIONS_PROMPT",
     "AGENT_MODE_PROMPT", "get_operations_mode_prompt", "build_campaign_context_prompt",
+    "BASE_PROTOCOL", "PROTOCOL_BY_SIGNAL", "build_protocol_messages",
 ]
+

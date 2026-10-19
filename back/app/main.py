@@ -265,3 +265,7 @@ app.include_router(qa_module.router)
 
 from app.api import external
 app.include_router(external.router)
+
+from app.api import copilot
+app.include_router(copilot.router)
+

@@ -11,10 +11,6 @@ class QwenTTSClient:
         self.base_url = (base_url or get_settings().qwen_tts_url).rstrip("/")
 
     async def generate_speech(self, text: str, voice: str | None = None) -> bytes | None:
-        """
-        Sintetiza texto a audio usando Qwen TTS.
-        Permite personalizar la voz usando el parámetro `voice` o la env var QWEN_TTS_VOICE.
-        """
         if not text or not text.strip():
             return None
 

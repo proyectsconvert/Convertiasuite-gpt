@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -32,7 +32,7 @@ def _make_auth_data(refresh_token="new-refresh"):
 class TestRefreshEndpoint(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
-        from app.api import auth as auth_module
+        from app.modules.shared.auth import router as auth_module
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
 
@@ -41,7 +41,7 @@ class TestRefreshEndpoint(unittest.IsolatedAsyncioTestCase):
         self.client = TestClient(app, raise_server_exceptions=True)
 
     def test_refresh_via_header_ok(self):
-        with patch("app.api.auth.auth_service") as mock_svc:
+        with patch("app.modules.shared.auth.router.auth_service") as mock_svc:
             mock_svc.refresh_token = AsyncMock(return_value=_make_auth_data())
             resp = self.client.post(
                 "/auth/refresh",
@@ -53,7 +53,7 @@ class TestRefreshEndpoint(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["refresh_token"], "new-refresh")
 
     def test_refresh_via_body_fallback_ok(self):
-        with patch("app.api.auth.auth_service") as mock_svc:
+        with patch("app.modules.shared.auth.router.auth_service") as mock_svc:
             mock_svc.refresh_token = AsyncMock(return_value=_make_auth_data())
             resp = self.client.post(
                 "/auth/refresh",
@@ -63,13 +63,13 @@ class TestRefreshEndpoint(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.json()["access_token"], "new-access")
 
     def test_refresh_no_token_returns_400(self):
-        with patch("app.api.auth.auth_service") as mock_svc:
+        with patch("app.modules.shared.auth.router.auth_service") as mock_svc:
             mock_svc.refresh_token = AsyncMock(return_value=None)
             resp = self.client.post("/auth/refresh")
         self.assertEqual(resp.status_code, 400)
 
     def test_refresh_invalid_token_returns_401(self):
-        with patch("app.api.auth.auth_service") as mock_svc:
+        with patch("app.modules.shared.auth.router.auth_service") as mock_svc:
             mock_svc.refresh_token = AsyncMock(return_value=None)
             resp = self.client.post(
                 "/auth/refresh",
@@ -81,7 +81,7 @@ class TestRefreshEndpoint(unittest.IsolatedAsyncioTestCase):
         original_token = "original-client-token"
         auth_data = _make_auth_data(refresh_token=None)
 
-        with patch("app.api.auth.auth_service") as mock_svc:
+        with patch("app.modules.shared.auth.router.auth_service") as mock_svc:
             mock_svc.refresh_token = AsyncMock(return_value=auth_data)
             resp = self.client.post(
                 "/auth/refresh",
@@ -94,7 +94,7 @@ class TestRefreshEndpoint(unittest.IsolatedAsyncioTestCase):
         header_token = "header-token"
         body_token = "body-token"
 
-        with patch("app.api.auth.auth_service") as mock_svc:
+        with patch("app.modules.shared.auth.router.auth_service") as mock_svc:
             mock_svc.refresh_token = AsyncMock(return_value=_make_auth_data())
             resp = self.client.post(
                 "/auth/refresh",

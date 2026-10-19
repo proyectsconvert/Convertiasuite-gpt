@@ -71,12 +71,18 @@ interface AppState {
   enabledSkillIds: string[];
   activeSkillPrompt: string | null;
 
-  /* Olivia Widget */
+  /* Olivia Widget & Copilot (inConcert) */
   oliviaWidgetOpen: boolean;
   oliviaSessionId: string | null;
+  inCall: boolean;
+  activeInteractionId: string | null;
+  copilotSuggestion: any | null;
   setOliviaWidgetOpen: (open: boolean) => void;
   toggleOliviaWidget: () => void;
   setOliviaSessionId: (id: string | null) => void;
+  setInCall: (inCall: boolean, interactionId?: string | null) => void;
+  setCopilotSuggestion: (suggestion: any | null) => void;
+  clearCopilot: () => void;
 
   /* Actions */
   setView: (view: AppView) => void;
@@ -206,12 +212,24 @@ export const useAppStore = create<AppState>()(
 
       oliviaWidgetOpen: false,
       oliviaSessionId: null,
+      inCall: false,
+      activeInteractionId: null,
+      copilotSuggestion: null,
 
       /* UI ACTIONS */
 
       setOliviaWidgetOpen: (open) => set({ oliviaWidgetOpen: open }),
       toggleOliviaWidget: () => set((state) => ({ oliviaWidgetOpen: !state.oliviaWidgetOpen })),
       setOliviaSessionId: (id) => set({ oliviaSessionId: id }),
+      setInCall: (inCall, interactionId = null) =>
+        set((state) => ({
+          inCall,
+          activeInteractionId: inCall ? (interactionId ?? state.activeInteractionId) : null,
+          oliviaWidgetOpen: inCall ? true : state.oliviaWidgetOpen,
+          copilotSuggestion: inCall ? state.copilotSuggestion : null,
+        })),
+      setCopilotSuggestion: (suggestion) => set({ copilotSuggestion: suggestion }),
+      clearCopilot: () => set({ copilotSuggestion: null, activeInteractionId: null, inCall: false }),
 
       setView: (view) =>
         set({ view }),
