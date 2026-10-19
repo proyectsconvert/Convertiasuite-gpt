@@ -126,6 +126,7 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
     setOliviaWidgetOpen,
     oliviaSessionId,
     setOliviaSessionId,
+    setCopilotSuggestion,
   } = useAppStore();
 
   const isOpen = isStandalone ? true : oliviaWidgetOpen;
@@ -470,9 +471,19 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
                       : `💡 ${latestSuggestion.protocol_applied || "Recomendación"}`}
                   </span>
                 </div>
-                <span className="text-[10px] text-amber-400/80 font-mono">
-                  {Math.round(latestSuggestion.confidence * 100)}% certeza
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-amber-400/80 font-mono">
+                    {Math.round(latestSuggestion.confidence * 100)}% certeza
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCopilotSuggestion(null)}
+                    className="text-amber-400/60 hover:text-amber-200 transition"
+                    title="Descartar sugerencia"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
               </div>
 
               {latestSuggestion.recommended_action && (
@@ -482,7 +493,7 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
               )}
 
               <div className="p-2 rounded bg-background/90 border border-border/60 text-xs font-medium text-foreground relative">
-                "{latestSuggestion.suggested_phrase}"
+                &ldquo;{latestSuggestion.suggested_phrase}&rdquo;
                 <div className="mt-2 flex justify-end">
                   <button
                     type="button"
