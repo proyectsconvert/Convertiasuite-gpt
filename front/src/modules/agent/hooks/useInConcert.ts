@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import { useAppStore } from "@/modules/shared/store/appStore";
-import { copilotApi, CopilotSuggestion } from "@/modules/shared/services/api";
+import { copilotApi, CopilotSuggestion } from "@/modules/agent/services/copilotApi";
 
 declare global {
   interface Window {
