@@ -558,7 +558,12 @@ export const useAppStore = create<AppState>()(
         const stored = getStoredSession();
 
         if (stored.accessToken && stored.user) {
-          merged.user = stored.user;
+          // Mantener la referencia si el usuario no ha cambiado de id para evitar renders en cascada
+          if (!currentState.user || currentState.user.id !== stored.user.id) {
+            merged.user = stored.user;
+          } else {
+            merged.user = currentState.user;
+          }
           merged.accessToken = stored.accessToken;
           merged.isAuthenticated = true;
         }
@@ -568,22 +573,12 @@ export const useAppStore = create<AppState>()(
 
       partialize: (state) => ({
         user: state.user,
-        accessToken:
-          state.accessToken,
-        isAuthenticated:
-          state.isAuthenticated,
-
-        sessions: state.sessions,
-        currentChatId:
-          state.currentChatId,
+        accessToken: state.accessToken,
+        isAuthenticated: state.isAuthenticated,
 
         darkMode: state.darkMode,
-        selectedModel:
-          state.selectedModel,
-        enabledSkillIds:
-          state.enabledSkillIds,
-        oliviaSessionId:
-          state.oliviaSessionId,
+        selectedModel: state.selectedModel,
+        enabledSkillIds: state.enabledSkillIds,
       }),
     }
   )

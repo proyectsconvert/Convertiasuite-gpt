@@ -18,16 +18,21 @@ interface WelcomeScreenProps {
   onPromptSelect: (prompt: string) => void;
 }
 
+let cachedQuickActions: QuickAction[] | null = null;
+
 export default function WelcomeScreen({ onPromptSelect }: WelcomeScreenProps) {
   const { user } = useAppStore();
-  const [actions, setActions] = useState<QuickAction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [actions, setActions] = useState<QuickAction[]>(cachedQuickActions || []);
+  const [loading, setLoading] = useState(!cachedQuickActions);
 
   useEffect(() => {
+    if (cachedQuickActions && cachedQuickActions.length > 0) return;
+
     const fetchActions = async () => {
       try {
         const res = await chatApi.getQuickActions();
         if (res.status === "success" && res.actions) {
+          cachedQuickActions = res.actions;
           setActions(res.actions);
         }
       } catch (error) {

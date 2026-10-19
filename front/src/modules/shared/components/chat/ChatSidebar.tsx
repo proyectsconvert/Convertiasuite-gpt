@@ -135,8 +135,11 @@ export default function ChatSidebar() {
   const editRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const sessionsLoadedUserRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (user?.id) {
+    if (user?.id && sessionsLoadedUserRef.current !== user.id) {
+      sessionsLoadedUserRef.current = user.id;
       chatApi
         .getSessions()
         .then((data) => {
