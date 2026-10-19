@@ -230,8 +230,10 @@ export default function ChatInput({
     );
   }, [enabledSkills, mentionQuery]);
 
+  const skillsAttemptedRef = useRef(false);
   useEffect(() => {
-    if (skills.length === 0) {
+    if (skills.length === 0 && !skillsAttemptedRef.current) {
+      skillsAttemptedRef.current = true;
       skillsApi
         .listSkills()
         .then((response) => {

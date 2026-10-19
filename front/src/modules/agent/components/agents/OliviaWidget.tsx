@@ -171,14 +171,17 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
   const endRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  const historyLoadedForSessionRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    if (sessionId && messages.length === 0) {
+    if (sessionId && messages.length === 0 && historyLoadedForSessionRef.current !== sessionId) {
+      historyLoadedForSessionRef.current = sessionId;
       chatApi
         .getHistory(sessionId)
         .then((res) => {
-          if (res.messages) setMessages(res.messages);
+          if (res.messages && res.messages.length > 0) setMessages(res.messages);
         })
         .catch((error: Error) => {
           if (error.message.includes("HTTP 404")) {
@@ -189,7 +192,7 @@ export default function OliviaAgentWidget({ isStandalone = false }: OliviaWidget
           }
         });
     }
-  }, [sessionId, isAuthenticated]);
+  }, [sessionId, isAuthenticated, messages.length, setSessionId]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });

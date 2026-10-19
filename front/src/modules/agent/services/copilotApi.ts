@@ -1,6 +1,7 @@
 import { apiFetch } from "@/modules/shared/services/api";
 
-const API_URL = import.meta.env.VITE_API_URL || "";
+const RAW_API_URL = import.meta.env.VITE_API_URL || "";
+const API_URL = typeof window !== "undefined" && RAW_API_URL.includes("backend") ? "" : RAW_API_URL;
 
 export interface CopilotSuggestion {
   call_id: string;
