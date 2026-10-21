@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { memo, useState, useRef, useEffect, useCallback } from "react";
 import {
   Plus,
   Search,
@@ -26,6 +26,7 @@ import {
   Award,
 } from "lucide-react";
 import { useAppStore } from "@/modules/shared/store/appStore";
+import { useShallow } from "zustand/react/shallow";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { chatApi } from "@/modules/shared/services/api";
@@ -96,7 +97,7 @@ function groupByDate(
   return groups.filter((g) => g.items.length > 0);
 }
 
-export default function ChatSidebar() {
+function ChatSidebar() {
   const [appsModalOpen, setAppsModalOpen] = useState(false);
 
   const {
@@ -116,7 +117,26 @@ export default function ChatSidebar() {
     setCommandOpen,
     oliviaWidgetOpen,
     toggleOliviaWidget,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((state) => ({
+      chatSidebarOpen: state.chatSidebarOpen,
+      toggleChatSidebar: state.toggleChatSidebar,
+      sessions: state.sessions,
+      currentChatId: state.currentChatId,
+      setCurrentChatId: state.setCurrentChatId,
+      user: state.user,
+      darkMode: state.darkMode,
+      toggleDarkMode: state.toggleDarkMode,
+      logout: state.logout,
+      deleteSession: state.deleteSession,
+      renameSession: state.renameSession,
+      setSessions: state.setSessions,
+      appendSessions: state.appendSessions,
+      setCommandOpen: state.setCommandOpen,
+      oliviaWidgetOpen: state.oliviaWidgetOpen,
+      toggleOliviaWidget: state.toggleOliviaWidget,
+    })),
+  );
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -258,8 +278,6 @@ export default function ChatSidebar() {
       userRole.includes("quality"));
   const canAccessRoleTools = isAdmin || isQA;
 
-  // DEBUG: remove after fixing
-  console.log("[ChatSidebar] user.role=", user?.role, "| user.functional_role=", user?.functional_role, "| isQA=", isQA, "| canAccessRoleTools=", canAccessRoleTools);
   const roleApps = [
     ...(isAdmin
       ? [
@@ -743,3 +761,5 @@ export default function ChatSidebar() {
     </>
   );
 }
+
+export default memo(ChatSidebar);

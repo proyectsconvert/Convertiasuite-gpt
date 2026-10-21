@@ -1,8 +1,3 @@
-"""Router de FastAPI para el servicio de Copiloto en Tiempo Real (OlivIA).
-
-Permite recibir turnos de conversación (provenientes de inConcert u otras fuentes)
-y devolver sugerencias en tiempo real (<50ms) usando SuggestionEngine.
-"""
 import logging
 import time
 from typing import List, Optional

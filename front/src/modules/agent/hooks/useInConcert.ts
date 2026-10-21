@@ -36,24 +36,30 @@ export function useInConcert(): UseInConcertReturn {
   const [isSdkLoaded, setIsSdkLoaded] = useState(false);
   const [textWindow, setTextWindow] = useState<string[]>([]);
   const apiInstanceRef = useRef<any>(null);
+  const activeInteractionIdRef = useRef(activeInteractionId);
+  const textWindowRef = useRef(textWindow);
+  const userRef = useRef(user);
+  activeInteractionIdRef.current = activeInteractionId;
+  textWindowRef.current = textWindow;
+  userRef.current = user;
 
   // Evalúa una frase transcrita contra el backend de OlivIA
   const processTranscript = useCallback(
     async (text: string, currentCallId?: string) => {
-      const callId = currentCallId || activeInteractionId || "call-live";
+      const callId =
+        currentCallId || activeInteractionIdRef.current || "call-live";
       if (!text || !text.trim()) return;
 
-      setTextWindow((prev) => {
-        const next = [...prev, text];
-        return next.length > 6 ? next.slice(-6) : next;
-      });
+      const nextTextWindow = [...textWindowRef.current, text].slice(-6);
+      textWindowRef.current = nextTextWindow;
+      setTextWindow(nextTextWindow);
 
       try {
         const response = await copilotApi.getSuggestion({
           text,
           call_id: callId,
-          campaign_id: user?.campaign_name || "default",
-          text_window: [...textWindow, text],
+          campaign_id: userRef.current?.campaign_name || "default",
+          text_window: nextTextWindow,
           speaker: "client",
         });
 
@@ -68,14 +74,14 @@ export function useInConcert(): UseInConcertReturn {
         console.warn("[inConcert Copilot] Error obteniendo sugerencia:", err);
       }
     },
-    [activeInteractionId, user, textWindow, setCopilotSuggestion]
+    [setCopilotSuggestion]
   );
 
   // Inicialización y suscripción a eventos reales del CTI de inConcert
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    if (window.inConcertAgentApi) {
+    if (window.inConcertAgentApi && window.inConcert) {
       setIsSdkLoaded(true);
       try {
         // Inicializar la API de inConcert
@@ -89,6 +95,7 @@ export function useInConcert(): UseInConcertReturn {
 
           setInCall(true, interactionId);
           setOliviaWidgetOpen(true);
+          textWindowRef.current = [];
           setTextWindow([]);
 
           toast.success("📞 Llamada detectada en inConcert", {
@@ -128,7 +135,9 @@ export function useInConcert(): UseInConcertReturn {
         console.warn("[inConcert CTI] Error al enlazar eventos de inConcert:", err);
       }
     } else {
-      console.log("[inConcert CTI] inConcertAgentApi no disponible aún en window");
+      console.info(
+        "[inConcert CTI] SDK desactivado: esta página no está dentro de un contexto inConcert."
+      );
     }
   }, [setInCall, setOliviaWidgetOpen, clearCopilot, processTranscript]);
 
@@ -137,6 +146,7 @@ export function useInConcert(): UseInConcertReturn {
     const simCallId = `sim-${Date.now()}`;
     setInCall(true, simCallId);
     setOliviaWidgetOpen(true);
+    textWindowRef.current = [];
     setTextWindow([]);
 
     toast.success("📞 [SIMULACIÓN inConcert] Llamada tomada", {

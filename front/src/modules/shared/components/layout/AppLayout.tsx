@@ -5,10 +5,18 @@ import { useAppStore } from "@/modules/shared/store/appStore";
 import ChatSidebar from "@/modules/shared/components/chat/ChatSidebar";
 import ArtifactsPanel from "@/modules/shared/components/chat/ArtifactsPanel";
 import { PanelLeft } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 
 export default function AppLayout() {
-  const { setView, chatSidebarOpen, toggleChatSidebar } = useAppStore();
-  const { artifactsPanelOpen } = useAppStore();
+  const { setView, chatSidebarOpen, toggleChatSidebar, artifactsPanelOpen } =
+    useAppStore(
+      useShallow((state) => ({
+        setView: state.setView,
+        chatSidebarOpen: state.chatSidebarOpen,
+        toggleChatSidebar: state.toggleChatSidebar,
+        artifactsPanelOpen: state.artifactsPanelOpen,
+      })),
+    );
   const location = useLocation();
   const isSettings = location.pathname.startsWith("/app/settings");
 
@@ -58,4 +66,3 @@ export default function AppLayout() {
     </div>
   );
 }
-
