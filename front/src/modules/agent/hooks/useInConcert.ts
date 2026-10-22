@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import { useAppStore } from "@/modules/shared/store/appStore";
-import { copilotApi, CopilotSuggestion } from "@/modules/agent/services/copilotApi";
+import {
+  copilotApi,
+  CopilotSuggestion,
+} from "@/modules/agent/services/copilotApi";
 
 declare global {
   interface Window {
@@ -16,7 +19,9 @@ export interface UseInConcertReturn {
   activeInteractionId: string | null;
   latestSuggestion: CopilotSuggestion | null;
   textWindow: string[];
-  simulateCall: (scenario?: "price" | "distrust" | "interest" | "aggression") => Promise<void>;
+  simulateCall: (
+    scenario?: "price" | "distrust" | "interest" | "aggression"
+  ) => Promise<void>;
   endSimulatedCall: () => void;
   sendManualTranscript: (text: string) => Promise<void>;
 }
@@ -35,22 +40,27 @@ export function useInConcert(): UseInConcertReturn {
 
   const [isSdkLoaded, setIsSdkLoaded] = useState(false);
   const [textWindow, setTextWindow] = useState<string[]>([]);
+
   const apiInstanceRef = useRef<any>(null);
   const activeInteractionIdRef = useRef(activeInteractionId);
-  const textWindowRef = useRef(textWindow);
+  const textWindowRef = useRef<string[]>([]);
   const userRef = useRef(user);
+
   activeInteractionIdRef.current = activeInteractionId;
-  textWindowRef.current = textWindow;
   userRef.current = user;
 
-  // Evalúa una frase transcrita contra el backend de OlivIA
+  // Evalúa una frase transcrita contra el backend de Olivia.
   const processTranscript = useCallback(
     async (text: string, currentCallId?: string) => {
+      if (!text?.trim()) return;
+
       const callId =
-        currentCallId || activeInteractionIdRef.current || "call-live";
-      if (!text || !text.trim()) return;
+        currentCallId ||
+        activeInteractionIdRef.current ||
+        "call-live";
 
       const nextTextWindow = [...textWindowRef.current, text].slice(-6);
+
       textWindowRef.current = nextTextWindow;
       setTextWindow(nextTextWindow);
 
@@ -65,112 +75,202 @@ export function useInConcert(): UseInConcertReturn {
 
         if (response.has_suggestion && response.suggestion) {
           setCopilotSuggestion(response.suggestion);
-          toast.info("💡 Nueva recomendación de OlivIA disponible", {
+
+          toast.info("Nueva recomendación de Olivia disponible", {
             description: response.suggestion.recommended_action,
             duration: 4000,
           });
         }
       } catch (err) {
-        console.warn("[inConcert Copilot] Error obteniendo sugerencia:", err);
+        console.warn(
+          "[inConcert Copilot] Error obteniendo sugerencia:",
+          err
+        );
       }
     },
     [setCopilotSuggestion]
   );
 
-  // Inicialización y suscripción a eventos reales del CTI de inConcert
+  // Inicializa el SDK y registra los eventos de inConcert.
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    if (window.inConcertAgentApi && window.inConcert) {
-      setIsSdkLoaded(true);
-      try {
-        // Inicializar la API de inConcert
-        const api = new window.inConcertAgentApi();
-        apiInstanceRef.current = api;
+    if (typeof window.inConcertAgentApi !== "function") {
+      console.warn("[inConcert CTI] El SDK no está cargado.");
+      setIsSdkLoaded(false);
+      return;
+    }
 
-        // 1. Detección de llamada iniciada
+    let api: any;
+
+    try {
+      api = new window.inConcertAgentApi(
+        "cls-convertia-aws.i6.inconcert.cloud",
+        null,
+        true
+      );
+
+      apiInstanceRef.current = api;
+      setIsSdkLoaded(true);
+
+      console.info(
+        "[inConcert CTI] Instancia del SDK creada. Verificando conexión..."
+      );
+
+      // Comprueba si la API devuelve el estado del agente.
+      if (typeof api.GetLoggedUserState === "function") {
+        api.GetLoggedUserState((status: any) => {
+          if (status == null) {
+            console.warn(
+              "[inConcert CTI] La API no devolvió el estado del agente. " +
+                "La instancia existe, pero la conexión no está confirmada."
+            );
+          } else {
+            console.info(
+              "[inConcert CTI] Estado del agente recibido:",
+              status
+            );
+          }
+        });
+      }
+
+      // Llamada tomada.
+      if (typeof api.CallTaken === "function") {
         api.CallTaken((interaction: any) => {
-          const interactionId = interaction?.interactionId || interaction?.Id || `inc-${Date.now()}`;
-          console.log("[inConcert CTI] Llamada tomada:", interactionId, interaction);
+          const interactionId =
+            interaction?.interactionId ||
+            interaction?.Id ||
+            `inc-${Date.now()}`;
+
+          console.info(
+            "[inConcert CTI] Evento CallTaken recibido:",
+            interaction
+          );
 
           setInCall(true, interactionId);
           setOliviaWidgetOpen(true);
+
           textWindowRef.current = [];
           setTextWindow([]);
 
-          toast.success("📞 Llamada detectada en inConcert", {
-            description: "Modo Copiloto activado automáticamente.",
+          toast.success("Llamada detectada en inConcert", {
+            description: "Modo copiloto activado.",
           });
         });
-
-        // 2. Llamada en etapa de acreditación / tipificación
-        api.InteractionInWrapup((interaction: any) => {
-          console.log("[inConcert CTI] Llamada en wrapup/tipificación:", interaction);
-          toast.info("📋 Llamada finalizada", {
-            description: "Entrando en etapa de tipificación y resumen.",
-          });
-        });
-
-        // 3. Interacción archivada o cancelada
-        api.InteractionArchived(() => {
-          console.log("[inConcert CTI] Interacción archivada");
-          clearCopilot();
-        });
-
-        api.InteractionCanceled(() => {
-          console.log("[inConcert CTI] Interacción cancelada");
-          clearCopilot();
-        });
-
-        // 4. Transcripción emitida por inConcert (si la funcionalidad está activa en el tenant)
-        if (typeof api.TranscribeInteraction === "function") {
-          api.TranscribeInteraction((data: any) => {
-            const rawText = typeof data === "string" ? data : data?.text || data?.transcript;
-            if (rawText) {
-              processTranscript(rawText);
-            }
-          });
-        }
-      } catch (err) {
-        console.warn("[inConcert CTI] Error al enlazar eventos de inConcert:", err);
       }
-    } else {
-      console.info(
-        "[inConcert CTI] SDK desactivado: esta página no está dentro de un contexto inConcert."
-      );
-    }
-  }, [setInCall, setOliviaWidgetOpen, clearCopilot, processTranscript]);
 
-  // Simulación para pruebas locales o QA
-  const simulateCall = async (scenario: "price" | "distrust" | "interest" | "aggression" = "price") => {
+      // Interacción en etapa de wrap-up o tipificación.
+      if (typeof api.InteractionInWrapup === "function") {
+        api.InteractionInWrapup((interaction: any) => {
+          console.info(
+            "[inConcert CTI] Interacción en wrap-up:",
+            interaction
+          );
+        });
+      }
+
+      // Interacción archivada.
+      if (typeof api.InteractionArchived === "function") {
+        api.InteractionArchived(() => {
+          console.info("[inConcert CTI] Interacción archivada.");
+
+          clearCopilot();
+          setInCall(false, null);
+        });
+      }
+
+      // Interacción cancelada.
+      if (typeof api.InteractionCanceled === "function") {
+        api.InteractionCanceled(() => {
+          console.info("[inConcert CTI] Interacción cancelada.");
+
+          clearCopilot();
+          setInCall(false, null);
+        });
+      }
+
+      // Transcripción, si está disponible en la configuración del tenant.
+      if (typeof api.TranscribeInteraction === "function") {
+        api.TranscribeInteraction((data: any) => {
+          const rawText =
+            typeof data === "string"
+              ? data
+              : data?.text || data?.transcript;
+
+          if (rawText) {
+            void processTranscript(rawText);
+          }
+        });
+      }
+    } catch (err) {
+      console.error(
+        "[inConcert CTI] Error al inicializar el SDK:",
+        err
+      );
+
+      setIsSdkLoaded(false);
+    }
+
+    return () => {
+      if (apiInstanceRef.current === api) {
+        apiInstanceRef.current = null;
+      }
+
+      // No se libera la instancia explícitamente porque el SDK
+      // puede compartir recursos internos con otras instancias.
+    };
+  }, [
+    setInCall,
+    setOliviaWidgetOpen,
+    clearCopilot,
+    processTranscript,
+  ]);
+
+  // Simulación para pruebas locales o QA.
+  const simulateCall = async (
+    scenario: "price" | "distrust" | "interest" | "aggression" = "price"
+  ) => {
     const simCallId = `sim-${Date.now()}`;
+
     setInCall(true, simCallId);
     setOliviaWidgetOpen(true);
+
     textWindowRef.current = [];
     setTextWindow([]);
 
-    toast.success("📞 [SIMULACIÓN inConcert] Llamada tomada", {
-      description: `Call ID: ${simCallId} | Modo Copiloto Activado`,
+    toast.success("[SIMULACIÓN] Llamada iniciada", {
+      description: `Call ID: ${simCallId}`,
     });
 
-    const scenarioPhrases: Record<string, string> = {
-      price: "Mire, estuve revisando su propuesta pero el precio me parece excesivamente caro.",
-      distrust: "No confío en dar mis datos por teléfono, de dónde sacaron mi número?",
-      interest: "Me interesa mucho la promoción, ¿cómo podemos hacer el pago hoy mismo?",
-      aggression: "No me vuelvan a llamar más o los voy a denunciar por acoso!",
+    const scenarioPhrases: Record<
+      "price" | "distrust" | "interest" | "aggression",
+      string
+    > = {
+      price:
+        "Mire, estuve revisando su propuesta pero el precio me parece excesivamente caro.",
+      distrust:
+        "No confío en dar mis datos por teléfono, ¿de dónde sacaron mi número?",
+      interest:
+        "Me interesa mucho la promoción, ¿cómo podemos hacer el pago hoy mismo?",
+      aggression:
+        "No me vuelvan a llamar más o los voy a denunciar por acoso.",
     };
 
     const phrase = scenarioPhrases[scenario];
 
-    // Inyectar frase de cliente tras un pequeño delay
     setTimeout(() => {
-      processTranscript(phrase, simCallId);
+      void processTranscript(phrase, simCallId);
     }, 1000);
   };
 
   const endSimulatedCall = () => {
     clearCopilot();
-    toast.info("📞 [SIMULACIÓN inConcert] Llamada finalizada");
+    setInCall(false, null);
+
+    textWindowRef.current = [];
+    setTextWindow([]);
+
+    toast.info("[SIMULACIÓN] Llamada finalizada");
   };
 
   const sendManualTranscript = async (text: string) => {
