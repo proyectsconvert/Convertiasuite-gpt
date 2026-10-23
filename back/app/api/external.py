@@ -26,14 +26,13 @@ from app.schemas.chat import ChatRequest
 
 logger = logging.getLogger(__name__)
 
-# Creamos el router asegurando que TODOS sus endpoints pasen por la validación de API Key
 router = APIRouter(
     prefix="/v1/external",
     tags=["external-api"],
     dependencies=[Depends(verify_api_key)]
 )
 
-# Namespace fijo para derivar UUIDs B2B determinísticos
+
 _B2B_NAMESPACE = uuid.UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
 
 

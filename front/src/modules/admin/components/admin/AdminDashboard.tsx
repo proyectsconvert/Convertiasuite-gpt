@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Calendar,
+  Key,
   Layers,
   Activity,
   Cpu,
@@ -308,10 +309,14 @@ export default function AdminDashboard() {
 
             <button
               onClick={() => navigate("/app/api-keys")}
-              className="flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary/80 border border-border transition-all"
+              className="inline-flex shrink-0 items-center justify-center gap-2
+    rounded-xl border border-border bg-secondary/50
+    px-3 py-2 text-xs font-semibold text-foreground
+    hover:bg-secondary transition-colors
+    w-full sm:w-auto"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Ver API Keys
+              <Key className="h-4 w-4 shrink-0" />
+              <span>Ver API Keys</span>
             </button>
 
             <select
