@@ -269,3 +269,6 @@ app.include_router(external.router)
 from app.api import copilot
 app.include_router(copilot.router)
 
+
+from app.api import webhook
+app.include_router(webhook.router)
