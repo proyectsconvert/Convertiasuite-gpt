@@ -6,7 +6,8 @@ import { useNavigate } from "react-router-dom";
 
 const RAW_API_URL = import.meta.env.VITE_API_URL || "";
 const API_URL = typeof window !== "undefined" && RAW_API_URL.includes("backend") ? "" : RAW_API_URL;
-const API_KEYS_BASE = `${API_URL}/admin/api-keys`;
+const ADMIN_BASE = `${API_URL}/admin`;
+const API_KEYS_BASE = `${ADMIN_BASE}/api-keys`;
 
 export const ApiKeysManager: React.FC = () => {
   const [apiKeys, setApiKeys] = useState<any[]>([]);
