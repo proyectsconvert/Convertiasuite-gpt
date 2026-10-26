@@ -37,6 +37,7 @@ export default defineConfig(({ mode }) => {
         "/v1": {
           target: env.VITE_API_URL || "http://backend:8000",
           changeOrigin: true,
+          ws: true,
           rewrite: (path) => path,
         },
       },

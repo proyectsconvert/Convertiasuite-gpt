@@ -26,6 +26,24 @@ export interface UseInConcertReturn {
   sendManualTranscript: (text: string) => Promise<void>;
 }
 
+function getCopilotWsUrl(): string {
+  if (typeof window === "undefined") return "";
+  const isHttps = window.location.protocol === "https:";
+  const defaultProto = isHttps ? "wss:" : "ws:";
+
+  const rawApi = import.meta.env.VITE_API_URL || "";
+  if (rawApi && !rawApi.includes("backend")) {
+    try {
+      const url = new URL(rawApi);
+      const wsProto = url.protocol === "https:" ? "wss:" : "ws:";
+      return `${wsProto}//${url.host}/v1/copilot/ws`;
+    } catch {
+      // fallback a relative
+    }
+  }
+  return `${defaultProto}//${window.location.host}/v1/copilot/ws`;
+}
+
 export function useInConcert(): UseInConcertReturn {
   const {
     inCall,
@@ -41,15 +59,16 @@ export function useInConcert(): UseInConcertReturn {
   const [isSdkLoaded, setIsSdkLoaded] = useState(false);
   const [textWindow, setTextWindow] = useState<string[]>([]);
 
-  const apiInstanceRef = useRef<any>(null);
   const activeInteractionIdRef = useRef(activeInteractionId);
   const textWindowRef = useRef<string[]>([]);
   const userRef = useRef(user);
+  const socketRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<any>(null);
 
   activeInteractionIdRef.current = activeInteractionId;
   userRef.current = user;
 
-  // Evalúa una frase transcrita contra el backend de Olivia.
+  // Evalúa una frase transcrita contra el motor de copiloto del backend
   const processTranscript = useCallback(
     async (text: string, currentCallId?: string) => {
       if (!text?.trim()) return;
@@ -91,142 +110,125 @@ export function useInConcert(): UseInConcertReturn {
     [setCopilotSuggestion]
   );
 
-  // Inicializa el SDK y registra los eventos de inConcert.
+  // Conexión WebSocket en tiempo real para eventos de inConcert Webhook
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    if (typeof window.inConcertAgentApi !== "function") {
-      console.warn("[inConcert CTI] El SDK no está cargado.");
-      setIsSdkLoaded(false);
-      return;
-    }
+    let isUnmounted = false;
+    let pingInterval: any = null;
 
-    let api: any;
+    const connectWebSocket = () => {
+      const wsUrl = getCopilotWsUrl();
+      if (!wsUrl) return;
 
-    try {
-      api = new window.inConcertAgentApi(
-        "cls-convertia-aws.i6.inconcert.cloud",
-        null,
-        true
-      );
+      console.info("[inConcert Copilot] Conectando a WebSocket:", wsUrl);
+      const ws = new WebSocket(wsUrl);
+      socketRef.current = ws;
 
-      apiInstanceRef.current = api;
-      setIsSdkLoaded(true);
+      ws.onopen = () => {
+        if (isUnmounted) return;
+        console.info("[inConcert Copilot] WebSocket conectado exitosamente.");
+        setIsSdkLoaded(true);
 
-      console.info(
-        "[inConcert CTI] Instancia del SDK creada. Verificando conexión..."
-      );
-
-      // Comprueba si la API devuelve el estado del agente.
-      if (typeof api.GetLoggedUserState === "function") {
-        api.GetLoggedUserState((status: any) => {
-          if (status == null) {
-            console.warn(
-              "[inConcert CTI] La API no devolvió el estado del agente. " +
-                "La instancia existe, pero la conexión no está confirmada."
-            );
-          } else {
-            console.info(
-              "[inConcert CTI] Estado del agente recibido:",
-              status
-            );
+        // Keep-alive ping cada 30 segundos
+        pingInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ping" }));
           }
-        });
-      }
+        }, 30000);
+      };
 
-      // Llamada tomada.
-      if (typeof api.CallTaken === "function") {
-        api.CallTaken((interaction: any) => {
-          const interactionId =
-            interaction?.interactionId ||
-            interaction?.Id ||
-            `inc-${Date.now()}`;
+      ws.onmessage = (event) => {
+        if (isUnmounted) return;
+        try {
+          const data = JSON.parse(event.data);
+          console.info("[inConcert Copilot] Evento recibido por WebSocket:", data);
 
-          console.info(
-            "[inConcert CTI] Evento CallTaken recibido:",
-            interaction
-          );
+          if (data.type === "CALL_STARTED") {
+            const currentUser = userRef.current;
+            // Si el webhook trae un agente específico y el usuario tiene sesión, verificar pertenencia
+            if (data.agent_username && currentUser?.email) {
+              const target = String(data.agent_username).toLowerCase();
+              const userEmail = currentUser.email.toLowerCase();
+              const userName = (currentUser.name || "").toLowerCase();
+              const userPrefix = userEmail.split("@")[0];
 
-          setInCall(true, interactionId);
-          setOliviaWidgetOpen(true);
+              if (!target.includes(userPrefix) && !userEmail.includes(target) && !userName.includes(target)) {
+                console.info("[inConcert Copilot] Evento ignorado: pertenece a otro agente:", data.agent_username);
+                return;
+              }
+            }
 
-          textWindowRef.current = [];
-          setTextWindow([]);
+            const interactionId =
+              data.call_id ||
+              data.payload?.interactionId ||
+              `inc-${Date.now()}`;
 
-          toast.success("Llamada detectada en inConcert", {
-            description: "Modo copiloto activado.",
-          });
-        });
-      }
+            setInCall(true, interactionId);
+            setOliviaWidgetOpen(true);
 
-      // Interacción en etapa de wrap-up o tipificación.
-      if (typeof api.InteractionInWrapup === "function") {
-        api.InteractionInWrapup((interaction: any) => {
-          console.info(
-            "[inConcert CTI] Interacción en wrap-up:",
-            interaction
-          );
-        });
-      }
+            textWindowRef.current = [];
+            setTextWindow([]);
 
-      // Interacción archivada.
-      if (typeof api.InteractionArchived === "function") {
-        api.InteractionArchived(() => {
-          console.info("[inConcert CTI] Interacción archivada.");
-
-          clearCopilot();
-          setInCall(false, null);
-        });
-      }
-
-      // Interacción cancelada.
-      if (typeof api.InteractionCanceled === "function") {
-        api.InteractionCanceled(() => {
-          console.info("[inConcert CTI] Interacción cancelada.");
-
-          clearCopilot();
-          setInCall(false, null);
-        });
-      }
-
-      // Transcripción, si está disponible en la configuración del tenant.
-      if (typeof api.TranscribeInteraction === "function") {
-        api.TranscribeInteraction((data: any) => {
-          const rawText =
-            typeof data === "string"
-              ? data
-              : data?.text || data?.transcript;
-
-          if (rawText) {
-            void processTranscript(rawText);
+            const clientInfo = data.customer_name || data.customer_phone ? ` (${data.customer_name || data.customer_phone})` : "";
+            toast.success("Llamada detectada en inConcert", {
+              description: `Modo copiloto activado${clientInfo}`,
+            });
+          } else if (data.type === "CALL_ENDED") {
+            console.info("[inConcert Copilot] Llamada finalizada recibida por WebSocket.");
+            clearCopilot();
+            setInCall(false, null);
+            textWindowRef.current = [];
+            setTextWindow([]);
+            toast.info("Llamada finalizada.");
+          } else if (data.type === "SUGGESTION" && data.suggestion) {
+            setCopilotSuggestion(data.suggestion);
+            toast.info("Nueva recomendación de Olivia disponible", {
+              description: data.suggestion.recommended_action,
+              duration: 4000,
+            });
+          } else if (data.type === "TRANSCRIPT" && data.text) {
+            void processTranscript(data.text, data.call_id);
           }
-        });
-      }
-    } catch (err) {
-      console.error(
-        "[inConcert CTI] Error al inicializar el SDK:",
-        err
-      );
+        } catch (e) {
+          console.warn("[inConcert Copilot] Error parseando mensaje de WebSocket:", e);
+        }
+      };
 
-      setIsSdkLoaded(false);
-    }
+      ws.onclose = () => {
+        if (isUnmounted) return;
+        console.warn("[inConcert Copilot] WebSocket cerrado. Reintentando en 3s...");
+        setIsSdkLoaded(false);
+        clearInterval(pingInterval);
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (!isUnmounted) {
+            connectWebSocket();
+          }
+        }, 3000);
+      };
+
+      ws.onerror = (err) => {
+        console.warn("[inConcert Copilot] Error en WebSocket:", err);
+      };
+    };
+
+    connectWebSocket();
 
     return () => {
-      if (apiInstanceRef.current === api) {
-        apiInstanceRef.current = null;
+      isUnmounted = true;
+      clearInterval(pingInterval);
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
       }
-
-      // No se libera la instancia explícitamente porque el SDK
-      // puede compartir recursos internos con otras instancias.
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
     };
-  }, [
-    setInCall,
-    setOliviaWidgetOpen,
-    clearCopilot,
-    processTranscript,
-  ]);
+  }, [setInCall, setOliviaWidgetOpen, clearCopilot, setCopilotSuggestion, processTranscript]);
 
-  // Simulación para pruebas locales o QA.
+  // Simulación para pruebas locales o QA
   const simulateCall = async (
     scenario: "price" | "distrust" | "interest" | "aggression" = "price"
   ) => {
@@ -270,7 +272,7 @@ export function useInConcert(): UseInConcertReturn {
     textWindowRef.current = [];
     setTextWindow([]);
 
-    toast.info("[SIMULACIÓN] Llamada finalizada");
+    toast.info("Llamada finalizada");
   };
 
   const sendManualTranscript = async (text: string) => {

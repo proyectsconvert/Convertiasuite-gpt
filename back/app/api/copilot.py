@@ -1,9 +1,10 @@
 import logging
 import time
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
-
+import json
+from app.api.copilot_ws import copilot_ws_manager
 from app.domain.services.suggestion_engine import SuggestionEngine
 
 logger = logging.getLogger("olivia.api.copilot")
@@ -111,3 +112,26 @@ async def evaluate_copilot_turn(req: CopilotTurnRequest):
     except Exception as e:
         logger.error(f"Error evaluando turno de copiloto: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error en motor de sugerencias: {str(e)}")
+
+
+
+
+
+@router.websocket("/ws")
+async def copilot_websocket_endpoint(websocket: WebSocket):
+    await copilot_ws_manager.connect(websocket)
+    try:
+        while True:
+            raw_text = await websocket.receive_text()
+            try:
+                msg = json.loads(raw_text)
+                if msg.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except Exception:
+                pass
+    except WebSocketDisconnect:
+        copilot_ws_manager.disconnect(websocket)
+    except Exception as e:
+        logger.warning(f"[WebSocket Copilot] Desconexión o error: {e}")
+        copilot_ws_manager.disconnect(websocket)
+
