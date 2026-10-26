@@ -4,6 +4,10 @@ import { apiFetch } from "../../shared/services/api";
 import { ArrowLeft, LayoutDashboard } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+const RAW_API_URL = import.meta.env.VITE_API_URL || "";
+const API_URL = typeof window !== "undefined" && RAW_API_URL.includes("backend") ? "" : RAW_API_URL;
+const API_KEYS_BASE = `${API_URL}/admin/api-keys`;
+
 export const ApiKeysManager: React.FC = () => {
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16,13 +20,12 @@ export const ApiKeysManager: React.FC = () => {
   const fetchApiKeys = async () => {
     try {
       setLoading(true);
-      const res = await apiFetch<{ status: string; api_keys: any[] }>(
-        `${import.meta.env.VITE_API_URL || ""}/admin/api-keys`
-      );
+      setError(null);
+      const res = await apiFetch<{ status: string; api_keys: any[] }>(API_KEYS_BASE);
       setApiKeys(res.api_keys || []);
     } catch (err: any) {
       console.error(err);
-      setError("Error al cargar las API Keys");
+      setError(err?.message || "Error al cargar las API Keys");
     } finally {
       setLoading(false);
     }
@@ -38,19 +41,16 @@ export const ApiKeysManager: React.FC = () => {
 
     try {
       setError(null);
-      const res = await apiFetch<{ status: string; api_key_data: any }>(
-        `${import.meta.env.VITE_API_URL || ""}/admin/api-keys`,
-        {
-          method: "POST",
-          body: JSON.stringify({ client_name: newClientName }),
-        }
-      );
+      const res = await apiFetch<{ status: string; api_key_data: any }>(API_KEYS_BASE, {
+        method: "POST",
+        body: JSON.stringify({ client_name: newClientName }),
+      });
       setNewlyCreatedKey(res.api_key_data.api_key);
       setNewClientName("");
       fetchApiKeys(); // Recargar la lista
     } catch (err: any) {
       console.error(err);
-      setError("Error al crear la API Key");
+      setError(err?.message || "Error al crear la API Key");
     }
   };
 
@@ -58,14 +58,13 @@ export const ApiKeysManager: React.FC = () => {
     if (!window.confirm("¿Seguro que deseas revocar esta API Key? Los sistemas que la usen dejarán de tener acceso de inmediato.")) return;
 
     try {
-      await apiFetch<{ status: string; message: string }>(
-        `${import.meta.env.VITE_API_URL || ""}/admin/api-keys/${id}`,
-        { method: "DELETE" }
-      );
+      await apiFetch<{ status: string; message: string }>(`${API_KEYS_BASE}/${id}`, {
+        method: "DELETE",
+      });
       fetchApiKeys();
     } catch (err: any) {
       console.error(err);
-      setError("Error al revocar la API Key");
+      setError(err?.message || "Error al revocar la API Key");
     }
   };
 
