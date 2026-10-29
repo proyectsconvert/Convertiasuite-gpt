@@ -1,7 +1,48 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
-import { adminApi, Campaign, CampaignMember, SystemUser, AvailableSkill, CampaignSkill } from "@/modules/shared/services/api";
-import { Users, Plus, Trash2, RefreshCw, X, Save, UserPlus, Search, Edit, Sparkles, BookOpen, ShieldCheck } from "lucide-react";
+import { 
+  adminApi, 
+  qaApi,
+  Campaign, 
+  CampaignMember, 
+  SystemUser, 
+  AvailableSkill, 
+  CampaignSkill,
+  QAInsight,
+  QATopQuery
+} from "@/modules/shared/services/api";
+import { 
+  Users, 
+  Plus, 
+  Trash2, 
+  RefreshCw, 
+  X, 
+  Save, 
+  UserPlus, 
+  Search, 
+  Edit, 
+  Sparkles, 
+  BookOpen, 
+  ShieldCheck,
+  Target,
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
+  HelpCircle,
+  Activity,
+  CheckSquare,
+  Copy,
+  Check,
+  ChevronRight,
+  TrendingUp,
+  MessageSquareQuote,
+  Lightbulb,
+  FileCheck,
+  Zap,
+  Filter,
+  ArrowLeft,
+  PanelLeft
+} from "lucide-react";
 import { useAppStore } from "@/modules/shared/store/appStore";
 
 export default function CampaignsView() {
@@ -80,6 +121,73 @@ export default function CampaignsView() {
   const [editingSkill, setEditingSkill] = useState<CampaignSkill | null>(null);
   const [editSkillCustomContent, setEditSkillCustomContent] = useState("");
 
+  // Tabs y Filtros del Dashboard de Campañas
+  const [activeTab, setActiveTab] = useState<"overview" | "members" | "skills" | "reinforcement">("overview");
+  const [searchCampaignQuery, setSearchCampaignQuery] = useState("");
+  const [campaignStatusFilter, setCampaignStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [searchMemberQuery, setSearchMemberQuery] = useState("");
+
+  // Modo responsivo para pantalla dividida
+  const [mobileShowDetail, setMobileShowDetail] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Herramientas de Refuerzo & Coaching (DQLE-32)
+  const [reinforcementInsights, setReinforcementInsights] = useState<QAInsight[]>([]);
+  const [loadingInsights, setLoadingInsights] = useState(false);
+  const [topQueries, setTopQueries] = useState<QATopQuery[]>([]);
+  const [loadingTopQueries, setLoadingTopQueries] = useState(false);
+  const [activeObjectionTab, setActiveObjectionTab] = useState<string>("all");
+  const [copiedPhraseKey, setCopiedPhraseKey] = useState<string | null>(null);
+  const [checklistCompleted, setChecklistCompleted] = useState<Record<string, boolean>>({
+    saludo: true,
+    titularidad: true,
+    sondeo: false,
+    objecion: false,
+    cierre: false,
+  });
+
+  const toggleChecklist = (key: string) => {
+    setChecklistCompleted((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const copyPhraseToClipboard = (key: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedPhraseKey(key);
+    toast.success("Frase de refuerzo copiada al portapapeles");
+    setTimeout(() => setCopiedPhraseKey(null), 2500);
+  };
+
+  const loadReinforcementData = async (campaignId: string) => {
+    try {
+      setLoadingInsights(true);
+      setLoadingTopQueries(true);
+      const [insightsRes, topQueriesRes] = await Promise.allSettled([
+        qaApi.getInsights(campaignId),
+        qaApi.getTopQueries(campaignId, undefined, 30, 8),
+      ]);
+
+      if (insightsRes.status === "fulfilled" && Array.isArray(insightsRes.value)) {
+        setReinforcementInsights(insightsRes.value);
+      } else {
+        setReinforcementInsights([]);
+      }
+
+      if (topQueriesRes.status === "fulfilled" && Array.isArray(topQueriesRes.value)) {
+        setTopQueries(topQueriesRes.value);
+      } else {
+        setTopQueries([]);
+      }
+    } catch (err) {
+      console.warn("Error cargando herramientas de refuerzo:", err);
+    } finally {
+      setLoadingInsights(false);
+      setLoadingTopQueries(false);
+    }
+  };
+
   const loadCampaignSkills = async (campaignId: string) => {
     try {
       setLoadingSkills(true);
@@ -112,6 +220,9 @@ export default function CampaignsView() {
     setSelectedCampaign(c);
     loadMembers(c.campaign_id);
     loadCampaignSkills(c.campaign_id);
+    loadReinforcementData(c.campaign_id);
+    setSearchMemberQuery("");
+    setMobileShowDetail(true);
   };
 
   const openAssignSkillModal = () => {
@@ -426,99 +537,328 @@ export default function CampaignsView() {
     return true;
   });
 
+  // Filtrado de campañas en el panel lateral
+  const filteredCampaigns = useMemo(() => {
+    return campaigns.filter((c) => {
+      // Filtro por término
+      if (searchCampaignQuery.trim()) {
+        const q = searchCampaignQuery.toLowerCase();
+        const matchesName = c.campaign_name.toLowerCase().includes(q);
+        const matchesDesc = (c.description || "").toLowerCase().includes(q);
+        if (!matchesName && !matchesDesc) return false;
+      }
+      // Filtro por estado
+      if (campaignStatusFilter === "active") return c.is_active;
+      if (campaignStatusFilter === "inactive") return !c.is_active;
+      return true;
+    });
+  }, [campaigns, searchCampaignQuery, campaignStatusFilter]);
+
+  // Filtrado de miembros de la campaña seleccionada
+  const filteredMembers = useMemo(() => {
+    if (!searchMemberQuery.trim()) return members;
+    const q = searchMemberQuery.toLowerCase();
+    return members.filter((m) => {
+      const matchName = (m.user_name || "").toLowerCase().includes(q);
+      const matchEmail = (m.user_email || "").toLowerCase().includes(q);
+      const matchRole = (m.campaign_role || "").toLowerCase().includes(q);
+      return matchName || matchEmail || matchRole;
+    });
+  }, [members, searchMemberQuery]);
+
+  // Matriz de Refuerzo de Objeciones (Curada y vinculada a las habilidades de la campaña)
+  const objectionProtocols = useMemo(() => [
+    {
+      id: "price",
+      category: "price",
+      categoryName: "Precio / Costo",
+      icon: "dollar",
+      title: "Objeción de Costo o Presupuesto Insuficiente",
+      signal: "«El plan es muy costoso», «no me alcanza la plata», «muy caro comparado con otros».",
+      action: "Desglosar la inversión en costo diario y enfocar el retorno de inversión o facilidades de pago diferido.",
+      phrase: "Comprendo plenamente su punto. Si lo distribuimos día a día, estamos hablando de menos de lo que cuesta un café diario por la solución integral. Además, en esta campaña tenemos autorizada una opción de pago diferido sin recargo.",
+      key: "obj-price"
+    },
+    {
+      id: "distrust",
+      category: "distrust",
+      categoryName: "Desconfianza / Fraude",
+      icon: "shield",
+      title: "Desconfianza en el Contacto o Temor a Fraude",
+      signal: "«Esto parece una estafa», «¿de dónde sacaron mi número?», «no doy mis datos por teléfono».",
+      action: "Validar su legítima precaución, confirmar el canal corporativo formal y recalcar que NO se solicitarán contraseñas ni claves bancarias.",
+      phrase: "Comprendo y comparto su prudencia; hoy en día es vital cuidar la información. Nos comunicamos formalmente de los canales oficiales. En ningún momento le solicitaremos contraseñas, claves ni transferencias por esta llamada.",
+      key: "obj-distrust"
+    },
+    {
+      id: "time",
+      category: "time",
+      categoryName: "Tiempo / Aplazamiento",
+      icon: "clock",
+      title: "Falta de Tiempo o Solicitud de Llamar Después",
+      signal: "«Estoy muy ocupado», «llámeme la otra semana», «no tengo tiempo para esto ahora».",
+      action: "Técnica de los 20 segundos de impacto y acuerdo de agendamiento puntual con fecha y hora exacta.",
+      phrase: "Entiendo que esté con el tiempo justo. Solo le tomaré 20 segundos para mencionarle el beneficio principal. Si le resulta conveniente, agendamos de inmediato una llamada puntual para mañana a la hora que prefiera.",
+      key: "obj-time"
+    },
+    {
+      id: "competitor",
+      category: "competitor",
+      categoryName: "Competencia",
+      icon: "zap",
+      title: "Preferencia por la Competencia Existente",
+      signal: "«Ya tengo contratado otro servicio», «la otra empresa me ofrece lo mismo».",
+      action: "Reconocer al proveedor actual sin desacreditarlo; resaltar los diferenciales de soporte 24/7 y estabilidad.",
+      phrase: "Es una compañía respetable. La razón por la que nuestros clientes deciden complementarla o cambiarse con nosotros es por nuestra garantía de soporte personalizado y tiempos de respuesta inferiores a 10 minutos.",
+      key: "obj-competitor"
+    },
+    {
+      id: "hostility",
+      category: "hostility",
+      categoryName: "Hostilidad / Malestar",
+      icon: "alert",
+      title: "Desescalamiento de Hostilidad o Enojo",
+      signal: "«No me llamen más», «siempre es lo mismo con ustedes», insultos o agresividad.",
+      action: "Protocolo de contención inmediata, tono sereno, no debatir y ofrecer solución concreta al motivo del contacto.",
+      phrase: "Comprendo su malestar y lamento cualquier inconveniente previo. Mi intención el día de hoy es brindarle una solución directa y respetuosa si me permite 30 segundos para orientarle.",
+      key: "obj-hostility"
+    }
+  ], []);
+
+  const filteredObjections = useMemo(() => {
+    if (activeObjectionTab === "all") return objectionProtocols;
+    return objectionProtocols.filter(o => o.category === activeObjectionTab);
+  }, [objectionProtocols, activeObjectionTab]);
+
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-hidden text-foreground">
-      <div className="p-6 border-b border-border/40 flex justify-between items-center bg-card">
+      {/* Top Header Responsivo */}
+      <div className="p-4 sm:p-5 lg:p-6 border-b border-border/40 flex flex-wrap justify-between items-center gap-3 bg-card">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Gestión de Campañas</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Ágatha</h1>
+            <span className="text-xs bg-primary/10 text-primary border border-primary/20 font-semibold px-2.5 py-0.5 rounded-full">
+              {campaigns.filter(c => c.is_active).length} activas / {campaigns.length} total
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
             {isAdmin 
-              ? "Administra tus campañas y los miembros asignados" 
-              : "Consulta las campañas asignadas y su equipo de operaciones"}
+              ? "Administra campañas, miembros, habilidades operativas y herramientas de refuerzo" 
+              : "Consulta las campañas asignadas y sus protocolos operativos"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {/* Botón para alternar ancho de la lista en pantallas grandes (xl+) */}
+          <button
+            onClick={() => setIsSidebarCollapsed(prev => !prev)}
+            className="hidden xl:flex items-center gap-1.5 text-xs font-medium px-3 py-2 border border-border rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+            title={isSidebarCollapsed ? "Mostrar lista de campañas" : "Ocultar lista para pantalla completa"}
+          >
+            <PanelLeft className="w-4 h-4" />
+            <span>{isSidebarCollapsed ? "Mostrar Lista" : "Ocultar Lista"}</span>
+          </button>
+
           <button
             onClick={() => {
               fetchCampaigns();
-              if (selectedCampaign) loadMembers(selectedCampaign.campaign_id);
+              if (selectedCampaign) {
+                loadMembers(selectedCampaign.campaign_id);
+                loadCampaignSkills(selectedCampaign.campaign_id);
+                loadReinforcementData(selectedCampaign.campaign_id);
+              }
             }}
             className="p-2 border border-border rounded-lg hover:bg-secondary transition-colors"
             title="Refrescar"
           >
-            <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin text-muted-foreground" : "text-muted-foreground"}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-muted-foreground" : "text-muted-foreground"}`} />
           </button>
+
           {isAdmin && (
             <button
               onClick={openCreateCampaignModal}
-              className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-medium text-sm shadow-sm"
+              className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3.5 py-2 rounded-lg hover:opacity-90 transition-opacity font-medium text-xs sm:text-sm shadow-sm"
             >
-              <Plus className="w-4 h-4" /> Crear Campaña
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Crear</span> Campaña
             </button>
           )}
         </div>
       </div>
 
-      <div className="flex-1 flex min-h-0">
-        {/* Lista de campañas */}
-        <div className="w-1/3 border-r border-border/40 overflow-y-auto p-4 flex flex-col gap-3">
-          {loading ? (
-            <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-muted-foreground" /></div>
-          ) : campaigns.length === 0 ? (
-            <div className="text-center p-8 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
-              No se encontraron campañas.
+      <div className="flex-1 flex min-h-0 relative overflow-hidden">
+        {/* Panel lateral: Lista de campañas con buscador y filtros (Se adapta automáticamente en pantalla dividida) */}
+        <div
+          className={`border-r border-border/40 flex flex-col bg-card/20 min-h-0 transition-all duration-200 ${
+            mobileShowDetail ? "hidden xl:flex" : "flex w-full"
+          } ${
+            isSidebarCollapsed ? "xl:hidden" : "xl:w-72 2xl:w-80 shrink-0"
+          }`}
+        >
+          {/* Buscador de campañas */}
+          <div className="p-3.5 sm:p-4 border-b border-border/40 space-y-2.5 bg-card/40 shrink-0">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchCampaignQuery}
+                onChange={(e) => setSearchCampaignQuery(e.target.value)}
+                placeholder="Buscar campaña..."
+                className="w-full bg-background border border-border rounded-lg pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+              />
+              {searchCampaignQuery && (
+                <button
+                  onClick={() => setSearchCampaignQuery("")}
+                  className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground text-xs"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-          ) : (
-            campaigns.map((c) => (
-              <div
-                key={c.campaign_id}
-                className={`p-4 rounded-xl border transition-all cursor-pointer group ${
-                  selectedCampaign?.campaign_id === c.campaign_id
-                    ? "border-primary bg-primary/5 shadow-sm"
-                    : "border-border/60 hover:border-border hover:bg-card/50"
+
+            {/* Filtros de estado */}
+            <div className="flex gap-1 bg-secondary/30 p-1 rounded-lg text-xs">
+              <button
+                onClick={() => setCampaignStatusFilter("all")}
+                className={`flex-1 py-1 rounded-md font-medium text-[11px] transition-all ${
+                  campaignStatusFilter === "all"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
-                onClick={() => handleSelectCampaign(c)}
               >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-semibold text-sm">{c.campaign_name}</h3>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                      {c.description || "Sin descripción"}
-                    </p>
-                  </div>
-                  {isAdmin && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteCampaign(c.campaign_id);
-                      }}
-                      className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                      title="Eliminar campaña"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${c.is_active ? 'bg-green-500/10 text-green-500' : 'bg-destructive/10 text-destructive'}`}>
-                    {c.is_active ? "Activa" : "Inactiva"}
-                  </span>
-                </div>
+                Todas ({campaigns.length})
+              </button>
+              <button
+                onClick={() => setCampaignStatusFilter("active")}
+                className={`flex-1 py-1 rounded-md font-medium text-[11px] transition-all ${
+                  campaignStatusFilter === "active"
+                    ? "bg-card text-green-500 shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Activas ({campaigns.filter(c => c.is_active).length})
+              </button>
+              <button
+                onClick={() => setCampaignStatusFilter("inactive")}
+                className={`flex-1 py-1 rounded-md font-medium text-[11px] transition-all ${
+                  campaignStatusFilter === "inactive"
+                    ? "bg-card text-destructive shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Inactivas ({campaigns.filter(c => !c.is_active).length})
+              </button>
+            </div>
+          </div>
+
+          {/* Lista de campañas filtradas */}
+          <div className="flex-1 overflow-y-auto p-2.5 sm:p-3 flex flex-col gap-2">
+            {loading ? (
+              <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-muted-foreground" /></div>
+            ) : filteredCampaigns.length === 0 ? (
+              <div className="text-center p-8 text-muted-foreground text-xs border border-dashed border-border rounded-xl">
+                No se encontraron campañas que coincidan con el filtro.
               </div>
-            ))
-          )}
+            ) : (
+              filteredCampaigns.map((c) => {
+                const isSelected = selectedCampaign?.campaign_id === c.campaign_id;
+                return (
+                  <div
+                    key={c.campaign_id}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer group relative ${
+                      isSelected
+                        ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary/30"
+                        : "border-border/60 hover:border-border hover:bg-card/60 bg-card/30"
+                    }`}
+                    onClick={() => handleSelectCampaign(c)}
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-2 h-2 rounded-full shrink-0 ${
+                              c.is_active ? "bg-green-500 shadow-sm shadow-green-500/50 animate-pulse" : "bg-muted-foreground/40"
+                            }`}
+                          />
+                          <h3 className="font-semibold text-xs text-foreground truncate">{c.campaign_name}</h3>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1 line-clamp-1 leading-relaxed">
+                          {c.description || "Sin descripción registrada"}
+                        </p>
+                      </div>
+
+                      {isAdmin && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteCampaign(c.campaign_id);
+                          }}
+                          className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1 -mr-1"
+                          title="Eliminar campaña"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between pt-1.5 border-t border-border/30 text-[10px]">
+                      <span className={`font-medium px-2 py-0.5 rounded-full ${
+                        c.is_active ? 'bg-green-500/10 text-green-500' : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {c.is_active ? "Activa" : "Inactiva"}
+                      </span>
+                      {isSelected && (
+                        <span className="text-primary font-semibold flex items-center gap-0.5">
+                          Seleccionada <ChevronRight className="w-3 h-3" />
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
 
-        {/* Detalles de la campaña */}
-        <div className="w-2/3 overflow-y-auto p-6 bg-card/30">
+        {/* Panel derecho: Pestañas de detalle de la campaña (En pantalla dividida toma el 100% del ancho) */}
+        <div
+          className={`flex-1 overflow-y-auto bg-card/10 flex flex-col min-h-0 ${
+            !mobileShowDetail && !selectedCampaign ? "hidden xl:flex" : "flex"
+          }`}
+        >
           {selectedCampaign ? (
-            <div className="space-y-6">
-              <div className="border-b border-border/40 pb-4">
-                <h2 className="text-xl font-bold">{selectedCampaign.campaign_name}</h2>
-                <p className="text-sm text-muted-foreground mt-1">{selectedCampaign.description || "No hay descripción"}</p>
+            <div className="flex flex-col h-full min-h-0">
+              {/* Header de la campaña seleccionada */}
+              <div className="p-4 sm:p-5 lg:p-6 bg-card border-b border-border/40 shrink-0">
+                {/* Botón de regreso exclusivo para pantalla dividida */}
+                <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/30 xl:hidden">
+                  <button
+                    onClick={() => setMobileShowDetail(false)}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20 transition-colors"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Volver a Campañas
+                  </button>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    selectedCampaign.is_active ? "bg-green-500/10 text-green-500" : "bg-destructive/10 text-destructive"
+                  }`}>
+                    {selectedCampaign.is_active ? "Activa" : "Inactiva"}
+                  </span>
+                </div>
 
-                {isAdmin && (
-                  <div className="mt-3 flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <h2 className="text-lg sm:text-xl font-bold truncate">{selectedCampaign.campaign_name}</h2>
+                      <span className={`hidden sm:inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full ${
+                        selectedCampaign.is_active ? "bg-green-500/15 text-green-500 border border-green-500/30" : "bg-destructive/15 text-destructive border border-destructive/30"
+                      }`}>
+                        {selectedCampaign.is_active ? "Campaña Activa" : "Campaña Inactiva"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-2xl leading-relaxed line-clamp-2 sm:line-clamp-none">
+                      {selectedCampaign.description || "Esta campaña no posee una descripción detallada registrada."}
+                    </p>
+                  </div>
+
+                  {isAdmin && (
                     <button
                       onClick={() => {
                         const newStatus = !selectedCampaign.is_active;
@@ -532,212 +872,504 @@ export default function CampaignsView() {
                             toast.error("Error al actualizar el estado de la campaña");
                           });
                       }}
-                      className="text-xs font-medium text-primary hover:bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-md transition-colors"
+                      className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-all shrink-0 ${
+                        selectedCampaign.is_active
+                          ? "border-destructive/30 text-destructive hover:bg-destructive/10"
+                          : "border-green-500/30 text-green-500 hover:bg-green-500/10"
+                      }`}
                     >
                       {selectedCampaign.is_active ? "Desactivar" : "Activar"}
                     </button>
-                  </div>
-                )}        
-              </div>
-              
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <Users className="w-4 h-4 text-muted-foreground" /> Miembros de la Campaña
-                  </h3>
-                  {isAdmin && (
-                    <button
-                      onClick={openAddMemberModal}
-                      className="flex items-center gap-1.5 text-xs font-medium text-primary hover:bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-md transition-colors"
-                    >
-                      <UserPlus className="w-3.5 h-3.5" /> Agregar Miembro
-                    </button>
                   )}
                 </div>
 
-                {loadingMembers ? (
-                  <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-muted-foreground" /></div>
-                ) : (
-                  <div className="bg-card border border-border/60 rounded-xl overflow-hidden shadow-sm">
-                    <table className="w-full text-sm text-left">
-                      <thead className="bg-secondary/30 text-xs uppercase text-muted-foreground border-b border-border/60">
-                        <tr>
-                          <th className="px-4 py-3 font-medium">Usuario</th>
-                          <th className="px-4 py-3 font-medium">Rol en Campaña</th>
-                          <th className="px-4 py-3 font-medium">Estado</th>
-                          {isAdmin && <th className="px-4 py-3 font-medium text-right">Acciones</th>}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border/40">
-                        {members.length === 0 ? (
-                          <tr>
-                            <td colSpan={isAdmin ? 4 : 3} className="px-4 py-8 text-center text-muted-foreground">
-                              No hay miembros asignados a esta campaña
-                            </td>
-                          </tr>
-                        ) : (
-                          members.map((m) => (
-                            <tr key={m.member_id} className="hover:bg-secondary/20 transition-colors">
-                              <td className="px-4 py-3">
-                                <div className="flex flex-col">
-                                  <span className="font-medium text-xs text-foreground">
-                                    {m.user_name || "Usuario registrado"}
-                                  </span>
-                                  {m.user_email && (
-                                    <span className="text-[11px] text-muted-foreground">
-                                      {m.user_email}
+                {/* Barra de Pestañas (Tabs) con scroll horizontal suave */}
+                <div className="flex gap-1.5 mt-4 sm:mt-5 border-b border-border/40 -mb-4 sm:-mb-6 pb-0 overflow-x-auto no-scrollbar scroll-smooth">
+                  <button
+                    onClick={() => setActiveTab("overview")}
+                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap shrink-0 transition-all ${
+                      activeTab === "overview"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Activity className="w-4 h-4 shrink-0" /> Resumen
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab("members")}
+                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap shrink-0 transition-all ${
+                      activeTab === "members"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Users className="w-4 h-4 shrink-0" /> Miembros ({members.length})
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab("skills")}
+                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap shrink-0 transition-all ${
+                      activeTab === "skills"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4 shrink-0" /> Habilidades ({skills.length})
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab("reinforcement")}
+                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap shrink-0 transition-all relative ${
+                      activeTab === "reinforcement"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Target className="w-4 h-4 shrink-0 text-primary" /> Herramientas de Refuerzo
+                    {reinforcementInsights.length > 0 && (
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping absolute top-2 right-1" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Contenido según pestaña activa */}
+              <div className="p-4 sm:p-5 lg:p-6 flex-1 overflow-y-auto space-y-5 sm:space-y-6">
+                {/* ────────────────── PESTAÑA 1: RESUMEN ────────────────── */}
+                {activeTab === "overview" && (
+                  <div className="space-y-5 sm:space-y-6">
+                    {/* Grid de Métricas Principales adaptativo */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-3">
+                      <div className="p-3.5 sm:p-4 rounded-xl border border-border/60 bg-card shadow-sm">
+                        <div className="flex justify-between items-start">
+                          <span className="text-[11px] sm:text-xs font-medium text-muted-foreground">Estado Operativo</span>
+                          <span className={`w-2.5 h-2.5 rounded-full ${selectedCampaign.is_active ? "bg-green-500" : "bg-destructive"}`} />
+                        </div>
+                        <div className="mt-1.5 sm:mt-2 text-base sm:text-lg lg:text-xl font-bold truncate">
+                          {selectedCampaign.is_active ? "En Operación" : "En Pausa"}
+                        </div>
+                        <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1 truncate">
+                          {selectedCampaign.is_active ? "Copiloto respondiendo" : "Tráfico detenido"}
+                        </p>
+                      </div>
+
+                      <div className="p-3.5 sm:p-4 rounded-xl border border-border/60 bg-card shadow-sm">
+                        <div className="flex justify-between items-start">
+                          <span className="text-[11px] sm:text-xs font-medium text-muted-foreground">Equipo Asignado</span>
+                          <Users className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="mt-1.5 sm:mt-2 text-base sm:text-lg lg:text-xl font-bold truncate">{members.length} usuarios</div>
+                        <button
+                          onClick={() => setActiveTab("members")}
+                          className="text-[10px] sm:text-[11px] text-primary hover:underline mt-1 font-medium block truncate"
+                        >
+                          Ver equipo →
+                        </button>
+                      </div>
+
+                      <div className="p-3.5 sm:p-4 rounded-xl border border-border/60 bg-card shadow-sm">
+                        <div className="flex justify-between items-start">
+                          <span className="text-[11px] sm:text-xs font-medium text-muted-foreground">Habilidades Activas</span>
+                          <Sparkles className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="mt-1.5 sm:mt-2 text-base sm:text-lg lg:text-xl font-bold truncate">
+                          {skills.filter(s => s.is_active).length} / {skills.length}
+                        </div>
+                        <button
+                          onClick={() => setActiveTab("skills")}
+                          className="text-[10px] sm:text-[11px] text-primary hover:underline mt-1 font-medium block truncate"
+                        >
+                          Configurar →
+                        </button>
+                      </div>
+
+                      <div className="p-3.5 sm:p-4 rounded-xl border border-border/60 bg-card shadow-sm">
+                        <div className="flex justify-between items-start">
+                          <span className="text-[11px] sm:text-xs font-medium text-muted-foreground">Alertas de Calidad</span>
+                          <Target className="w-4 h-4 text-amber-500" />
+                        </div>
+                        <div className="mt-1.5 sm:mt-2 text-base sm:text-lg lg:text-xl font-bold truncate">
+                          {reinforcementInsights.length} detectadas
+                        </div>
+                        <button
+                          onClick={() => setActiveTab("reinforcement")}
+                          className="text-[10px] sm:text-[11px] text-primary hover:underline mt-1 font-medium block truncate"
+                        >
+                          Ver refuerzo →
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Habilidades en uso en esta campaña */}
+                    <div className="p-5 rounded-2xl border border-border/60 bg-card space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-semibold text-sm flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-primary" /> Protocolos Operativos Asignados
+                        </h3>
+                        <button
+                          onClick={() => setActiveTab("skills")}
+                          className="text-xs font-medium text-primary hover:underline"
+                        >
+                          Gestionar habilidades
+                        </button>
+                      </div>
+                      {skills.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">
+                          Esta campaña no tiene habilidades asignadas. Asigna la plantilla de Ventas o Cobranza para guiar al copiloto.
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {skills.map((s) => (
+                            <div
+                              key={s.id}
+                              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${
+                                s.is_active
+                                  ? "bg-secondary/40 border-border text-foreground"
+                                  : "bg-muted/30 border-dashed border-border/60 text-muted-foreground opacity-60"
+                              }`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${s.is_active ? "bg-green-500" : "bg-muted-foreground"}`} />
+                              {s.skill_name}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Guía Rápida para el Supervisor / Administrador */}
+                    <div className="p-5 rounded-2xl border border-border/60 bg-card space-y-3">
+                      <h3 className="font-semibold text-sm flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-primary" /> Directrices Operativas de la Campaña
+                      </h3>
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 text-xs">
+                        <div className="p-3 rounded-xl bg-secondary/20 border border-border/40">
+                          <span className="font-semibold text-foreground block mb-1">1. Protocolo de Identificación</span>
+                          <p className="text-muted-foreground leading-relaxed">
+                            Todos los agentes asignados deben confirmar el nombre del titular antes de brindar ofertas comerciales o negociar acuerdos.
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-secondary/20 border border-border/40">
+                          <span className="font-semibold text-foreground block mb-1">2. Copiloto en Tiempo Real</span>
+                          <p className="text-muted-foreground leading-relaxed">
+                            El widget de Olivia detectará objeciones y hostilidad durante la llamada sugiriendo la mejor frase en menos de 50ms.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ────────────────── PESTAÑA 2: MIEMBROS ────────────────── */}
+                {activeTab === "members" && (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center gap-4">
+                      <div className="relative flex-1 max-w-sm">
+                        <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={searchMemberQuery}
+                          onChange={(e) => setSearchMemberQuery(e.target.value)}
+                          placeholder="Buscar miembro por nombre, email o rol..."
+                          className="w-full bg-background border border-border rounded-lg pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        />
+                      </div>
+                      {isAdmin && (
+                        <button
+                          onClick={openAddMemberModal}
+                          className="flex items-center gap-1.5 text-xs font-medium text-primary hover:bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" /> Agregar Miembro
+                        </button>
+                      )}
+                    </div>
+
+                    {loadingMembers ? (
+                      <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-muted-foreground" /></div>
+                    ) : (
+                      <div className="bg-card border border-border/60 rounded-xl overflow-hidden shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-secondary/30 text-xs uppercase text-muted-foreground border-b border-border/60">
+                            <tr>
+                              <th className="px-4 py-3 font-medium">Usuario</th>
+                              <th className="px-4 py-3 font-medium">Rol en Campaña</th>
+                              <th className="px-4 py-3 font-medium">Estado</th>
+                              {isAdmin && <th className="px-4 py-3 font-medium text-right">Acciones</th>}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/40">
+                            {filteredMembers.length === 0 ? (
+                              <tr>
+                                <td colSpan={isAdmin ? 4 : 3} className="px-4 py-8 text-center text-muted-foreground text-xs">
+                                  {members.length === 0
+                                    ? "No hay miembros asignados a esta campaña."
+                                    : "No se encontraron miembros con ese criterio de búsqueda."}
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredMembers.map((m) => (
+                                <tr key={m.member_id} className="hover:bg-secondary/20 transition-colors">
+                                  <td className="px-4 py-3">
+                                    <div className="flex flex-col">
+                                      <span className="font-semibold text-xs text-foreground">
+                                        {m.user_name || "Usuario registrado"}
+                                      </span>
+                                      {m.user_email && (
+                                        <span className="text-[11px] text-muted-foreground">
+                                          {m.user_email}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 capitalize">
+                                      {m.campaign_role.replace("_", " ")}
                                     </span>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span className={`text-[11px] font-medium ${m.is_active ? 'text-green-500' : 'text-muted-foreground'}`}>
+                                      {m.is_active ? 'Activo' : 'Inactivo'}
+                                    </span>
+                                  </td>
+                                  {isAdmin && (
+                                    <td className="px-4 py-3 text-right">
+                                      <button
+                                        onClick={() => removeMember(m.user_id)}
+                                        className="text-muted-foreground hover:text-destructive p-1 rounded-md hover:bg-destructive/10 transition-colors"
+                                        title="Quitar miembro"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </td>
+                                  )}
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ────────────────── PESTAÑA 3: HABILIDADES & PROTOCOLOS ────────────────── */}
+                {activeTab === "skills" && (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h3 className="text-sm font-semibold flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-primary" /> Habilidades & Protocolos de Campaña
+                        </h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Plantillas operativas (Ventas, Cobranza, Tipificación) inyectadas directamente al copiloto Olivia.
+                        </p>
+                      </div>
+                      {isAdmin && (
+                        <button
+                          onClick={openAssignSkillModal}
+                          className="flex items-center gap-1.5 text-xs font-medium text-primary hover:bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Asignar Habilidad
+                        </button>
+                      )}
+                    </div>
+
+                    {loadingSkills ? (
+                      <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-muted-foreground" /></div>
+                    ) : skills.length === 0 ? (
+                      <div className="bg-card border border-dashed border-border/60 rounded-xl p-8 text-center">
+                        <Sparkles className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-foreground">Sin habilidades asignadas</p>
+                        <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                          Asigna plantillas de ventas o cobranza para guiar las respuestas del copiloto en esta campaña.
+                        </p>
+                        {isAdmin && (
+                          <button
+                            onClick={openAssignSkillModal}
+                            className="mt-4 text-xs font-medium bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
+                          >
+                            Asignar primera habilidad
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3">
+                        {skills.map((skill) => (
+                          <div
+                            key={skill.id}
+                            className={`p-4 rounded-xl border transition-all ${
+                              skill.is_active ? "border-border/80 bg-card shadow-sm" : "border-border/40 bg-card/40 opacity-70"
+                            }`}
+                          >
+                            <div className="flex justify-between items-start gap-4">
+                              <div className="flex items-start gap-3 flex-1 min-w-0">
+                                <div className="p-2.5 rounded-lg bg-primary/10 text-primary font-semibold text-sm mt-0.5 shrink-0">
+                                  <Sparkles className="w-4 h-4" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-sm font-semibold">{skill.skill_name}</h4>
+                                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                                      skill.is_active ? 'bg-green-500/10 text-green-500' : 'bg-muted text-muted-foreground'
+                                    }`}>
+                                      {skill.is_active ? "Activa" : "Inactiva"}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-0.5">{skill.skill_description}</p>
+                                  {skill.custom_content && (
+                                    <div className="mt-2.5 p-2.5 bg-secondary/30 rounded-lg border border-border/40 text-xs">
+                                      <span className="font-semibold text-foreground/80 block mb-1 text-[11px]">
+                                        Instrucciones específicas configuradas:
+                                      </span>
+                                      <p className="text-muted-foreground whitespace-pre-wrap font-mono text-[11px] line-clamp-3">
+                                        {skill.custom_content}
+                                      </p>
+                                    </div>
                                   )}
                                 </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 capitalize">
-                                  {m.campaign_role.replace("_", " ")}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className={`text-[11px] font-medium ${m.is_active ? 'text-green-500' : 'text-muted-foreground'}`}>
-                                  {m.is_active ? 'Activo' : 'Inactivo'}
-                                </span>
-                              </td>
+                              </div>
+
                               {isAdmin && (
-                                <td className="px-4 py-3 text-right">
+                                <div className="flex items-center gap-1 shrink-0">
                                   <button
-                                    onClick={() => removeMember(m.user_id)}
-                                    className="text-muted-foreground hover:text-destructive p-1 rounded-md hover:bg-destructive/10 transition-colors"
-                                    title="Quitar miembro"
+                                    onClick={() => handleOpenEditSkill(skill)}
+                                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                                    title="Editar personalización"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleToggleSkillActive(skill)}
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                                      skill.is_active
+                                        ? "border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
+                                        : "border-green-500/30 text-green-500 hover:bg-green-500/10"
+                                    }`}
+                                  >
+                                    {skill.is_active ? "Desactivar" : "Activar"}
+                                  </button>
+                                  <button
+                                    onClick={() => handleRemoveSkill(skill.id)}
+                                    className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                    title="Quitar habilidad"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
-      
-                                </td>
-                              )}
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              {/* Seccion Skills de la Campaña */}
-              <div className="pt-6 border-t border-border/40">
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-primary" /> Habilidades & Protocolos de Campaña
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Plantillas y reglas operativas (Ventas, Cobranza, Tipificación, etc.) inyectadas al agente OlivIA.
-                    </p>
-                  </div>
-                  {isAdmin && (
-                    <button
-                      onClick={openAssignSkillModal}
-                      className="flex items-center gap-1.5 text-xs font-medium text-primary hover:bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-md transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Asignar Habilidad
-                    </button>
-                  )}
-                </div>
-
-                {loadingSkills ? (
-                  <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-muted-foreground" /></div>
-                ) : skills.length === 0 ? (
-                  <div className="bg-card border border-dashed border-border/60 rounded-xl p-6 text-center">
-                    <Sparkles className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-                    <p className="text-sm font-medium text-foreground">Sin habilidades asignadas</p>
-                    <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                      Asigna plantillas de cobranza, ventas o atención al cliente para guiar la interacción del copiloto en esta campaña.
-                    </p>
-                    {isAdmin && (
-                      <button
-                        onClick={openAssignSkillModal}
-                        className="mt-3 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 px-3 py-1.5 rounded-lg transition-colors"
-                      >
-                        Asignar primera habilidad
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3">
-                    {skills.map((skill) => (
-                      <div
-                        key={skill.id}
-                        className={`p-4 rounded-xl border transition-all ${
-                          skill.is_active ? "border-border/80 bg-card shadow-sm" : "border-border/40 bg-card/40 opacity-70"
-                        }`}
-                      >
-                        <div className="flex justify-between items-start gap-4">
-                          <div className="flex items-start gap-3">
-                            <div className="p-2.5 rounded-lg bg-primary/10 text-primary font-semibold text-sm mt-0.5">
-                              <Sparkles className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-sm font-semibold">{skill.skill_name}</h4>
-                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                                  skill.is_active ? 'bg-green-500/10 text-green-500' : 'bg-muted text-muted-foreground'
-                                }`}>
-                                  {skill.is_active ? "Activa" : "Inactiva"}
-                                </span>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-0.5">{skill.skill_description}</p>
-                              {skill.custom_content && (
-                                <div className="mt-2.5 p-2.5 bg-secondary/30 rounded-lg border border-border/40 text-xs">
-                                  <span className="font-semibold text-foreground/80 block mb-1 text-[11px]">
-                                    Instrucciones específicas de esta campaña:
-                                  </span>
-                                  <p className="text-muted-foreground whitespace-pre-wrap font-mono text-[11px] line-clamp-3">
-                                    {skill.custom_content}
-                                  </p>
                                 </div>
                               )}
                             </div>
                           </div>
-
-                          {isAdmin && (
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                onClick={() => handleOpenEditSkill(skill)}
-                                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                                title="Editar personalización"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleToggleSkillActive(skill)}
-                                className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors ${
-                                  skill.is_active
-                                    ? "border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
-                                    : "border-green-500/30 text-green-500 hover:bg-green-500/10"
-                                }`}
-                              >
-                                {skill.is_active ? "Desactivar" : "Activar"}
-                              </button>
-                              <button
-                                onClick={() => handleRemoveSkill(skill.id)}
-                                className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                title="Quitar habilidad"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+                  </div>
+                )}
+
+                {activeTab === "reinforcement" && (
+                  <div className="space-y-6">
+  
+                    {/* Bloque 1: Alertas y Brechas de Calidad (Insights de QA) */}
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-500" /> Brechas de Calidad y Necesidades de Refuerzo
+                        </h4>
+                        <span className="text-[10px] text-muted-foreground">
+                          Basado en auditoría de interacciones
+                        </span>
+                      </div>
+
+                      {loadingInsights ? (
+                        <div className="flex justify-center p-6"><RefreshCw className="animate-spin text-muted-foreground w-4 h-4" /></div>
+                      ) : reinforcementInsights.length === 0 ? (
+                        <div className="p-4 rounded-xl border border-green-500/30 bg-green-500/5 flex items-center gap-3">
+                          <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
+                          <div>
+                            <span className="text-xs font-semibold text-green-600 dark:text-green-400 block">
+                              Operación con Excelente Desempeño
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              No se han registrado brechas críticas de calidad ni concentración anómala de errores en esta campaña.
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                          {reinforcementInsights.map((insight) => (
+                            <div
+                              key={insight.id}
+                              className={`p-4 rounded-xl border flex flex-col justify-between ${
+                                insight.level === "high"
+                                  ? "border-destructive/30 bg-destructive/5"
+                                  : insight.level === "medium"
+                                  ? "border-amber-500/30 bg-amber-500/5"
+                                  : "border-blue-500/30 bg-blue-500/5"
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <AlertTriangle className={`w-4 h-4 ${
+                                    insight.level === "high" ? "text-destructive" : insight.level === "medium" ? "text-amber-500" : "text-blue-500"
+                                  }`} />
+                                  <span className="font-semibold text-xs text-foreground">{insight.title}</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mb-2 leading-relaxed">{insight.finding}</p>
+                              </div>
+                              <div className="p-2.5 rounded-lg bg-card/60 border border-border/40 text-[11px]">
+                                <span className="font-bold text-foreground/90 block mb-0.5">Acción de Refuerzo:</span>
+                                <span className="text-muted-foreground">{insight.recommendation}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bloque 2: Dudas y Consultas Críticas de Agentes (Top Queries) */}
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <HelpCircle className="w-3.5 h-3.5 text-primary" /> Consultas Más Recurrentes de Agentes en Llamada
+                        </h4>
+                        <span className="text-[10px] text-muted-foreground">Detectadas por el Asistente Olivia</span>
+                      </div>
+
+                      {loadingTopQueries ? (
+                        <div className="flex justify-center p-6"><RefreshCw className="animate-spin text-muted-foreground w-4 h-4" /></div>
+                      ) : topQueries.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic p-3 border border-dashed rounded-xl text-center">
+                          Aún no se han acumulado suficientes consultas en esta campaña para generar métricas de reiteración.
+                        </p>
+                      ) : (
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                          {topQueries.map((q, idx) => (
+                            <div key={idx} className="p-3 rounded-xl border border-border/60 bg-card flex items-center justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <span className="text-xs font-medium text-foreground block truncate">
+                                  «{q.query_text}»
+                                </span>
+                                <span className="text-[10px] text-muted-foreground capitalize">
+                                  Categoría: {q.category}
+                                </span>
+                              </div>
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-secondary text-primary shrink-0">
+                                {q.count} veces
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-3">
+            <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-3 p-8">
               <div className="w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center border border-border">
                 <Users className="w-8 h-8 opacity-50" />
               </div>
-              <p>Selecciona una campaña para ver sus detalles</p>
+              <p className="text-sm">Selecciona una campaña de la lista lateral para ver sus detalles</p>
             </div>
           )}
         </div>

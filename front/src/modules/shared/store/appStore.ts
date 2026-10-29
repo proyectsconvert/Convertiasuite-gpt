@@ -231,7 +231,7 @@ export const useAppStore = create<AppState>()(
           copilotSuggestion: inCall ? state.copilotSuggestion : null,
         })),
       setCopilotSuggestion: (suggestion) => set({ copilotSuggestion: suggestion }),
-      clearCopilot: () => set({ copilotSuggestion: null, activeInteractionId: null, inCall: false }),
+      clearCopilot: () => set({ copilotSuggestion: null, activeInteractionId: null, inCall: false, oliviaWidgetOpen: false }),
 
       setView: (view) =>
         set({ view }),

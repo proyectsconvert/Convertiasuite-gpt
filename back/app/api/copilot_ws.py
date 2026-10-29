@@ -11,6 +11,7 @@ class CopilotConnectionManager:
 
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self.current_call: Dict[str, Any] = None
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -18,6 +19,14 @@ class CopilotConnectionManager:
         logger.info(
             f"[WebSocket Copilot] Nuevo cliente conectado. Total activos: {len(self.active_connections)}"
         )
+        if self.current_call:
+            try:
+                await websocket.send_json(self.current_call)
+                logger.info(
+                    f"[WebSocket Copilot] Llamada activa sincronizada con nuevo cliente: call_id={self.current_call.get('call_id')}"
+                )
+            except Exception as e:
+                logger.warning(f"[WebSocket Copilot] Error sincronizando llamada activa: {e}")
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
@@ -27,7 +36,12 @@ class CopilotConnectionManager:
             )
 
     async def broadcast(self, message: Dict[str, Any]):
-        """Envía un evento JSON a todos los clientes WebSocket activos."""
+        msg_type = message.get("type")
+        if msg_type == "CALL_STARTED":
+            self.current_call = message
+        elif msg_type == "CALL_ENDED":
+            self.current_call = None
+
         if not self.active_connections:
             logger.info(
                 f"[WebSocket Copilot] Evento '{message.get('type')}' generado pero no hay agentes conectados en WebSocket."

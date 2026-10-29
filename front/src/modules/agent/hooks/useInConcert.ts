@@ -146,6 +146,18 @@ export function useInConcert(): UseInConcertReturn {
 
           if (data.type === "CALL_STARTED") {
             const currentUser = userRef.current;
+            const userRole = (currentUser?.role || "").toLowerCase();
+            const funcRole = (currentUser?.functional_role || "").toLowerCase();
+            const isAgent =
+              userRole === "agent" ||
+              userRole === "agente" ||
+              funcRole.includes("agent") ||
+              funcRole.includes("agente");
+
+            if (!isAgent) {
+              return;
+            }
+
             // Si el webhook trae un agente específico y el usuario tiene sesión, verificar pertenencia
             if (data.agent_username && currentUser?.email) {
               const target = String(data.agent_username).toLowerCase();
@@ -181,6 +193,21 @@ export function useInConcert(): UseInConcertReturn {
             textWindowRef.current = [];
             setTextWindow([]);
             toast.info("Llamada finalizada.");
+          } else if (data.type === "MESSAGE_RECEIVED") {
+            console.info("[inConcert Copilot] Mensaje recibido:", data.message_direction, data.raw_event);
+            // Si es mensaje entrante del cliente, procesarlo como transcripción para sugerencias
+            if (data.message_direction === "inbound" && data.message_text) {
+              void processTranscript(data.message_text, data.call_id);
+            }
+          } else if (data.type === "INTERACTION_UPDATE") {
+            console.info("[inConcert Copilot] Actualización de interacción:", data.update_type);
+            if (data.update_type?.includes("transfer") || data.update_type?.includes("transferida")) {
+              toast.info("Interacción transferida", {
+                description: `La interacción ${data.call_id} fue transferida.`,
+              });
+            }
+          } else if (data.type === "AGENT_SESSION") {
+            console.info("[inConcert Copilot] Evento de sesión de agente:", data.session_action, data.agent_username);
           } else if (data.type === "SUGGESTION" && data.suggestion) {
             setCopilotSuggestion(data.suggestion);
             toast.info("Nueva recomendación de Olivia disponible", {

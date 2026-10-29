@@ -1,10 +1,11 @@
+import asyncio
 import json
 import logging
 import os
 import secrets
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from app.api.copilot_ws import copilot_ws_manager
@@ -29,15 +30,57 @@ def _get_configured_token() -> str:
 WEBHOOK_TOKEN = _get_configured_token()
 
 
-def _is_valid_token(token: str) -> bool:
-    if not WEBHOOK_TOKEN:
+def _extract_token(request: Request, path_token: Optional[str] = None) -> str:
+    auth_header = request.headers.get("Authorization", "").strip()
+    if auth_header.lower().startswith("bearer "):
+        return auth_header[7:].strip()
+    if "X-API-Key" in request.headers:
+        return request.headers["X-API-Key"].strip()
+    if "X-Webhook-Token" in request.headers:
+        return request.headers["X-Webhook-Token"].strip()
+    if path_token:
+        return path_token.strip()
+    if "token" in request.query_params:
+        return request.query_params["token"].strip()
+    return ""
+
+
+async def _is_valid_token(token: str) -> bool:
+    if not token:
+        return False
+    cleaned = token.strip()
+    if WEBHOOK_TOKEN and secrets.compare_digest(cleaned, WEBHOOK_TOKEN):
         return True
-    return secrets.compare_digest(token, WEBHOOK_TOKEN) or token == "token"
+
+    # Validar contra api_keys activas en Supabase
+    try:
+        from app.infra.clients.supabase_client import SupabaseClient
+        supabase = SupabaseClient().admin
+        res = await asyncio.to_thread(
+            lambda: supabase.table("api_keys")
+            .select("id")
+            .eq("api_key", cleaned)
+            .eq("is_active", True)
+            .execute()
+        )
+        if res.data:
+            return True
+    except Exception as e:
+        logger.warning(f"Error verificando api_keys en Supabase: {e}")
+
+    return False
 
 
-async def _handle_inconcert_event(token: str, request: Request):
-    if not _is_valid_token(token):
-        raise HTTPException(status_code=404)
+async def _handle_inconcert_event(request: Request, path_token: Optional[str] = None):
+    token = _extract_token(request, path_token)
+    if not await _is_valid_token(token):
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "No autorizado: Token o API Key de webhook inválido o ausente. "
+                "Envíe la clave en el Header 'Authorization: Bearer <TOKEN>' o 'X-API-Key: <TOKEN>'."
+            ),
+        )
 
     raw = await request.body()
     try:
@@ -73,8 +116,8 @@ async def _handle_inconcert_event(token: str, request: Request):
         or payload.get("type")
         or query_params.get("event")
         or query_params.get("action")
-        or "interactionTaken"
-    ).lower()
+        or "unknown"
+    ).lower().strip()
 
     interaction_info = payload.get("interaction") if isinstance(payload.get("interaction"), dict) else {}
     call_id = (
@@ -129,32 +172,56 @@ async def _handle_inconcert_event(token: str, request: Request):
         or "default"
     )
 
-    is_closing = any(
-        kw in event_raw
-        for kw in (
-            "close",
-            "cancel",
-            "end",
-            "finish",
-            "wrapup",
-            "delete",
-            "hangup",
-            "eliminada",
-            "cerrado",
-            "cancelado",
-            "terminar",
-        )
+    agent_status = (
+        agent_info.get("status")
+        or agent_info.get("state")
+        or payload.get("agentStatus")
+        or payload.get("status")
     )
 
-    if is_closing:
-        ws_event = {
-            "type": "CALL_ENDED",
-            "call_id": call_id,
-            "agent_username": agent_username,
-            "raw_event": event_raw,
-            "timestamp": time.time(),
-        }
-    else:
+    # Eventos de interacción que inician una llamada/chat
+    _CALL_START_EVENTS = {
+        "newinbound", "newoutbound", "nueva entrante", "nueva saliente",
+        "interactiontaken", "interacción tomada", "interaccion tomada",
+        "interactionassigned", "interacción asignada", "interaccion asignada",
+    }
+
+    # Eventos de interacción que finalizan una llamada/chat
+    _CALL_END_EVENTS = {
+        "interactiondeleted", "interacción eliminada", "interaccion eliminada",
+        "statuschangetofinish", "cambiar de estado para terminar",
+        "statuschangetoclosed", "cambiar estado a cerrado",
+        "statuschangetocanceled", "cambiar estado a cancelado",
+        "statuschangetocancelled",
+        "close", "cancel", "end", "finish", "wrapup", "hangup",
+    }
+
+    # Eventos de mensajes en interacciones activas
+    _MESSAGE_EVENTS = {
+        "newinboundmessage", "nuevo mensaje entrante",
+        "newoutboundmessage", "nuevo mensaje saliente",
+        "firstagentmessage", "primer mensaje de agente",
+    }
+
+    # Eventos de cola y transferencia
+    _INTERACTION_UPDATE_EVENTS = {
+        "interactioninqueue", "interacción en cola", "interaccion en cola",
+        "interactiontransferred", "interacción transferida", "interaccion transferida",
+        "statuschangetoreceive", "cambiar estado para recibir",
+        "statuschangetowaiting", "cambiar estado a esperando",
+    }
+
+    # Eventos de sesión de agente
+    _AGENT_SESSION_EVENTS = {
+        "agentlogin", "inicia sesión", "inicia sesion",
+        "agentlogout", "cierra sesión", "cierra sesion",
+        "agentstatuschange", "cambia estado",
+        "agentassignedtocampaign", "asignado a campaña", "asignado a campana",
+        "agentremovedfromcampaign", "removido de campaña", "removido de campana",
+    }
+
+    # Determinar el tipo de evento WebSocket
+    if event_raw in _CALL_START_EVENTS:
         ws_event = {
             "type": "CALL_STARTED",
             "call_id": call_id,
@@ -166,6 +233,70 @@ async def _handle_inconcert_event(token: str, request: Request):
             "timestamp": time.time(),
             "payload": payload,
         }
+    elif event_raw in _CALL_END_EVENTS:
+        ws_event = {
+            "type": "CALL_ENDED",
+            "call_id": call_id,
+            "agent_username": agent_username,
+            "raw_event": event_raw,
+            "timestamp": time.time(),
+        }
+    elif event_raw in _MESSAGE_EVENTS:
+        message_info = payload.get("message") if isinstance(payload.get("message"), dict) else {}
+        ws_event = {
+            "type": "MESSAGE_RECEIVED",
+            "call_id": call_id,
+            "agent_username": agent_username,
+            "message_text": message_info.get("text") or message_info.get("body") or "",
+            "message_direction": "inbound" if "inbound" in event_raw or "entrante" in event_raw else "outbound",
+            "is_first_agent_message": "first" in event_raw or "primer" in event_raw,
+            "raw_event": event_raw,
+            "timestamp": time.time(),
+        }
+    elif event_raw in _INTERACTION_UPDATE_EVENTS:
+        ws_event = {
+            "type": "INTERACTION_UPDATE",
+            "call_id": call_id,
+            "agent_username": agent_username,
+            "update_type": event_raw,
+            "raw_event": event_raw,
+            "timestamp": time.time(),
+        }
+    elif event_raw in _AGENT_SESSION_EVENTS:
+        is_login = any(kw in event_raw for kw in ("login", "inicia"))
+        is_logout = any(kw in event_raw for kw in ("logout", "cierra"))
+        ws_event = {
+            "type": "AGENT_SESSION",
+            "agent_username": agent_username,
+            "agent_status": agent_status,
+            "session_action": "login" if is_login else "logout" if is_logout else "status_change",
+            "campaign_id": campaign_name,
+            "raw_event": event_raw,
+            "timestamp": time.time(),
+        }
+    else:
+        # Fallback: intentar clasificar por keywords para eventos no mapeados
+        is_closing = any(
+            kw in event_raw
+            for kw in ("close", "cancel", "end", "finish", "delete", "hangup", "eliminada", "cerrado", "cancelado", "terminar")
+        )
+        if is_closing:
+            ws_event = {
+                "type": "CALL_ENDED",
+                "call_id": call_id,
+                "agent_username": agent_username,
+                "raw_event": event_raw,
+                "timestamp": time.time(),
+            }
+        else:
+            ws_event = {
+                "type": "WEBHOOK_EVENT",
+                "call_id": call_id,
+                "agent_username": agent_username,
+                "raw_event": event_raw,
+                "timestamp": time.time(),
+                "payload": payload,
+            }
 
     record = {
         "received_at": now_iso,
@@ -195,9 +326,9 @@ async def _handle_inconcert_event(token: str, request: Request):
 
 # --- RUTAS DE CONSULTA Y DEBUG (Definidas PRIMERO para evitar conflictos con {token}) ---
 
-@router.api_route("/inconcert/latest", methods=["GET", "POST"], tags=["webhooks"])
+@router.get("/inconcert/latest", tags=["webhooks"])
 async def get_latest_webhook_payload():
-    """Devuelve el último payload recibido desde inConcert (acepta GET y POST)."""
+    """Devuelve el último payload recibido desde inConcert."""
     if not _recent_payloads:
         return {
             "message": "Aún no se ha recibido ninguna notificación de webhook desde que inició el servidor.",
@@ -207,29 +338,53 @@ async def get_latest_webhook_payload():
     return _recent_payloads[0]
 
 
-@router.api_route("/inconcert/history", methods=["GET", "POST"], tags=["webhooks"])
+@router.get("/inconcert/history", tags=["webhooks"])
 async def get_webhook_history():
-    """Devuelve el historial de los últimos 20 payloads recibidos desde inConcert (acepta GET y POST)."""
+    """Devuelve el historial de los últimos 20 payloads recibidos desde inConcert."""
     return {
         "total_recorded": len(_recent_payloads),
         "history": _recent_payloads,
     }
 
 
-# --- RUTAS DE RECEPCIÓN DE INCONCERT (POST /{token}) ---
+# --- RUTAS PRINCIPALES CON HEADERS (POST /v1/webhooks/inconcert) ---
+
+@router.post("/inconcert", tags=["webhooks"], summary="Recibir webhook de inConcert con cabeceras de autorización")
+async def inconcert_webhook_headers(request: Request):
+    """
+    Recibe eventos de webhook de inConcert autenticados mediante Headers:
+    - Authorization: Bearer <TOKEN>
+    - o X-API-Key: <TOKEN>
+    """
+    return await _handle_inconcert_event(request)
+
+
+@router.get("/inconcert", tags=["webhooks"], summary="Verificar estado de webhook inConcert")
+async def inconcert_webhook_check_headers(request: Request):
+    """Verifica el estado del webhook con autenticación vía Headers."""
+    token = _extract_token(request)
+    if not await _is_valid_token(token):
+        raise HTTPException(
+            status_code=401,
+            detail="Token o API Key de webhook no autorizado o ausente en Headers.",
+        )
+    return {"status": "ok", "message": "Webhook inConcert activo y autenticación válida."}
+
+
+# --- RUTAS DE COMPATIBILIDAD CON TOKEN EN URL ---
 
 @router.post("/inconcert/{token}", include_in_schema=False)
 async def inconcert_webhook_nested(token: str, request: Request):
-    return await _handle_inconcert_event(token, request)
+    return await _handle_inconcert_event(request, path_token=token)
 
 
 @router.post("/{token}", include_in_schema=False)
 async def inconcert_webhook_direct(token: str, request: Request):
-    return await _handle_inconcert_event(token, request)
+    return await _handle_inconcert_event(request, path_token=token)
 
 
 @router.get("/inconcert/{token}", include_in_schema=False)
 async def inconcert_webhook_check(token: str):
-    if not _is_valid_token(token):
-        raise HTTPException(status_code=404)
+    if not await _is_valid_token(token):
+        raise HTTPException(status_code=401, detail="Token no autorizado.")
     return {"status": "ok", "message": "Webhook inConcert activo y listo."}
