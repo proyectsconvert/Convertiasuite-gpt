@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "::",
       port: 8080,
+      allowedHosts: ["olivia.testbot.click"],
       watch: {
         usePolling: true,
         interval: 100,
@@ -38,6 +39,11 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_API_URL || "http://backend:8000",
           changeOrigin: true,
           ws: true,
+          rewrite: (path) => path,
+        },
+        "/sound": {
+          target: env.VITE_API_URL || "http://backend:8000",
+          changeOrigin: true,
           rewrite: (path) => path,
         },
       },
