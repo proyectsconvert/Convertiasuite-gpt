@@ -11,8 +11,8 @@ from app.services.audit.api_audit_service import log_api_request
 
 # Importamos la validación de API Key y las dependencias de Chat
 from app.dependencies.auth import verify_api_key
-from app.api.chat import (
-    process_chat,
+from app.services.chat.chat_service import process_chat
+from app.dependencies.chat_deps import (
     get_llm_provider,
     get_memory_repo,
     get_document_manager,

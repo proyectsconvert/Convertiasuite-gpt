@@ -6,9 +6,8 @@ import secrets
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-
 from fastapi import APIRouter, HTTPException, Request
-from app.api.copilot_ws import copilot_ws_manager
+from app.api.copilot.copilot_ws import copilot_ws_manager
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +51,6 @@ async def _is_valid_token(token: str) -> bool:
     if WEBHOOK_TOKEN and secrets.compare_digest(cleaned, WEBHOOK_TOKEN):
         return True
 
-    # Validar contra api_keys activas en Supabase
     try:
         from app.infra.clients.supabase_client import SupabaseClient
         supabase = SupabaseClient().admin
@@ -275,7 +273,6 @@ async def _handle_inconcert_event(request: Request, path_token: Optional[str] = 
             "timestamp": time.time(),
         }
     else:
-        # Fallback: intentar clasificar por keywords para eventos no mapeados
         is_closing = any(
             kw in event_raw
             for kw in ("close", "cancel", "end", "finish", "delete", "hangup", "eliminada", "cerrado", "cancelado", "terminar")
@@ -347,21 +344,13 @@ async def get_webhook_history():
     }
 
 
-# --- RUTAS PRINCIPALES CON HEADERS (POST /v1/webhooks/inconcert) ---
-
 @router.post("/inconcert", tags=["webhooks"], summary="Recibir webhook de inConcert con cabeceras de autorización")
 async def inconcert_webhook_headers(request: Request):
-    """
-    Recibe eventos de webhook de inConcert autenticados mediante Headers:
-    - Authorization: Bearer <TOKEN>
-    - o X-API-Key: <TOKEN>
-    """
     return await _handle_inconcert_event(request)
 
 
 @router.get("/inconcert", tags=["webhooks"], summary="Verificar estado de webhook inConcert")
 async def inconcert_webhook_check_headers(request: Request):
-    """Verifica el estado del webhook con autenticación vía Headers."""
     token = _extract_token(request)
     if not await _is_valid_token(token):
         raise HTTPException(
@@ -371,7 +360,6 @@ async def inconcert_webhook_check_headers(request: Request):
     return {"status": "ok", "message": "Webhook inConcert activo y autenticación válida."}
 
 
-# --- RUTAS DE COMPATIBILIDAD CON TOKEN EN URL ---
 
 @router.post("/inconcert/{token}", include_in_schema=False)
 async def inconcert_webhook_nested(token: str, request: Request):

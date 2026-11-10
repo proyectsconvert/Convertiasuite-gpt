@@ -7,7 +7,7 @@ from fastapi import HTTPException
 # Add parent dir to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app.api.chat import get_chat_history
+from app.api.chat.sessions import get_chat_history
 
 class TestChatOwnership(unittest.IsolatedAsyncioTestCase):
     async def test_get_chat_history_not_found(self):

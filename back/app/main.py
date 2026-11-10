@@ -27,7 +27,11 @@ from app.infra.repositories.supabase.campaign_repository import SupabaseCampaign
 from app.services.documents.document_processing.document_manager import DocumentManager
 from app.security.rate_limiting import limiter
 from app.infra.clients.ollama_client import OllamaClient
-from app.api import chat, documents
+from app.api.chat import chat, sessions
+from app.api.documents import documents
+from app.api.sound.voice_assistant import voice_assistant
+from app.api.copilot import copilot
+from app.api.external import external, webhook
 
 # ── Módulos migrados ────────────────────────────────────────────────────────
 from app.modules.admin import router as admin_module
@@ -42,6 +46,7 @@ from app.infra.providers.ollama_provider import OllamaProvider
 from app.services.chat.intent_classifier import IntentClassifier
 from app.rag.supabase_rag_repository import SupabaseRagRepository
 from app.rag.embending import warmup_embed_client
+from app.api.sound.calls import call_transcription
 
 logging.basicConfig(
     level=logging.INFO,
@@ -254,7 +259,12 @@ app.add_middleware(
 
 app.include_router(auth_module.router)
 app.include_router(chat.router)
+app.include_router(sessions.router)
 app.include_router(documents.router)
+app.include_router(voice_assistant.router)
+app.include_router(copilot.router)
+app.include_router(external.router)
+app.include_router(webhook.router)
 app.include_router(admin_module.router)
 app.include_router(skills_module.router)
 app.include_router(group_chats_module.router)
@@ -262,13 +272,4 @@ app.include_router(agent_module.router)
 app.include_router(campaigns_module.router)
 app.include_router(campaign_skills_module.router)
 app.include_router(qa_module.router)
-
-from app.api import external
-app.include_router(external.router)
-
-from app.api import copilot
-app.include_router(copilot.router)
-
-
-from app.api import webhook
-app.include_router(webhook.router)
+app.include_router(call_transcription.router)

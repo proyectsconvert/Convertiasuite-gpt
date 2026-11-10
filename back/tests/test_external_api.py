@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.api.external import ExternalChatRequest, external_chat
+from app.api.external.external import ExternalChatRequest, external_chat
 
 
 class TestExternalChat(unittest.IsolatedAsyncioTestCase):

@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 import json
-from app.api.copilot_ws import copilot_ws_manager
+from app.api.copilot.copilot_ws import copilot_ws_manager
 from app.domain.services.suggestion_engine import SuggestionEngine
 
 logger = logging.getLogger("olivia.api.copilot")
@@ -52,7 +52,6 @@ class CopilotTurnResponse(BaseModel):
 
 @router.get("/health")
 async def copilot_health():
-    """Verifica el estado del motor de sugerencias del copiloto."""
     return {
         "status": "healthy",
         "module": "copilot_suggestion_engine",
@@ -112,8 +111,6 @@ async def evaluate_copilot_turn(req: CopilotTurnRequest):
     except Exception as e:
         logger.error(f"Error evaluando turno de copiloto: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error en motor de sugerencias: {str(e)}")
-
-
 
 
 

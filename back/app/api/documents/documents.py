@@ -673,7 +673,6 @@ async def generate_and_add_artifact(
                     "message_id": request.message_id,
                 },
             )
-            # File ID can be used to construct download URL if needed
             logger.info(
                 f"AI file saved: file_id={file_id}, filename={filename}",
                 extra={"session_id": request.session_id},
