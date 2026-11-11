@@ -23,7 +23,7 @@ class DiarizationRefinerService:
             return turns
 
         payload = [
-            {"index": i, "speaker": t.speaker.value, "text": t.text}
+            {"index": i, "text": t.text}
             for i, t in enumerate(turns)
         ]
         payload_str = json.dumps(payload, ensure_ascii=False)

@@ -73,7 +73,7 @@ async def diarize_call_enpoint(
 
         # Si el audio fue mono, refinamos la atribución de hablantes con OlivIA (LLM)
         if result.channel_mode == "mono_clustering" and result.turns:
-            logger.info("Llamando a OlivIA (qwen2.5:7b) para refinar interlocutores...")
+            logger.info("🧠 Llamando a OlivIA (qwen2.5:7b) para refinar interlocutores...")
             refiner = DiarizationRefinerService()
             result.turns = await refiner.refine_turns(result.turns)
 
@@ -85,15 +85,17 @@ async def diarize_call_enpoint(
                 f"[{t.speaker.value.upper()}] ({t.start_time}s - {t.end_time}s): {t.text}"
                 for t in result.turns
             )
-            logger.info("Refinamiento de turnos completado con éxito por OlivIA.")
+            logger.info("✅ Refinamiento de turnos completado con éxito por OlivIA.")
 
         # Guardar en caché el resultado refinado
         await cache_service.save_cached_diarization(audio_bytes, result)
         return result
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         logger.error(f"Error al procesar la diarización: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Error al procesar la diarización del audio de la llamada.",
+            detail=f"Error al procesar la diarización: {type(e).__name__}: {str(e)}",
         )

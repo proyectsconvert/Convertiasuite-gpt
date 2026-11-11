@@ -82,3 +82,50 @@ def transcribe_audio(audio_bytes: bytes) -> str:
                     os.remove(p)
                 except Exception:
                     pass
+
+def transcribe_utterances_with_spk(wav_path: str):
+    model = VoskModelManager.get_model()
+    spk = VoskModelManager.get_spk_model()
+    out = []
+    def _push(res):
+        words = [WordTimestamp(word=w["word"], start=w["start"], end=w["end"],
+                               confidence=w.get("conf", 1.0)) for w in res.get("result", [])]
+        if words:
+            out.append((words, res.get("spk")))
+    with wave.open(wav_path, "rb") as wf:
+        rec = KaldiRecognizer(model, wf.getframerate())
+        rec.SetWords(True)
+        if spk is not None:
+            rec.SetSpkModel(spk)
+        while data := wf.readframes(4000):
+            if rec.AcceptWaveform(data):
+                _push(json.loads(rec.Result()))
+        _push(json.loads(rec.FinalResult()))
+        return out
+
+
+def spk_vectors_for_segments(wav_path: str, segments: list[tuple[float, float]]) -> list:
+    model = VoskModelManager.get_model()
+    spk = VoskModelManager.get_spk_model()
+    if spk is None or not segments:
+        return [None] * len(segments)
+
+    vecs = []
+    try:
+        with wave.open(wav_path, "rb") as wf:
+            sr = wf.getframerate()
+            total_frames = wf.getnframes()
+            for start, end in segments:
+                start_frame = max(0, min(int(start * sr), total_frames - 1))
+                num_frames = max(1, min(int((end - start) * sr), total_frames - start_frame))
+                wf.setpos(start_frame)
+                data = wf.readframes(num_frames)
+                rec = KaldiRecognizer(model, sr)
+                rec.SetSpkModel(spk)
+                rec.AcceptWaveform(data)
+                vecs.append(json.loads(rec.FinalResult()).get("spk"))
+    except Exception as e:
+        logger.warning(f"Error extrayendo spk_vectors: {e}")
+        return [None] * len(segments)
+
+    return vecs
